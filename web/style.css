@@ -21,13 +21,19 @@ body {
   font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   color: #fff;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
   user-select: none;
 }
 
 #stage {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: flex;
   flex-direction: column;
   align-items: center;
