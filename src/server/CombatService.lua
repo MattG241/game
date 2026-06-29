@@ -218,6 +218,34 @@ local function applyLaunch(victim: Player, victimRoot: BasePart, fromRoot: BaseP
 	Debris:AddItem(lv, duration)
 	Debris:AddItem(attachment, duration + 0.05)
 
+	-- Bright launch streak on big hits — the satisfying Smash "send-off".
+	if speed > 110 then
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 1.4, 0)
+		a0.Parent = victimRoot
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -1.4, 0)
+		a1.Parent = victimRoot
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Lifetime = 0.35
+		trail.LightEmission = 1
+		trail.WidthScale = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 220, 90))
+		trail.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.1),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		trail.Parent = victimRoot
+		Debris:AddItem(trail, duration + 0.4)
+		Debris:AddItem(a0, duration + 0.45)
+		Debris:AddItem(a1, duration + 0.45)
+	end
+
 	task.delay(duration + 0.08, function()
 		if humanoid and humanoid.Health > 0 then
 			humanoid.PlatformStand = false

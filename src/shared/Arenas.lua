@@ -34,39 +34,39 @@ export type ArenaDef = {
 Arenas.List = {
 	{
 		id = "classic_pit",
-		name = "Neon Platform",
-		floorColor = Color3.fromRGB(45, 42, 50),
-		accent = Color3.fromRGB(255, 80, 80),
-		floorMaterial = Enum.Material.Concrete,
+		name = "Sunset Rooftop",
+		floorColor = Color3.fromRGB(90, 130, 235), -- bright blue
+		accent = Color3.fromRGB(255, 110, 60), -- orange pop
+		floorMaterial = Enum.Material.SmoothPlastic,
 		size = 90,
 		vipOnly = false,
 		prebuilt = false,
 	},
 	{
 		id = "neon_cyber",
-		name = "Cyber Grid",
-		floorColor = Color3.fromRGB(18, 18, 35),
-		accent = Color3.fromRGB(80, 180, 255),
-		floorMaterial = Enum.Material.Glass,
+		name = "Candy Grid",
+		floorColor = Color3.fromRGB(120, 90, 230), -- purple
+		accent = Color3.fromRGB(80, 230, 255), -- cyan
+		floorMaterial = Enum.Material.SmoothPlastic,
 		size = 100,
 		vipOnly = false,
 		prebuilt = false,
 	},
 	{
 		id = "industrial",
-		name = "Scrapyard",
-		floorColor = Color3.fromRGB(60, 55, 45),
-		accent = Color3.fromRGB(255, 170, 40),
-		floorMaterial = Enum.Material.DiamondPlate,
+		name = "Sky Garden",
+		floorColor = Color3.fromRGB(70, 210, 130), -- green
+		accent = Color3.fromRGB(255, 220, 60), -- yellow
+		floorMaterial = Enum.Material.SmoothPlastic,
 		size = 96,
 		vipOnly = false,
 		prebuilt = false,
 	},
 	{
 		id = "vip_skyline",
-		name = "Skyline (VIP)",
-		floorColor = Color3.fromRGB(25, 10, 40),
-		accent = Color3.fromRGB(220, 40, 255),
+		name = "Rainbow Peak (VIP)",
+		floorColor = Color3.fromRGB(255, 120, 200), -- pink
+		accent = Color3.fromRGB(120, 255, 200), -- mint
 		floorMaterial = Enum.Material.Neon,
 		size = 108,
 		vipOnly = true,
@@ -143,14 +143,45 @@ function Arenas.build(arena: ArenaDef, origin: Vector3, container: Instance): Mo
 	-- A higher centre platform.
 	part("PlatformTop", Vector3.new(s * 0.22, 2, 16), CFrame.new(origin + Vector3.new(0, 40, 0)), arena.floorColor, arena.floorMaterial)
 
-	-- Under-stage glow (decorative).
+	-- Under-stage glow (decorative) with a gentle pulse.
 	local glow = part("UnderGlow", Vector3.new(s * 0.8, 3, 20), CFrame.new(origin - Vector3.new(0, 6, 0)), arena.accent, Enum.Material.Neon, false)
 	glow.Transparency = 0.3
 	local gl = Instance.new("PointLight")
 	gl.Color = arena.accent
-	gl.Brightness = 5
-	gl.Range = 60
+	gl.Brightness = 6
+	gl.Range = 70
 	gl.Parent = glow
+	local TweenService = game:GetService("TweenService")
+	TweenService:Create(gl, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Brightness = 2.5 }):Play()
+
+	-- Floating accent pylons at the platform ends (bright, playful).
+	for i, x in { -s / 2 + 3, s / 2 - 3 } do
+		local pylon = part("Pylon" .. i, Vector3.new(2.5, 14, 2.5), CFrame.new(origin + Vector3.new(x, 9, 0)), arena.accent, Enum.Material.Neon, false)
+		local pl = Instance.new("PointLight")
+		pl.Color = arena.accent
+		pl.Brightness = 4
+		pl.Range = 30
+		pl.Parent = pylon
+	end
+
+	-- Ambient floating sparkle motes above the stage for life/depth.
+	local moteAnchor = part("Motes", Vector3.new(s, 1, 24), CFrame.new(origin + Vector3.new(0, 20, 0)), arena.accent, Enum.Material.Neon, false)
+	moteAnchor.Transparency = 1
+	local motes = Instance.new("ParticleEmitter")
+	motes.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	motes.Color = ColorSequence.new(arena.accent)
+	motes.LightEmission = 1
+	motes.Lifetime = NumberRange.new(3, 5)
+	motes.Rate = 14
+	motes.Speed = NumberRange.new(1, 3)
+	motes.SpreadAngle = Vector2.new(180, 180)
+	motes.Size = NumberSequence.new(0.6)
+	motes.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.3, 0.4),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	motes.Parent = moteAnchor
 
 	-- BLAST ZONES — large non-colliding kill volumes on every side. Get launched
 	-- past one and you're KO'd (handled by the server's KillPlane touch hook).

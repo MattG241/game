@@ -150,15 +150,17 @@ GameConfig.Data = {
 	RetryBackoff = 1, -- exponential (1s, 2s, 4s) — bounds the join hang if misconfigured
 }
 
+-- Bright arcade / Smash-style atmosphere: sunny sky, saturated colors, light haze.
 GameConfig.Atmosphere = {
-	ClockTime = 0,
-	Brightness = 1.5,
-	OutdoorAmbient = Color3.fromRGB(20, 16, 30),
-	Ambient = Color3.fromRGB(35, 25, 50),
-	FogColor = Color3.fromRGB(12, 10, 22),
-	FogEnd = 600,
-	FogStart = 120,
-	NeonAccent = Color3.fromRGB(180, 40, 255),
+	ClockTime = 14, -- bright afternoon
+	Brightness = 2.6,
+	OutdoorAmbient = Color3.fromRGB(150, 160, 180),
+	Ambient = Color3.fromRGB(120, 125, 145),
+	FogColor = Color3.fromRGB(180, 215, 255),
+	FogEnd = 1400,
+	FogStart = 400,
+	-- Vivid accent used for lobby/UI pop.
+	NeonAccent = Color3.fromRGB(255, 90, 220),
 }
 
 return GameConfig

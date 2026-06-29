@@ -44,7 +44,6 @@ local function applyAtmosphere()
 	Lighting.FogEnd = a.FogEnd
 	Lighting.GlobalShadows = true
 
-	-- Post-processing for the gritty neon mood.
 	local function ensure(className: string, name: string)
 		local inst = Lighting:FindFirstChild(name)
 		if not inst then
@@ -55,26 +54,36 @@ local function applyAtmosphere()
 		return inst
 	end
 
+	-- Bright, vivid sky (the default Roblox sky is sunny + cloudy — perfect for
+	-- the arcade look). Punchy sun angle for nice rim light on fighters.
+	local sky = ensure("Sky", "ArenaSky") :: Sky
+	sky.SunAngularSize = 21
+	sky.CelestialBodiesShown = true
+
+	-- Post-processing tuned BRIGHT and saturated (arcade pop, not gritty).
 	local bloom = ensure("BloomEffect", "ArenaBloom") :: BloomEffect
-	bloom.Intensity = 1.2
-	bloom.Size = 24
-	bloom.Threshold = 0.9
+	bloom.Intensity = 0.8
+	bloom.Size = 20
+	bloom.Threshold = 1.4 -- only the brightest highlights bloom
 
 	local cc = ensure("ColorCorrectionEffect", "ArenaColor") :: ColorCorrectionEffect
-	cc.Saturation = 0.15
-	cc.Contrast = 0.12
-	cc.TintColor = Color3.fromRGB(220, 210, 255)
-
-	local blur = ensure("DepthOfFieldEffect", "ArenaDOF") :: DepthOfFieldEffect
-	blur.FarIntensity = 0.1
-	blur.FocusDistance = 30
-	blur.InFocusRadius = 60
+	cc.Saturation = 0.35 -- candy colors
+	cc.Contrast = 0.08
+	cc.Brightness = 0.02
+	cc.TintColor = Color3.fromRGB(255, 252, 245)
 
 	local atmos = ensure("Atmosphere", "ArenaAtmosphere") :: Atmosphere
-	atmos.Density = 0.35
-	atmos.Haze = 1.8
+	atmos.Density = 0.28
+	atmos.Haze = 1.0
 	atmos.Color = a.FogColor
-	atmos.Decay = a.NeonAccent
+	atmos.Decay = Color3.fromRGB(245, 235, 255)
+
+	-- Drifting cartoon clouds for depth.
+	local clouds = workspace.Terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
+	clouds.Cover = 0.55
+	clouds.Density = 0.6
+	clouds.Color = Color3.fromRGB(255, 255, 255)
+	clouds.Parent = workspace.Terrain
 end
 applyAtmosphere()
 
@@ -88,8 +97,8 @@ local function buildLobby()
 	floor.Size = Vector3.new(120, 2, 120)
 	floor.Position = Vector3.new(0, 47, 0)
 	floor.Anchored = true
-	floor.Color = Color3.fromRGB(28, 26, 36)
-	floor.Material = Enum.Material.Concrete
+	floor.Color = Color3.fromRGB(95, 170, 255) -- bright sky-blue arcade floor
+	floor.Material = Enum.Material.SmoothPlastic
 	floor.Parent = lobby
 
 	-- Spawn location.
@@ -128,7 +137,7 @@ local function buildLobby()
 		pillar.Size = Vector3.new(4, 40, 4)
 		pillar.Position = Vector3.new(0, 68, 0) + off
 		pillar.Anchored = true
-		pillar.Color = Color3.fromRGB(40, 20, 60)
+		pillar.Color = ({ Color3.fromRGB(255, 110, 60), Color3.fromRGB(120, 230, 255), Color3.fromRGB(120, 255, 150), Color3.fromRGB(255, 220, 60) })[i]
 		pillar.Material = Enum.Material.Neon
 		pillar.Parent = lobby
 		local l = Instance.new("PointLight")
