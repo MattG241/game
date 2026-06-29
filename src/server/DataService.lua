@@ -22,8 +22,21 @@ local Cosmetics = require(game:GetService("ReplicatedStorage").Shared.Cosmetics)
 local DataService = {}
 
 local cfg = GameConfig.Data
-local store = DataStoreService:GetDataStore(cfg.StoreName)
-local lockStore = DataStoreService:GetDataStore(cfg.SessionLockStore)
+
+-- Acquiring DataStores throws in a place that has never been published to the
+-- web (and GetAsync/SetAsync throw if "Studio Access to API Services" is off).
+-- We pcall here so a missing/locked DataStore can NEVER take down the whole
+-- server boot — the game falls back to a no-save mode and stays fully playable.
+-- Publish the place + enable API Services to turn persistence on.
+local store, lockStore
+local dataStoresOk = pcall(function()
+	store = DataStoreService:GetDataStore(cfg.StoreName)
+	lockStore = DataStoreService:GetDataStore(cfg.SessionLockStore)
+end)
+if not dataStoresOk then
+	warn("[DataService] DataStores unavailable — running in NO-SAVE mode. "
+		.. "Publish this place to the web and enable Studio Access to API Services to persist data.")
+end
 
 -- Per-player loaded profile data, keyed by UserId.
 local profiles: { [number]: any } = {}
@@ -131,6 +144,15 @@ function DataService.load(player: Player): any?
 	local userId = player.UserId
 	local key = "player_" .. userId
 
+	-- No-save mode (unpublished place / API services off): hand out a fresh
+	-- profile that is flagged non-saving so we never try to read/write.
+	if not dataStoresOk then
+		local p = defaultProfile()
+		profiles[userId] = p
+		loaded[userId] = false
+		return p
+	end
+
 	if not acquireLock(userId) then
 		warn("[DataService] could not acquire session lock for " .. player.Name)
 		-- Let them play on a fresh, NON-SAVING profile to avoid data loss.
@@ -185,6 +207,12 @@ end
 -- Save then release the lock and drop from memory.
 function DataService.release(player: Player)
 	local userId = player.UserId
+	if not dataStoresOk then
+		-- No-save mode: nothing to persist or unlock, just drop from memory.
+		profiles[userId] = nil
+		loaded[userId] = nil
+		return
+	end
 	if profiles[userId] then
 		DataService.save(player)
 	end

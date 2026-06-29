@@ -146,8 +146,8 @@ GameConfig.Data = {
 	StoreName = "UAF_PlayerData_v2",
 	AutoSaveInterval = 120,
 	SessionLockStore = "UAF_SessionLock_v2",
-	MaxRetries = 5,
-	RetryBackoff = 2,
+	MaxRetries = 3,
+	RetryBackoff = 1, -- exponential (1s, 2s, 4s) — bounds the join hang if misconfigured
 }
 
 GameConfig.Atmosphere = {
