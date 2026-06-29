@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Golden Century</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="stage">
+      <img id="bg" src="assets/14_background_scene.png" alt="" />
+
+      <header id="topbar">
+        <img id="logo" src="assets/13_game_logo.png" alt="Golden Century" />
+      </header>
+
+      <main id="machine">
+        <div id="reel-area">
+          <img id="crest" src="assets/frame_crest.png" alt="" />
+          <div id="reel-box">
+            <div id="reels" aria-label="reels"></div>
+            <canvas id="lines"></canvas>
+            <div id="feature-banner" class="hidden"></div>
+          </div>
+        </div>
+      </main>
+
+      <footer id="controls">
+        <div class="meters">
+          <div class="meter">
+            <span class="meter-label">BALANCE</span>
+            <span id="balance" class="meter-value">0</span>
+          </div>
+          <div class="meter">
+            <span class="meter-label">WIN</span>
+            <span id="win" class="meter-value">0</span>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <button id="info-btn" class="icon-btn" title="Paytable">
+            <img src="assets/16_info_paytable_button.png" alt="Paytable" />
+          </button>
+          <button id="sound-btn" class="icon-btn" title="Sound">
+            <img src="assets/17_sound_button.png" alt="Sound" />
+          </button>
+
+          <div id="bet-control" title="Adjust bet">
+            <img src="assets/19_bet_adjust_control.png" alt="" />
+            <button id="bet-minus" aria-label="Decrease bet"></button>
+            <span id="bet-value">25.00</span>
+            <button id="bet-plus" aria-label="Increase bet"></button>
+          </div>
+
+          <button id="spin-btn" class="icon-btn spin" title="Spin">
+            <img src="assets/15_spin_button.png" alt="Spin" />
+          </button>
+
+          <button id="auto-btn" class="icon-btn" title="Autoplay">
+            <img src="assets/20_autoplay_button.png" alt="Autoplay" />
+          </button>
+          <button id="settings-btn" class="icon-btn" title="Settings">
+            <img src="assets/18_settings_button.png" alt="Settings" />
+          </button>
+        </div>
+
+        <div id="message">Press SPIN to play</div>
+      </footer>
+    </div>
+
+    <!-- Paytable overlay -->
+    <div id="paytable" class="overlay hidden">
+      <div class="overlay-card">
+        <button class="close-btn" data-close>×</button>
+        <h2>Paytable &amp; Rules</h2>
+        <div id="paytable-body"></div>
+      </div>
+    </div>
+
+    <!-- Settings overlay -->
+    <div id="settings" class="overlay hidden">
+      <div class="overlay-card">
+        <button class="close-btn" data-close>×</button>
+        <h2>Settings</h2>
+        <label class="setting-row">
+          <span>Sound</span>
+          <input type="checkbox" id="set-sound" checked />
+        </label>
+        <label class="setting-row">
+          <span>Fast spin</span>
+          <input type="checkbox" id="set-fast" />
+        </label>
+        <label class="setting-row">
+          <span>Reset balance to 10,000</span>
+          <button id="set-reset" class="text-btn">Reset</button>
+        </label>
+      </div>
+    </div>
+
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
