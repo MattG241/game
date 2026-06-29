@@ -126,7 +126,7 @@ body {
   z-index: 1;
   display: flex;
   gap: 4px;
-  background: linear-gradient(180deg, #20100a, #0c0603);
+  background: linear-gradient(180deg, #0a1838, #050c1f);
   border-radius: 8px;
   overflow: hidden;
   box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.85);
@@ -139,7 +139,7 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 6px;
-  background: linear-gradient(180deg, #20100a, #0f0703);
+  background: linear-gradient(180deg, #15346e 0%, #0c2150 50%, #081634 100%);
   width: var(--cell);
   height: calc(var(--cell) * 3);
 }
@@ -158,22 +158,23 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: var(--tile-radius);
+  /* thin gold hairline separating stacked symbols, like the real cabinet */
+  box-shadow: inset 0 -1px 0 rgba(255, 210, 110, 0.18),
+    inset 0 1px 0 rgba(255, 210, 110, 0.1);
 }
 
-/* symbol tiles */
+/* symbol tiles — real transparent art over royal-blue reel cells */
 .sym {
-  width: 92%;
-  height: 92%;
-  border-radius: var(--tile-radius);
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35),
-    inset 0 2px 6px rgba(255, 255, 255, 0.12);
+  /* subtle vignette so each cell reads as its own panel */
+  background: radial-gradient(ellipse at 50% 42%, rgba(60, 110, 200, 0.28) 0%, rgba(10, 28, 66, 0) 70%);
 }
 .sym .glyph {
   font-size: clamp(20px, 5.2vw, 46px);
@@ -181,34 +182,28 @@ body {
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
 }
 .sym .tag {
-  font-size: clamp(7px, 1.4vw, 11px);
+  position: absolute;
+  bottom: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(6px, 1.3vw, 10px);
   letter-spacing: 1px;
-  margin-top: 4px;
+  padding: 1px 7px;
+  border-radius: 8px;
   text-transform: uppercase;
-  opacity: 0.95;
+  color: #fff8e0;
+  background: rgba(10, 20, 45, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 215, 120, 0.6);
+  z-index: 2;
+  pointer-events: none;
 }
 .sym img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  border-radius: var(--tile-radius);
-}
-
-/* per-symbol palettes */
-.sym.s-nine { background: linear-gradient(160deg, #2f7d4f, #14502f); color: #eafff0; }
-.sym.s-ten { background: linear-gradient(160deg, #b23b3b, #6e1414); color: #ffeaea; }
-.sym.s-j { background: linear-gradient(160deg, #3b6bb2, #16386e); color: #eaf2ff; }
-.sym.s-q { background: linear-gradient(160deg, #8a5cc0, #4a2683); color: #f4eaff; }
-.sym.s-k { background: linear-gradient(160deg, #c9a227, #7a5c0b); color: #fff8e0; }
-.sym.s-warriors { background: linear-gradient(160deg, #c97a3a, #7a3f12); color: #fff1e2; }
-.sym.s-royal_women { background: linear-gradient(160deg, #d65a9a, #7a1450); color: #ffe9f4; }
-.sym.s-emperor { background: radial-gradient(circle at 50% 30%, #3a2206, #160b02); padding: 0; }
-.sym.s-banner { background: radial-gradient(circle at 50% 35%, #ff5a2c, #7a1414); color: #fff; }
-.sym.s-bonus_orb { background: radial-gradient(circle at 50% 35%, #ffb13b, #b8400b); color: #fff; }
-
-.sym.s-banner .glyph,
-.sym.s-bonus_orb .glyph {
-  text-shadow: 0 0 12px rgba(255, 180, 60, 0.9);
+  object-fit: contain;
+  padding: 5%;
+  box-sizing: border-box;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55));
 }
 
 /* winning highlight */
@@ -227,6 +222,7 @@ body {
 .cell.locked .sym {
   box-shadow: 0 0 0 3px #ffd24d, 0 0 18px 4px rgba(255, 150, 40, 0.9);
 }
+.cell.locked .sym .tag { display: none; }
 .orb-value {
   position: absolute;
   bottom: 8%;
@@ -455,7 +451,20 @@ body {
   font-size: 14px;
 }
 #paytable-body th { color: var(--gold); }
-#paytable-body td.sym-name { text-align: left; font-weight: 700; }
+#paytable-body td.sym-name {
+  text-align: left;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#paytable-body .pt-sym {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  flex: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
 #paytable-body h3 { color: var(--gold); margin: 16px 0 6px; }
 #paytable-body p { font-size: 13px; line-height: 1.5; color: #f0e4c8; margin: 4px 0; }
 

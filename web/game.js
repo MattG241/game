@@ -8,16 +8,16 @@ import { REEL_STRIPS, FREE_SPIN_STRIPS, spinGrid } from "../src/reels.js";
  * Symbol presentation
  * ------------------------------------------------------------------ */
 const SYM_VIEW = {
-  emperor: { image: "assets/11_wild_symbol.png" },
-  royal_women: { glyph: "👸", tag: "Royal" },
-  warriors: { glyph: "🗿", tag: "Warriors" },
-  banner: { glyph: "🏮", tag: "Scatter" },
-  bonus_orb: { glyph: "🔥", tag: "Bonus" },
-  k: { glyph: "K" },
-  q: { glyph: "Q" },
-  j: { glyph: "J" },
-  ten: { glyph: "10" },
-  nine: { glyph: "9" },
+  emperor: { image: "assets/sym_emperor.png", tag: "Wild" },
+  royal_women: { image: "assets/sym_royal_women.png" },
+  warriors: { image: "assets/sym_warriors.png" },
+  banner: { image: "assets/sym_banner.png", tag: "Scatter" },
+  bonus_orb: { image: "assets/sym_bonus_orb.png", tag: "Bonus" },
+  k: { image: "assets/sym_k.png" },
+  q: { image: "assets/sym_q.png" },
+  j: { image: "assets/sym_j.png" },
+  ten: { image: "assets/sym_ten.png" },
+  nine: { image: "assets/sym_nine.png" },
 };
 
 const { reels: REELS, rows: ROWS } = GAME_CONFIG;
@@ -124,18 +124,20 @@ function symEl(id) {
     const img = document.createElement("img");
     img.src = view.image;
     img.alt = id;
+    img.loading = "eager";
+    img.draggable = false;
     sym.appendChild(img);
   } else {
     const g = document.createElement("div");
     g.className = "glyph";
     g.textContent = view.glyph;
     sym.appendChild(g);
-    if (view.tag) {
-      const t = document.createElement("div");
-      t.className = "tag";
-      t.textContent = view.tag;
-      sym.appendChild(t);
-    }
+  }
+  if (view.tag) {
+    const t = document.createElement("div");
+    t.className = "tag";
+    t.textContent = view.tag;
+    sym.appendChild(t);
   }
   cellEl.appendChild(sym);
   return cellEl;
@@ -569,9 +571,9 @@ async function spin() {
  * ------------------------------------------------------------------ */
 function buildPaytable() {
   const rows = [
-    ["emperor", "👑 Emperor (Wild)"],
-    ["royal_women", "👸 Royal Women"],
-    ["warriors", "🗿 Terracotta Warriors"],
+    ["emperor", "Emperor (Wild)"],
+    ["royal_women", "Royal Women"],
+    ["warriors", "Terracotta Warriors"],
     ["k", "Crown K"],
     ["q", "Crown Q"],
     ["j", "Jack"],
@@ -581,7 +583,10 @@ function buildPaytable() {
   let html = `<table><thead><tr><th>Symbol</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>`;
   for (const [id, name] of rows) {
     const pays = SYMBOLS_BY_ID[id].pays;
-    html += `<tr><td class="sym-name">${name}</td>` +
+    const thumb = SYM_VIEW[id]?.image
+      ? `<img class="pt-sym" src="${SYM_VIEW[id].image}" alt="" />`
+      : "";
+    html += `<tr><td class="sym-name">${thumb}<span>${name}</span></td>` +
       `<td>${pays[2] ? pays[2] + "×" : "–"}</td>` +
       `<td>${pays[3] ? pays[3] + "×" : "–"}</td>` +
       `<td>${pays[4] ? pays[4] + "×" : "–"}</td>` +
