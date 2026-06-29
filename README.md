@@ -1,9 +1,15 @@
 # Underground Arena Fighters
 
-A production-ready MVP for a competitive 1v1 / 2v2 underground arena fighting
-game on Roblox. Server-authoritative combat, matchmaking, a best-of-3 round
-system, progression, cosmetics, DataStore persistence, and full monetization —
-all written as clean, commented Luau and mapped to Studio via **Rojo**.
+A production-ready MVP for a **Super Smash Bros-style platform fighter** on
+Roblox, with an underground-neon skin. Server-authoritative combat built on a
+**damage-percent + knockback + ring-out** model, **stock** matches, matchmaking,
+progression, cosmetics, DataStore persistence, and full monetization — all
+written as clean, commented Luau and mapped to Studio via **Rojo**.
+
+**How a fight works:** attacks don't drain health — they pile on a **damage %**.
+The higher your %, the farther the next hit launches you. You only get KO'd by
+being knocked off the stage into a **blast zone**, and each KO costs a **stock**
+(life). Last fighter with stocks left wins.
 
 Everything is **playable out of the box**: arenas and the lobby are built
 procedurally and all UI is generated from code, so you don't need to model or
@@ -18,24 +24,25 @@ maps these folders into the Roblox DataModel:
 
 ```
 ReplicatedStorage/Shared/         (src/shared)
-├── GameConfig        — every tunable value (combat, rounds, rewards, IDs)
+├── GameConfig        — every tunable value (combat, stocks, rewards, IDs)
 ├── Remotes           — single registry of all RemoteEvents/Functions
+├── Animations        — animation ID registry + player/cacher + hit-stop freeze
 ├── Progression       — XP curve + reward math (pure functions)
-├── Cosmetics         — skin/outfit catalogue (data-only)
-└── Arenas            — arena defs + procedural arena/spawn builder
+├── Cosmetics         — skin/outfit catalogue (recolor + optional catalog items)
+└── Arenas            — stage defs + procedural stage/blast-zone/spawn builder
 
 ServerScriptService/Server/       (src/server)
-├── init.server       — bootstrap: atmosphere, lobby, service start order
+├── init.server       — bootstrap: atmosphere, gravity, lobby, service order
 ├── DataService       — DataStore wrapper: session locks, retries, autosave
-├── PlayerService     — player lifecycle, leaderstats, profile sync, rewards
-├── CombatService     — SERVER-AUTHORITATIVE combat, hit detection, KO/ragdoll
-├── MatchmakingService— queue, match creation, best-of-3 round loop
+├── PlayerService     — lifecycle, leaderstats, profile sync, rewards, skins
+├── CombatService     — SERVER-AUTHORITATIVE %/knockback/launch, anims, hit-stop
+├── MatchmakingService— queue + stock matches (respawns until stocks run out)
 └── MonetizationService — gamepasses + dev products (ProcessReceipt)
 
 StarterPlayer/StarterPlayerScripts/Client/   (src/client)
 ├── init.client       — bootstrap: starts all controllers
 ├── CombatController  — input → combat requests (PC + mobile via ContextAction)
-├── HUDController     — health/stamina/special/combo/timer/score + toasts
+├── HUDController     — per-fighter %/stock panels, shield/special/combo, timer
 ├── MenuController    — top bar, FIGHT/queue button, shop, inventory, leaderboard
 └── EffectsController — hit sparks, special bursts, sounds, camera shake
 ```
@@ -103,7 +110,8 @@ runtime, and every GUI is generated from code. To upgrade visuals later:
 |---|---|
 | **Hand-built arena** | Model it, set `prebuilt = true` on its entry in `Arenas.lua`, and drop the model under `Workspace/Arenas/<id>`. The builder reuses yours instead of generating one. |
 | **Sound effects** | Put `rbxassetid://…` strings into the `SOUNDS` table in `EffectsController.lua` (`punch`, `finisher`, `special`, `dodge`, `block`). |
-| **Skins** | Add entries to `Cosmetics.List`. Each is data-only (body color, accent, material, unlock rule) and instantly appears in shop + inventory. |
+| **Animations** | Paste `rbxassetid://…` strings into `Animations.Ids` in `Shared/Animations.lua` (`punch1/2/3`, `finisher`, `block`, `dodge`, `special`, `hit`). Grab free ones from the Toolbox or make them in the Animation Editor. Empty = no-op, so combat works without them. |
+| **Skins** | Add entries to `Cosmetics.List`. Recolor-only by default; add optional `shirtId` / `pantsId` / `accessoryIds` (free catalog asset IDs) for detailed skins via HumanoidDescription. Instantly appears in shop + inventory. |
 | **Particles / VFX** | Extend `EffectsController.spawnHitSpark` or add emitters keyed off `CombatFeedback` kinds. |
 | **Music / ambience** | Add a looping `Sound` in `SoundService`; respect `profile.settings.musicEnabled`. |
 
@@ -121,28 +129,36 @@ game.
 | Dodge (roll) | Q | L1 | on-screen DODGE |
 | Special (meter full) | E | R1 | on-screen SPECIAL |
 
-Combos chain up to 4 hits; the 4th is a high-damage finisher with extra
-knockback. Dodging grants brief i-frames. Blocking absorbs 80% damage but drains
-stamina; a fully drained block breaks for a guard-break punish.
+Combos chain up to 4 hits; the 4th is a launching finisher. Higher damage % =
+farther launches, so finishers KO at high %. Dodging grants brief i-frames.
+Shielding absorbs most of a hit's % and knockback but drains stamina; a fully
+drained shield breaks for a big launch punish. **Jump off-stage to recover** —
+gravity is floaty and jumps are high for that platform-fighter feel.
 
 ---
 
 ## 6. Testing checklist
 
-- [ ] Two test clients can queue and a 1v1 match starts on a random arena.
-- [ ] Countdown → FIGHT banner → combat enables only after the countdown.
-- [ ] Punch combo counter climbs 1→4 and the 4th hit launches the opponent.
-- [ ] Blocking reduces damage and drains stamina; guard break works.
-- [ ] Dodge moves you and grants i-frames (hit during dodge deals 0).
+- [ ] Two test clients can queue and a 1v1 match starts on a random stage.
+- [ ] Countdown → "GO!" banner → combat enables only after the countdown.
+- [ ] Punch combo counter climbs 1→4; the 4th hit launches the opponent.
+- [ ] Damage % climbs with hits and the % label recolors white→red.
+- [ ] Launch distance scales with % (a 100%+ fighter goes flying).
+- [ ] Getting knocked into a blast zone = a KO and costs one stock.
+- [ ] Losing a stock respawns you (with brief invuln) until stocks hit 0.
+- [ ] Last fighter/team standing wins; VICTORY/DEFEAT shows; XP + coins awarded.
+- [ ] Match timeout decides by most stocks, then lowest %.
+- [ ] Shielding reduces %/knockback and drains stamina; shield break works.
+- [ ] Dodge moves you and grants i-frames (hit during dodge deals nothing).
 - [ ] Special only fires at a full meter and resets it.
-- [ ] KO (or ring-out via kill plane) ends the round and updates the score.
-- [ ] Best-of-3 resolves; VICTORY/DEFEAT shows; XP + coins awarded.
+- [ ] Stock icons + both fighters' % render correctly in the HUD.
 - [ ] Level-up unlocks level-gated cosmetics automatically.
 - [ ] Buying a coin-priced skin deducts coins, equips, and persists on rejoin.
 - [ ] Leaderstats (Level/Wins/Coins) and the in-game leaderboard update.
 - [ ] Data persists across a rejoin; session lock blocks double-load.
 - [ ] Dev product purchase grants coins via ProcessReceipt (Studio API test).
 - [ ] Mobile buttons appear and drive all four actions.
+- [ ] (Optional) Animation IDs play on punch/finisher/block/dodge/special.
 
 ---
 
@@ -166,10 +182,17 @@ stamina; a fully drained block breaks for a guard-break punish.
 
 ## 8. Balancing
 
-All combat/round/reward numbers live in `GameConfig.lua`. Common knobs:
+All combat/match/reward numbers live in `GameConfig.lua`. Common knobs:
 
-- Faster fights: raise `Combat.PunchDamage` or lower `Round.RoundTime`.
-- More defensive meta: raise `Combat.BlockDamageReduction`,
-  lower `Combat.StaminaRegenPerSecond`.
-- Reward economy: tune `Progression.Rewards` and the XP curve
+- **KO speed**: raise `Combat.KnockbackGrowth` / `BaseKnockback` for earlier
+  KOs, or lower them so fights last longer.
+- **Hit damage**: `Combat.PunchPercent`, `SpecialPercent`,
+  `ComboFinisherMultiplier`.
+- **Match length**: `Match.Stocks`, `Match.MatchTime`.
+- **Feel**: `Combat.Gravity` (lower = floatier), `Combat.JumpPower`,
+  `Combat.WalkSpeed`, `Combat.HitStop` / `HeavyHitStop` (impact freeze).
+- **Defensive meta**: `Combat.BlockKnockbackReduction`,
+  `BlockPercentReduction`, `StaminaRegenPerSecond`.
+- **Reward economy**: `Progression.Rewards` and the XP curve
   (`BaseXP`, `XPGrowth`).
+- **Stage size / blast distance**: per-stage `size` in `Arenas.lua`.

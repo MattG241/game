@@ -32,7 +32,7 @@ local DEFINITIONS = {
 	JoinQueue = "Event",
 	LeaveQueue = "Event",
 	QueueStateChanged = "Event", -- {state, inQueue, queueSize, countdown}
-	MatchStateChanged = "Event", -- {phase, roundNumber, scores, timeLeft, message}
+	MatchStateChanged = "Event", -- {phase, team, timeLeft, message, fighters={{userId,name,team,stocks,percent}}}
 
 	-- Progression / profile
 	ProfileChanged = "Event", -- full profile snapshot to the owning client

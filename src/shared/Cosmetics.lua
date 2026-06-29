@@ -24,6 +24,16 @@ export type Cosmetic = {
 	price: number?,
 	level: number?,
 	rarity: string,
+
+	-- OPTIONAL catalog dressing (free way to make detailed skins without
+	-- modelling). Paste catalog asset IDs (numbers). Applied via
+	-- HumanoidDescription in PlayerService.applyCosmetic; leave nil for a pure
+	-- recolor skin. Example:
+	--   shirtId = 855314844, pantsId = 855316765,
+	--   accessoryIds = { 1374269, 11748356 },  -- hats/masks/helmets
+	shirtId: number?,
+	pantsId: number?,
+	accessoryIds: { number }?,
 }
 
 local Cosmetics = {}

@@ -75,6 +75,38 @@ function PlayerService.applyCosmetic(player: Player)
 		return
 	end
 
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+	-- Optional: apply FREE catalog clothing / accessories via HumanoidDescription.
+	-- Only runs if the cosmetic defines any; invalid IDs fail quietly and we
+	-- fall back to the recolor below. This is how you use catalog items as skins
+	-- without modelling anything yourself.
+	if humanoid and (cosmetic.shirtId or cosmetic.pantsId or (cosmetic.accessoryIds and #cosmetic.accessoryIds > 0)) then
+		local ok, desc = pcall(function()
+			return humanoid:GetAppliedDescription()
+		end)
+		if ok and desc then
+			if cosmetic.shirtId then
+				desc.Shirt = cosmetic.shirtId
+			end
+			if cosmetic.pantsId then
+				desc.Pants = cosmetic.pantsId
+			end
+			if cosmetic.accessoryIds and #cosmetic.accessoryIds > 0 then
+				local ids = {}
+				for _, id in cosmetic.accessoryIds do
+					table.insert(ids, tostring(id))
+				end
+				-- Accessory slots are comma-separated id lists; hats are the
+				-- simplest universal slot for masks/helmets/etc.
+				desc.HatAccessory = table.concat(ids, ",")
+			end
+			pcall(function()
+				humanoid:ApplyDescription(desc)
+			end)
+		end
+	end
+
 	for _, part in character:GetDescendants() do
 		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 			-- Keep the head a touch lighter so faces read.
@@ -222,6 +254,10 @@ local function onCharacterAdded(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	humanoid.MaxHealth = GameConfig.Combat.MaxHealth
 	humanoid.Health = GameConfig.Combat.MaxHealth
+	-- Platform-fighter mobility: floaty + high jumps for off-stage recovery.
+	humanoid.WalkSpeed = GameConfig.Combat.WalkSpeed
+	humanoid.UseJumpPower = true
+	humanoid.JumpPower = GameConfig.Combat.JumpPower
 	-- Defer one frame so all limbs exist before recoloring.
 	task.defer(function()
 		PlayerService.applyCosmetic(player)

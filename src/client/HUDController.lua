@@ -1,16 +1,17 @@
 --!strict
 --[[
-	HUDController
-	-------------
-	Builds and drives the in-match heads-up display entirely from code (no
-	pre-built GUI assets required):
-	  * Player health + stamina + special meter (bottom-left)
-	  * Combo counter (center, pops on hit)
-	  * Round timer + best-of-3 score pips (top-center)
-	  * Phase banner ("FIGHT!", "SUDDEN DEATH!", countdown)
-	  * Toast notifications (rewards, level-ups, purchases)
+	HUDController (Smash-style)
+	---------------------------
+	Builds and drives the in-match HUD entirely from code:
+	  * Per-fighter panels (bottom): name, big DAMAGE % (recolors white->red as it
+	    climbs), and STOCK icons. Your team sits bottom-left, enemies bottom-right.
+	  * Your shield (stamina) + special meter + combo counter.
+	  * Match timer (top-center).
+	  * Phase banner ("GO!", countdown, "KO!", VICTORY/DEFEAT).
+	  * Toast notifications (rewards, level-ups, purchases).
 
-	Driven by StatsChanged / MatchStateChanged / Notify remotes.
+	Driven by StatsChanged (your live %/shield/special) + MatchStateChanged
+	(both fighters' %/stocks) + Notify.
 ]]
 
 local Players = game:GetService("Players")
@@ -19,16 +20,16 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage.Shared
 local Remotes = require(Shared.Remotes)
+local GameConfig = require(Shared.GameConfig)
 
 local HUDController = {}
 local player = Players.LocalPlayer
+local MAX_STOCKS = GameConfig.Match.Stocks
 
 local FONT = Enum.Font.GothamBold
 local NEON = Color3.fromRGB(220, 40, 255)
 
--- Small helpers ------------------------------------------------------------
-
-local function make(class: string, props: { [string]: any }, parent: Instance?): Instance
+local function make(class: string, props: { [string]: any }, parent: Instance?): any
 	local inst = Instance.new(class)
 	for k, v in props do
 		(inst :: any)[k] = v
@@ -39,52 +40,34 @@ local function make(class: string, props: { [string]: any }, parent: Instance?):
 	return inst
 end
 
-local function bar(parent: Instance, name: string, color: Color3, yOffset: number): (Frame, Frame, TextLabel)
-	local holder = make("Frame", {
-		Name = name,
-		Size = UDim2.new(0, 280, 0, 22),
-		Position = UDim2.new(0, 0, 0, yOffset),
-		BackgroundColor3 = Color3.fromRGB(15, 15, 22),
-		BorderSizePixel = 0,
-	}, parent) :: Frame
-	make("UICorner", { CornerRadius = UDim.new(0, 6) }, holder)
-	make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 1.5, Transparency = 0.3 }, holder)
-
-	local fill = make("Frame", {
-		Name = "Fill",
-		Size = UDim2.new(1, 0, 1, 0),
-		BackgroundColor3 = color,
-		BorderSizePixel = 0,
-	}, holder) :: Frame
-	make("UICorner", { CornerRadius = UDim.new(0, 6) }, fill)
-
-	local label = make("TextLabel", {
-		Name = "Label",
-		Size = UDim2.new(1, 0, 1, 0),
-		BackgroundTransparency = 1,
-		Font = FONT,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-		TextStrokeTransparency = 0.4,
-		TextScaled = true,
-		Text = name,
-	}, holder) :: TextLabel
-	make("UIPadding", { PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3) }, label)
-
-	return holder, fill, label
+-- White (0%) -> yellow (60%) -> orange (110%) -> red (160%+).
+local function percentColor(pct: number): Color3
+	if pct <= 60 then
+		return Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(255, 220, 60), pct / 60)
+	elseif pct <= 110 then
+		return Color3.fromRGB(255, 220, 60):Lerp(Color3.fromRGB(255, 130, 30), (pct - 60) / 50)
+	else
+		return Color3.fromRGB(255, 130, 30):Lerp(Color3.fromRGB(255, 50, 50), math.clamp((pct - 110) / 60, 0, 1))
+	end
 end
 
 -- State --------------------------------------------------------------------
 
 local gui: ScreenGui
-local healthFill, staminaFill, specialFill: Frame
-local healthLabel: TextLabel
+local panelsLeft: Frame
+local panelsRight: Frame
+local shieldFill: Frame
+local specialFill: Frame
 local comboLabel: TextLabel
 local timerLabel: TextLabel
-local scoreLabel: TextLabel
 local bannerLabel: TextLabel
 local toastHolder: Frame
 
+-- userId -> { percentLabel, stockHolder }
+local fighterPanels: { [number]: any } = {}
+local builtSignature = ""
 local lastCombo = 0
+local matchActive = false
 
 local function buildHUD()
 	gui = make("ScreenGui", {
@@ -92,27 +75,62 @@ local function buildHUD()
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		IgnoreGuiInset = true,
-	}, player:WaitForChild("PlayerGui")) :: ScreenGui
+	}, player:WaitForChild("PlayerGui"))
 
-	-- Bottom-left resource bars.
-	local barsHolder = make("Frame", {
-		Name = "Bars",
-		Size = UDim2.new(0, 280, 0, 84),
-		Position = UDim2.new(0, 24, 1, -110),
+	-- Fighter panel columns.
+	panelsLeft = make("Frame", {
+		Name = "PanelsLeft",
+		Size = UDim2.new(0, 280, 0, 240),
+		Position = UDim2.new(0, 24, 1, -260),
 		BackgroundTransparency = 1,
-	}, gui) :: Frame
+	}, gui)
+	make("UIListLayout", { Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom }, panelsLeft)
 
-	local _, hFill, hLabel = bar(barsHolder, "Health", Color3.fromRGB(80, 220, 100), 0)
-	local _, sFill = bar(barsHolder, "Stamina", Color3.fromRGB(255, 200, 60), 30)
-	local _, spFill = bar(barsHolder, "Special", NEON, 60)
-	healthFill, staminaFill, specialFill = hFill, sFill, spFill
-	healthLabel = hLabel
+	panelsRight = make("Frame", {
+		Name = "PanelsRight",
+		Size = UDim2.new(0, 280, 0, 240),
+		Position = UDim2.new(1, -304, 1, -260),
+		BackgroundTransparency = 1,
+	}, gui)
+	make("UIListLayout", { Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Bottom, HorizontalAlignment = Enum.HorizontalAlignment.Right }, panelsRight)
 
-	-- Combo counter (center-ish, hidden until a combo exists).
+	-- Your shield + special meters (just above your panel column).
+	local meters = make("Frame", {
+		Name = "Meters",
+		Size = UDim2.new(0, 280, 0, 26),
+		Position = UDim2.new(0, 24, 1, -290),
+		BackgroundTransparency = 1,
+	}, gui)
+	local function meter(name, color, x)
+		local back = make("Frame", {
+			Size = UDim2.new(0, 134, 1, 0),
+			Position = UDim2.new(0, x, 0, 0),
+			BackgroundColor3 = Color3.fromRGB(15, 15, 22),
+			BorderSizePixel = 0,
+		}, meters)
+		make("UICorner", { CornerRadius = UDim.new(0, 6) }, back)
+		local fill = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = color, BorderSizePixel = 0 }, back)
+		make("UICorner", { CornerRadius = UDim.new(0, 6) }, fill)
+		make("TextLabel", {
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Font = FONT,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			TextStrokeTransparency = 0.4,
+			TextScaled = true,
+			Text = name,
+		}, back)
+		make("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4) }, back:FindFirstChildOfClass("TextLabel"))
+		return fill
+	end
+	shieldFill = meter("SHIELD", Color3.fromRGB(255, 200, 60), 0)
+	specialFill = meter("SPECIAL", NEON, 146)
+
+	-- Combo counter.
 	comboLabel = make("TextLabel", {
 		Name = "Combo",
-		Size = UDim2.new(0, 300, 0, 80),
-		Position = UDim2.new(0.5, -150, 0.45, 0),
+		Size = UDim2.new(0, 300, 0, 70),
+		Position = UDim2.new(0.5, -150, 0.5, 40),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = NEON,
@@ -120,46 +138,34 @@ local function buildHUD()
 		TextScaled = true,
 		Text = "",
 		Visible = false,
-	}, gui) :: TextLabel
+	}, gui)
 
-	-- Top-center round timer + score.
+	-- Match timer (top-center).
 	local topHolder = make("Frame", {
-		Name = "RoundInfo",
-		Size = UDim2.new(0, 240, 0, 90),
-		Position = UDim2.new(0.5, -120, 0, 16),
+		Name = "Timer",
+		Size = UDim2.new(0, 150, 0, 60),
+		Position = UDim2.new(0.5, -75, 0, 16),
 		BackgroundColor3 = Color3.fromRGB(15, 15, 22),
 		BackgroundTransparency = 0.25,
 		BorderSizePixel = 0,
-	}, gui) :: Frame
+	}, gui)
 	make("UICorner", { CornerRadius = UDim.new(0, 10) }, topHolder)
 	make("UIStroke", { Color = NEON, Thickness = 1.5, Transparency = 0.4 }, topHolder)
-
 	timerLabel = make("TextLabel", {
-		Name = "Timer",
-		Size = UDim2.new(1, 0, 0, 52),
+		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextScaled = true,
 		Text = "--",
-	}, topHolder) :: TextLabel
-
-	scoreLabel = make("TextLabel", {
-		Name = "Score",
-		Size = UDim2.new(1, 0, 0, 30),
-		Position = UDim2.new(0, 0, 0, 54),
-		BackgroundTransparency = 1,
-		Font = FONT,
-		TextColor3 = Color3.fromRGB(200, 200, 220),
-		TextScaled = true,
-		Text = "Best of 3",
-	}, topHolder) :: TextLabel
+	}, topHolder)
+	make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, timerLabel)
 
 	-- Phase banner.
 	bannerLabel = make("TextLabel", {
 		Name = "Banner",
 		Size = UDim2.new(1, 0, 0, 120),
-		Position = UDim2.new(0, 0, 0.28, 0),
+		Position = UDim2.new(0, 0, 0.26, 0),
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = NEON,
@@ -167,72 +173,142 @@ local function buildHUD()
 		TextScaled = true,
 		Text = "",
 		Visible = false,
-	}, gui) :: TextLabel
+	}, gui)
 
-	-- Toast stack (top-right).
+	-- Toasts (top-right).
 	toastHolder = make("Frame", {
 		Name = "Toasts",
-		Size = UDim2.new(0, 320, 1, -40),
-		Position = UDim2.new(1, -340, 0, 20),
+		Size = UDim2.new(0, 320, 0, 300),
+		Position = UDim2.new(1, -340, 0, 90),
 		BackgroundTransparency = 1,
-	}, gui) :: Frame
-	make("UIListLayout", {
-		Padding = UDim.new(0, 8),
-		HorizontalAlignment = Enum.HorizontalAlignment.Right,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	}, toastHolder)
+	}, gui)
+	make("UIListLayout", { Padding = UDim.new(0, 8), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }, toastHolder)
+end
+
+-- Build one fighter panel into the given column.
+local function makePanel(parent: Frame, info: any, isSelf: boolean)
+	local panel = make("Frame", {
+		Size = UDim2.new(0, isSelf and 280 or 240, 0, isSelf and 110 or 88),
+		BackgroundColor3 = Color3.fromRGB(16, 15, 24),
+		BackgroundTransparency = 0.1,
+		BorderSizePixel = 0,
+		LayoutOrder = isSelf and 0 or 1,
+	}, parent)
+	make("UICorner", { CornerRadius = UDim.new(0, 12) }, panel)
+	make("UIStroke", { Color = isSelf and NEON or Color3.fromRGB(255, 90, 90), Thickness = isSelf and 2 or 1.5 }, panel)
+
+	make("TextLabel", {
+		Size = UDim2.new(1, -16, 0, 22),
+		Position = UDim2.new(0, 10, 0, 6),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextColor3 = Color3.fromRGB(220, 220, 235),
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = info.name,
+	}, panel)
+
+	local percentLabel = make("TextLabel", {
+		Size = UDim2.new(1, -16, 0, isSelf and 54 or 40),
+		Position = UDim2.new(0, 10, 0, 28),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = percentColor(info.percent or 0),
+		TextStrokeTransparency = 0.3,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = ("%d%%"):format(info.percent or 0),
+	}, panel)
+
+	-- Stock icons.
+	local stockHolder = make("Frame", {
+		Size = UDim2.new(1, -16, 0, 14),
+		Position = UDim2.new(0, 10, 1, -20),
+		BackgroundTransparency = 1,
+	}, panel)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, stockHolder)
+
+	local function renderStocks(count: number)
+		for _, c in stockHolder:GetChildren() do
+			if c:IsA("Frame") then
+				c:Destroy()
+			end
+		end
+		for i = 1, MAX_STOCKS do
+			local dot = make("Frame", {
+				Size = UDim2.new(0, 12, 0, 12),
+				BackgroundColor3 = i <= count and (isSelf and NEON or Color3.fromRGB(255, 90, 90)) or Color3.fromRGB(60, 60, 70),
+				BorderSizePixel = 0,
+			}, stockHolder)
+			make("UICorner", { CornerRadius = UDim.new(1, 0) }, dot)
+		end
+	end
+	renderStocks(info.stocks or MAX_STOCKS)
+
+	fighterPanels[info.userId] = {
+		percentLabel = percentLabel,
+		renderStocks = renderStocks,
+	}
+end
+
+local function rebuildPanels(fighterData: { any })
+	fighterPanels = {}
+	for _, c in panelsLeft:GetChildren() do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	for _, c in panelsRight:GetChildren() do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local myTeam
+	for _, info in fighterData do
+		if info.userId == player.UserId then
+			myTeam = info.team
+		end
+	end
+
+	for _, info in fighterData do
+		local isSelf = info.userId == player.UserId
+		local isAlly = info.team == myTeam
+		makePanel(isAlly and panelsLeft or panelsRight, info, isSelf)
+	end
 end
 
 -- Updates ------------------------------------------------------------------
-
-local function tweenSize(frame: Frame, scale: number)
-	scale = math.clamp(scale, 0, 1)
-	TweenService:Create(frame, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
-		Size = UDim2.new(scale, 0, 1, 0),
-	}):Play()
-end
 
 local function onStats(data)
 	if not gui then
 		return
 	end
-	tweenSize(healthFill, data.health / data.maxHealth)
-	tweenSize(staminaFill, data.stamina / data.maxStamina)
-	tweenSize(specialFill, data.special / data.maxSpecial)
-	healthLabel.Text = ("HP  %d"):format(math.ceil(data.health))
+	TweenService:Create(shieldFill, TweenInfo.new(0.15), { Size = UDim2.new(data.stamina / data.maxStamina, 0, 1, 0) }):Play()
+	TweenService:Create(specialFill, TweenInfo.new(0.15), { Size = UDim2.new(data.special / data.maxSpecial, 0, 1, 0) }):Play()
+	specialFill.BackgroundColor3 = data.special >= data.maxSpecial and Color3.fromRGB(255, 255, 255) or NEON
 
-	-- Special bar pulses when full.
-	if data.special >= data.maxSpecial then
-		specialFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	else
-		specialFill.BackgroundColor3 = NEON
+	-- Live self %.
+	local selfPanel = fighterPanels[player.UserId]
+	if selfPanel and data.damage then
+		selfPanel.percentLabel.Text = ("%d%%"):format(math.floor(data.damage))
+		selfPanel.percentLabel.TextColor3 = percentColor(data.damage)
 	end
 
-	-- Combo counter.
+	-- Combo.
 	if data.combo and data.combo > 1 then
 		comboLabel.Visible = true
 		comboLabel.Text = data.combo .. "x COMBO"
 		if data.combo ~= lastCombo then
-			comboLabel.TextSize = 0
-			comboLabel.Size = UDim2.new(0, 360, 0, 96)
-			comboLabel.Position = UDim2.new(0.5, -180, 0.43, 0)
+			comboLabel.Size = UDim2.new(0, 360, 0, 84)
 			TweenService:Create(comboLabel, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, 300, 0, 80),
-				Position = UDim2.new(0.5, -150, 0.45, 0),
+				Size = UDim2.new(0, 300, 0, 70),
 			}):Play()
 		end
 	else
 		comboLabel.Visible = false
 	end
 	lastCombo = data.combo or 0
-end
-
-local function scorePips(scores, team)
-	-- Render "You 1 - 0 Opp" style with the local team first.
-	local you = (team == "B") and scores.B or scores.A
-	local opp = (team == "B") and scores.A or scores.B
-	return ("YOU  %d  -  %d  OPP"):format(you, opp)
 end
 
 local function flashBanner(text: string, color: Color3?)
@@ -255,7 +331,6 @@ local function flashBanner(text: string, color: Color3?)
 	end)
 end
 
-local matchActive = false
 function HUDController.isMatchActive(): boolean
 	return matchActive
 end
@@ -264,32 +339,53 @@ local function onMatch(data)
 	if not gui then
 		return
 	end
+	matchActive = data.phase ~= "ended"
 
-	if data.scores then
-		scoreLabel.Text = scorePips(data.scores, data.team)
+	if data.fighters then
+		-- Only rebuild the panels when the roster actually changes (avoids
+		-- per-tick flicker); otherwise just update %/stocks in place.
+		local sig = ""
+		for _, info in data.fighters do
+			sig ..= info.userId .. ","
+		end
+		if sig ~= builtSignature then
+			rebuildPanels(data.fighters)
+			builtSignature = sig
+		end
+		for _, info in data.fighters do
+			local panel = fighterPanels[info.userId]
+			if panel then
+				panel.renderStocks(info.stocks)
+				panel.percentLabel.Text = ("%d%%"):format(info.percent or 0)
+				panel.percentLabel.TextColor3 = percentColor(info.percent or 0)
+			end
+		end
 	end
+
 	if data.timeLeft then
-		timerLabel.Text = ("%d"):format(data.timeLeft)
+		local m = math.floor(data.timeLeft / 60)
+		local s = data.timeLeft % 60
+		timerLabel.Text = ("%d:%02d"):format(m, s)
 		timerLabel.TextColor3 = data.timeLeft <= 10 and Color3.fromRGB(255, 90, 90) or Color3.fromRGB(255, 255, 255)
 	end
 
 	local phase = data.phase
-	matchActive = phase ~= "ended"
-
 	if phase == "countdown" then
 		flashBanner(data.message or "", Color3.fromRGB(255, 220, 80))
-		timerLabel.Text = data.message or "--"
-	elseif phase == "fight" and data.message == "FIGHT!" then
-		flashBanner("FIGHT!", Color3.fromRGB(80, 255, 120))
-	elseif phase == "suddendeath" and data.message then
-		flashBanner(data.message, Color3.fromRGB(255, 90, 90))
-	elseif phase == "roundover" and data.message then
-		flashBanner(data.message, NEON)
+	elseif phase == "go" then
+		flashBanner("GO!", Color3.fromRGB(80, 255, 120))
+	elseif phase == "ko" and data.message then
+		flashBanner(data.message, Color3.fromRGB(255, 130, 40))
 	elseif phase == "intro" and data.message then
 		flashBanner(data.message, NEON)
 	elseif phase == "ended" then
 		flashBanner(data.message or "", data.message == "VICTORY" and Color3.fromRGB(80, 255, 120) or Color3.fromRGB(255, 90, 90))
 		timerLabel.Text = "--"
+		-- Clear the fighter panels so they don't linger in the lobby.
+		task.delay(3, function()
+			rebuildPanels({})
+			builtSignature = ""
+		end)
 	end
 end
 
@@ -303,7 +399,7 @@ local function showToast(text: string, color: Color3?)
 		BorderSizePixel = 0,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		LayoutOrder = -tick() // 1,
-	}, toastHolder) :: Frame
+	}, toastHolder)
 	make("UICorner", { CornerRadius = UDim.new(0, 8) }, toast)
 	make("UIStroke", { Color = color or NEON, Thickness = 1.5 }, toast)
 	make("UIPadding", {
@@ -318,7 +414,6 @@ local function showToast(text: string, color: Color3?)
 		BackgroundTransparency = 1,
 		Font = FONT,
 		TextColor3 = color or Color3.fromRGB(255, 255, 255),
-		TextScaled = false,
 		TextSize = 18,
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -343,7 +438,6 @@ function HUDController.start()
 		showToast(data.text, data.color)
 	end)
 
-	-- Rebuild on respawn (ResetOnSpawn = false keeps it, but PlayerGui can churn).
 	player.CharacterAdded:Connect(function()
 		if not player.PlayerGui:FindFirstChild("UAF_HUD") then
 			buildHUD()

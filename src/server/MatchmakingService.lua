@@ -1,20 +1,18 @@
 --!strict
 --[[
-	MatchmakingService
-	------------------
-	Owns the queue, match creation, and the best-of-3 round loop.
+	MatchmakingService (Stock matches)
+	----------------------------------
+	Owns the queue + Super Smash-style STOCK matches.
 
 	Flow:
 	  JoinQueue -> queue fills to (TeamSize * 2) -> launch countdown ->
-	  build/assign an arena at a unique world origin -> run rounds ->
-	  award rewards via PlayerService -> return fighters to the lobby.
+	  build a stage at a unique world origin -> spawn fighters -> GO ->
+	  fighters knock each other off the stage; each ring-out costs a STOCK and
+	  respawns the fighter (with invuln) until their stocks run out -> last team
+	  standing (or most stocks / lowest % at timeout) wins -> rewards -> lobby.
 
-	Multiple matches can run at once; each gets its own world-space origin so
-	arenas never overlap. KO attribution comes from CombatService.
-
-	This is a single-place (no TeleportService) implementation so the whole loop
-	is testable in one Studio session. Swapping to reserved servers later only
-	touches `assignArena` / `returnToLobby`.
+	Single-place implementation (no TeleportService) so the whole loop is
+	testable in one Studio session.
 ]]
 
 local Players = game:GetService("Players")
@@ -29,18 +27,14 @@ local CombatService = require(script.Parent.CombatService)
 local PlayerService = require(script.Parent.PlayerService)
 
 local MatchmakingService = {}
-local RoundCfg = GameConfig.Round
+local Match = GameConfig.Match
 local MMCfg = GameConfig.Matchmaking
 
 local LOBBY_POSITION = Vector3.new(0, 50, 0)
 
--- Queue of players waiting for a match.
 local queue: { Player } = {}
--- player -> match it belongs to (so the KO handler can find it).
 local playerMatch: { [Player]: any } = {}
--- Container in Workspace where arenas are built.
 local arenaContainer: Folder
-
 local nextMatchIndex = 0
 
 -- ---------------------------------------------------------------------------
@@ -71,10 +65,9 @@ local function removeFromQueue(player: Player)
 end
 
 -- ---------------------------------------------------------------------------
--- Character placement helpers
+-- Spawning
 -- ---------------------------------------------------------------------------
 
--- Force a fresh character and place it at `cf`. Yields until ready.
 local function spawnFighterAt(player: Player, cf: CFrame)
 	player:LoadCharacter()
 	local character = player.Character or player.CharacterAdded:Wait()
@@ -82,13 +75,11 @@ local function spawnFighterAt(player: Player, cf: CFrame)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if root and humanoid then
 		humanoid.Health = humanoid.MaxHealth
-		root.CFrame = cf + Vector3.new(0, 3, 0)
+		root.CFrame = cf
 		PlayerService.applyCosmetic(player)
 	end
 end
 
--- Return a player to the lobby with a fresh, full-health character.
--- (CharacterAutoLoads is off, so we always respawn explicitly.)
 local function teleportToLobby(player: Player)
 	if not player.Parent then
 		return
@@ -113,10 +104,11 @@ type Match = {
 	model: Model,
 	teamA: { Player },
 	teamB: { Player },
-	scores: { A: number, B: number },
-	roundResolved: boolean,
-	roundWinnerTeam: string?,
+	stocks: { [Player]: number },
 	koCount: { [Player]: number },
+	spawnCF: { [Player]: CFrame },
+	ended: boolean,
+	timeLeft: number,
 }
 
 local function fighters(match: Match): { Player }
@@ -139,32 +131,53 @@ local function teamOf(match: Match, player: Player): string?
 	return nil
 end
 
-local function teamAlive(match: Match, team: string): boolean
-	local list = team == "A" and match.teamA or match.teamB
-	for _, player in list do
-		local character = player.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		if humanoid and humanoid.Health > 0 then
-			return true
-		end
-	end
-	return false
+local function teamList(match: Match, team: string): { Player }
+	return team == "A" and match.teamA or match.teamB
 end
 
-local function broadcastMatch(match: Match, phase: string, timeLeft: number?, message: string?)
+local function teamStocks(match: Match, team: string): number
+	local total = 0
+	for _, p in teamList(match, team) do
+		total += math.max(0, match.stocks[p] or 0)
+	end
+	return total
+end
+
+local function teamFullyEliminated(match: Match, team: string): boolean
+	return teamStocks(match, team) <= 0
+end
+
+local function teamPercent(match: Match, team: string): number
+	local total = 0
+	for _, p in teamList(match, team) do
+		total += CombatService.getDamage(p)
+	end
+	return total
+end
+
+local function broadcastMatch(match: Match, phase: string, message: string?)
+	-- Per-fighter snapshot so the HUD can show both players' % and stock icons.
+	local fighterData = {}
+	for _, p in fighters(match) do
+		table.insert(fighterData, {
+			userId = p.UserId,
+			name = p.DisplayName,
+			team = teamOf(match, p),
+			stocks = math.max(0, match.stocks[p] or 0),
+			percent = math.floor(CombatService.getDamage(p)),
+		})
+	end
 	for _, player in fighters(match) do
 		Remotes.get("MatchStateChanged"):FireClient(player, {
 			phase = phase,
-			roundNumber = match.scores.A + match.scores.B + 1,
-			scores = match.scores,
 			team = teamOf(match, player),
-			timeLeft = timeLeft,
+			timeLeft = match.timeLeft,
 			message = message,
+			fighters = fighterData,
 		})
 	end
 end
 
--- Choose an arena (respecting VIP gating to whoever's present is irrelevant for the map pick — just pick a public one).
 local function pickArena(): Arenas.ArenaDef
 	local public = {}
 	for _, a in Arenas.List do
@@ -175,112 +188,45 @@ local function pickArena(): Arenas.ArenaDef
 	return public[math.random(1, #public)]
 end
 
--- Run a single round. Returns the winning team ("A"/"B") or nil on a draw.
-local function runRound(match: Match, roundNumber: number): string?
-	-- Spawn both fighters at their pads.
-	local sideA, sideB = Arenas.spawnPoints(match.origin, match.arena, MMCfg.TeamSize)
-	for i, player in match.teamA do
-		spawnFighterAt(player, sideA[i] or sideA[1])
+-- Respawn a fighter that still has stocks left (drops in from above).
+local function respawn(match: Match, player: Player)
+	if match.ended or not player.Parent then
+		return
 	end
-	for i, player in match.teamB do
-		spawnFighterAt(player, sideB[i] or sideB[1])
-	end
-
-	match.roundResolved = false
-	match.roundWinnerTeam = nil
-
-	-- Countdown.
-	for n = RoundCfg.StartCountdown, 1, -1 do
-		broadcastMatch(match, "countdown", n, tostring(n))
-		task.wait(1)
-	end
-	broadcastMatch(match, "fight", RoundCfg.RoundTime, "FIGHT!")
-
-	-- Enable combat.
-	for _, player in fighters(match) do
-		CombatService.setInCombat(player, true)
-	end
-
-	-- Round timer loop; resolves early on a KO (set by onKO handler).
-	local timeLeft = RoundCfg.RoundTime
-	local suddenDeath = false
-	while true do
-		task.wait(1)
-		timeLeft -= 1
-
-		if match.roundResolved then
-			break
-		end
-		-- A team being fully down also ends the round (covers fall-off-map).
-		if not teamAlive(match, "A") then
-			match.roundWinnerTeam = "B"
-			break
-		elseif not teamAlive(match, "B") then
-			match.roundWinnerTeam = "A"
-			break
-		end
-
-		if timeLeft <= 0 then
-			if not suddenDeath then
-				suddenDeath = true
-				timeLeft = RoundCfg.SuddenDeathTime
-				broadcastMatch(match, "suddendeath", timeLeft, "SUDDEN DEATH!")
-			else
-				-- Decide by remaining HP.
-				local function teamHealth(team: string): number
-					local list = team == "A" and match.teamA or match.teamB
-					local total = 0
-					for _, player in list do
-						local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-						total += h and h.Health or 0
-					end
-					return total
-				end
-				local hpA, hpB = teamHealth("A"), teamHealth("B")
-				if hpA > hpB then
-					match.roundWinnerTeam = "A"
-				elseif hpB > hpA then
-					match.roundWinnerTeam = "B"
-				else
-					match.roundWinnerTeam = nil -- true draw
-				end
-				break
-			end
-		else
-			broadcastMatch(match, suddenDeath and "suddendeath" or "fight", timeLeft)
-		end
-	end
-
-	-- Disable combat.
-	for _, player in fighters(match) do
-		CombatService.setInCombat(player, false)
-	end
-
-	return match.roundWinnerTeam
+	local cf = match.spawnCF[player] or CFrame.new(match.origin + Vector3.new(0, 6, 0))
+	spawnFighterAt(player, cf + Vector3.new(0, Match.RespawnHeight, 0))
+	CombatService.resetFighter(player, Match.RespawnInvuln)
+	broadcastMatch(match, "respawn")
 end
 
 local function endMatch(match: Match, winnerTeam: string?)
-	-- Tally rewards.
-	local winnersList = winnerTeam == "A" and match.teamA or (winnerTeam == "B" and match.teamB or {})
 	local winnerSet: { [Player]: boolean } = {}
-	for _, p in winnersList do
-		winnerSet[p] = true
+	if winnerTeam then
+		for _, p in teamList(match, winnerTeam) do
+			winnerSet[p] = true
+		end
 	end
 
 	for _, player in fighters(match) do
 		playerMatch[player] = nil
 		CombatService.setInCombat(player, false)
 		local outcome = winnerSet[player] and "win" or "loss"
-		local roundsWon = (teamOf(match, player) == "A") and match.scores.A or match.scores.B
+		local stocksLeft = math.max(0, match.stocks[player] or 0)
 		local kos = match.koCount[player] or 0
-		PlayerService.awardMatch(player, outcome, roundsWon, kos)
+		PlayerService.awardMatch(player, outcome, stocksLeft, kos)
 		PlayerService.syncLevelUnlocks(player)
+	end
 
-		broadcastMatch(match, "ended", nil, winnerSet[player] and "VICTORY" or "DEFEAT")
+	broadcastMatch(match, "ended", winnerTeam and ("Team " .. winnerTeam .. " wins!") or "Draw")
+	for _, player in fighters(match) do
+		Remotes.get("MatchStateChanged"):FireClient(player, {
+			phase = "ended",
+			team = teamOf(match, player),
+			message = winnerSet[player] and "VICTORY" or "DEFEAT",
+		})
 		teleportToLobby(player)
 	end
 
-	-- Tear down the arena after a short beat.
 	task.delay(3, function()
 		if match.model and match.model.Parent then
 			match.model:Destroy()
@@ -288,49 +234,114 @@ local function endMatch(match: Match, winnerTeam: string?)
 	end)
 end
 
-local function runMatch(match: Match)
-	local winsNeeded = math.ceil(RoundCfg.BestOf / 2)
-
-	broadcastMatch(match, "intro", nil, "Match starting on " .. match.arena.name)
-	task.wait(RoundCfg.IntermissionTime)
-
-	while match.scores.A < winsNeeded and match.scores.B < winsNeeded do
-		-- Bail if someone left mid-match.
-		local stillHere = true
-		for _, player in fighters(match) do
-			if not player.Parent then
-				stillHere = false
-			end
-		end
-		if not stillHere then
-			break
-		end
-
-		local roundNumber = match.scores.A + match.scores.B + 1
-		local winner = runRound(match, roundNumber)
-		if winner == "A" then
-			match.scores.A += 1
-		elseif winner == "B" then
-			match.scores.B += 1
-		end
-
-		broadcastMatch(match, "roundover", nil, ("Round %d: %s"):format(roundNumber, winner and ("Team " .. winner .. " wins!") or "Draw"))
-		task.wait(RoundCfg.IntermissionTime)
+-- KO handler (wired into CombatService): a ring-out costs a stock.
+local function onKO(victim: Player, killer: Player?)
+	local match = playerMatch[victim]
+	if not match or match.ended then
+		return
 	end
 
-	local finalWinner = nil
-	if match.scores.A > match.scores.B then
-		finalWinner = "A"
-	elseif match.scores.B > match.scores.A then
-		finalWinner = "B"
+	if killer and killer ~= victim and playerMatch[killer] == match then
+		match.koCount[killer] = (match.koCount[killer] or 0) + 1
 	end
-	endMatch(match, finalWinner)
+
+	match.stocks[victim] = math.max(0, (match.stocks[victim] or 0) - 1)
+	local victimTeam = teamOf(match, victim)
+
+	broadcastMatch(match, "ko", victim.DisplayName .. " was KO'd!")
+
+	if (match.stocks[victim] or 0) > 0 then
+		-- Still has lives — respawn after a short delay.
+		task.delay(Match.RespawnDelay, function()
+			respawn(match, victim)
+		end)
+	else
+		-- Out of stocks. If their whole team is gone, the match is over.
+		CombatService.setInCombat(victim, false)
+		if victimTeam and teamFullyEliminated(match, victimTeam) then
+			match.ended = true
+			local winner = victimTeam == "A" and "B" or "A"
+			task.defer(endMatch, match, winner)
+		else
+			-- Teammate(s) still alive (2v2): park the eliminated player to spectate.
+			task.delay(Match.RespawnDelay, function()
+				if not match.ended and victim.Parent then
+					spawnFighterAt(victim, CFrame.new(match.origin + Vector3.new(0, 90, 0)))
+					local hum = victim.Character and victim.Character:FindFirstChildOfClass("Humanoid")
+					if hum then
+						hum.WalkSpeed = 0
+						hum.JumpPower = 0
+					end
+				end
+			end)
+		end
+	end
 end
 
--- Build the arena + match object and kick off its round loop.
+local function runMatch(match: Match)
+	broadcastMatch(match, "intro", "Stage: " .. match.arena.name)
+	task.wait(Match.IntermissionTime)
+
+	-- Initial spawn on the stage.
+	local sideA, sideB = Arenas.spawnPoints(match.origin, match.arena, MMCfg.TeamSize)
+	for i, player in match.teamA do
+		match.spawnCF[player] = sideA[i] or sideA[1]
+		spawnFighterAt(player, match.spawnCF[player])
+	end
+	for i, player in match.teamB do
+		match.spawnCF[player] = sideB[i] or sideB[1]
+		spawnFighterAt(player, match.spawnCF[player])
+	end
+
+	-- Countdown.
+	for n = Match.StartCountdown, 1, -1 do
+		broadcastMatch(match, "countdown", tostring(n))
+		task.wait(1)
+	end
+	broadcastMatch(match, "go", "GO!")
+
+	for _, player in fighters(match) do
+		CombatService.setInCombat(player, true)
+	end
+
+	-- Match timer; ends early when a team is eliminated (set in onKO).
+	match.timeLeft = Match.MatchTime
+	while not match.ended and match.timeLeft > 0 do
+		task.wait(1)
+		match.timeLeft -= 1
+
+		-- Drop the match if someone left.
+		for _, player in fighters(match) do
+			if not player.Parent then
+				match.ended = true
+			end
+		end
+		if match.ended then
+			break
+		end
+		broadcastMatch(match, "fight")
+	end
+
+	if not match.ended then
+		-- Timeout: decide by stocks, then by lower total %.
+		match.ended = true
+		local sA, sB = teamStocks(match, "A"), teamStocks(match, "B")
+		local winner
+		if sA > sB then
+			winner = "A"
+		elseif sB > sA then
+			winner = "B"
+		else
+			local pA, pB = teamPercent(match, "A"), teamPercent(match, "B")
+			winner = pA < pB and "A" or (pB < pA and "B" or nil)
+		end
+		endMatch(match, winner)
+	end
+end
+
 local function createMatch(teamA: { Player }, teamB: { Player })
 	nextMatchIndex += 1
-	local origin = Vector3.new(1500 * nextMatchIndex, 300, 0)
+	local origin = Vector3.new(1800 * nextMatchIndex, 400, 0)
 	local arena = pickArena()
 	local model = Arenas.build(arena, origin, arenaContainer)
 
@@ -341,16 +352,14 @@ local function createMatch(teamA: { Player }, teamB: { Player })
 		model = model,
 		teamA = teamA,
 		teamB = teamB,
-		scores = { A = 0, B = 0 },
-		roundResolved = false,
-		roundWinnerTeam = nil,
+		stocks = {},
 		koCount = {},
+		spawnCF = {},
+		ended = false,
+		timeLeft = Match.MatchTime,
 	}
-
-	for _, player in teamA do
-		playerMatch[player] = match
-	end
-	for _, player in teamB do
+	for _, player in fighters(match) do
+		match.stocks[player] = Match.Stocks
 		playerMatch[player] = match
 	end
 
@@ -358,7 +367,6 @@ local function createMatch(teamA: { Player }, teamB: { Player })
 		local ok, err = pcall(runMatch, match)
 		if not ok then
 			warn("[Matchmaking] match errored: " .. tostring(err))
-			-- Fail-safe: free everyone.
 			for _, player in fighters(match) do
 				playerMatch[player] = nil
 				CombatService.setInCombat(player, false)
@@ -371,7 +379,6 @@ local function createMatch(teamA: { Player }, teamB: { Player })
 	end)
 end
 
--- Try to form matches from the queue.
 local function tryFormMatches()
 	local needed = MMCfg.TeamSize * 2
 	while #queue >= needed do
@@ -379,15 +386,12 @@ local function tryFormMatches()
 		for _ = 1, needed do
 			table.insert(picked, table.remove(queue, 1))
 		end
-
-		-- Announce launch countdown.
 		for _, player in picked do
 			Remotes.get("QueueStateChanged"):FireClient(player, { inQueue = true, matched = true, countdown = MMCfg.LaunchCountdown })
 		end
 
 		task.spawn(function()
 			task.wait(MMCfg.LaunchCountdown)
-			-- Drop anyone who left during the countdown.
 			local valid = {}
 			for _, player in picked do
 				if player.Parent then
@@ -395,7 +399,6 @@ local function tryFormMatches()
 				end
 			end
 			if #valid < needed then
-				-- Requeue survivors.
 				for _, player in valid do
 					if not inQueue(player) then
 						table.insert(queue, player)
@@ -414,31 +417,6 @@ local function tryFormMatches()
 	end
 	broadcastQueue()
 end
-
--- ---------------------------------------------------------------------------
--- KO handling (wired into CombatService)
--- ---------------------------------------------------------------------------
-
-local function onKO(victim: Player, killer: Player?)
-	local match = playerMatch[victim]
-	if not match then
-		return
-	end
-	if killer and playerMatch[killer] == match then
-		match.koCount[killer] = (match.koCount[killer] or 0) + 1
-	end
-
-	-- In 1v1 a KO immediately resolves the round.
-	local victimTeam = teamOf(match, victim)
-	if victimTeam and not teamAlive(match, victimTeam) then
-		match.roundWinnerTeam = victimTeam == "A" and "B" or "A"
-		match.roundResolved = true
-	end
-end
-
--- ---------------------------------------------------------------------------
--- Public
--- ---------------------------------------------------------------------------
 
 function MatchmakingService.start()
 	arenaContainer = Instance.new("Folder")
@@ -462,7 +440,6 @@ function MatchmakingService.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		removeFromQueue(player)
-		-- If they were mid-match, the round loop's presence check handles cleanup.
 		playerMatch[player] = nil
 	end)
 end

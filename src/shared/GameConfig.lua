@@ -2,113 +2,139 @@
 --[[
 	GameConfig
 	----------
-	Single source of truth for every tunable value in Underground Arena Fighters.
+	Single source of truth for every tunable value in Underground Arena Fighters,
+	a Super Smash Bros-style platform fighter.
+
+	CORE MODEL (read this before tuning combat):
+	  * Attacks DON'T drain health — they add a DAMAGE PERCENT to the victim.
+	  * The higher a fighter's %, the farther they get launched by the next hit.
+	  * You only get KO'd by being launched off the stage into a BLAST ZONE.
+	  * Each fighter has a number of STOCKS (lives); lose them all and you're out.
+
 	Designers should only ever need to touch this file to rebalance the game.
 
 	NOTE: Replace every `0` placeholder in `Monetization` with the real asset IDs
 	from the Roblox Creator Dashboard once your gamepasses / dev products exist.
+	Animation IDs live in Shared/Animations.lua.
 ]]
 
 local GameConfig = {}
 
--- How fast the world feels. Tuned for snappy, skill-based exchanges.
 GameConfig.Combat = {
+	-- "Health" is only the instakill pool a blast zone empties on a ring-out.
+	-- Attacks never touch it; it exists so Humanoid.Died fires on a KO.
 	MaxHealth = 100,
+
+	-- Shield / stamina (drained by shielding, dodging, attacking).
 	MaxStamina = 100,
-	StaminaRegenPerSecond = 14,
-	StaminaRegenDelay = 0.6, -- seconds after spending stamina before regen kicks in
+	StaminaRegenPerSecond = 16,
+	StaminaRegenDelay = 0.5,
 
-	-- Light attacks / combos
-	PunchDamage = 8,
-	PunchStaminaCost = 5,
-	PunchCooldown = 0.32, -- minimum server-enforced time between punches
-	ComboWindow = 1.1, -- chain a punch within this window to grow the combo
-	MaxCombo = 4, -- 4th hit is the finisher
-	ComboFinisherMultiplier = 1.9,
+	-- DAMAGE the attacks deal, expressed as PERCENT added to the victim.
+	PunchPercent = 3.2,
+	-- finisher (4th combo hit) and special multiply off the base punch %.
+	ComboFinisherMultiplier = 2.6, -- finisher % and knockback boost
+	SpecialPercent = 16,
 
-	-- Defense
-	BlockDamageReduction = 0.8, -- 80% damage absorbed while blocking
-	BlockStaminaCostPerSecond = 12, -- holding block drains stamina
-	BlockBreakKnockback = 28,
+	-- Combo chain.
+	PunchStaminaCost = 4,
+	PunchCooldown = 0.3,
+	ComboWindow = 1.1,
+	MaxCombo = 4, -- 4th hit is the launching finisher
 
-	-- Mobility
-	DodgeStaminaCost = 25,
-	DodgeCooldown = 1.25,
-	DodgeDistance = 20,
-	DodgeDuration = 0.28, -- i-frames window
+	-- KNOCKBACK MODEL (Smash-style):
+	--   launchSpeed = (BaseKnockback + victimPercent * KnockbackGrowth) * moveMult
+	-- A fresh (0%) fighter barely moves; a 120% fighter goes flying.
+	BaseKnockback = 18,
+	KnockbackGrowth = 1.15, -- studs/sec of launch added per 1% damage
+	PunchKnockbackMult = 0.9,
+	FinisherKnockbackMult = 2.5,
+	SpecialKnockbackMult = 3.3,
+	LaunchUpRatio = 0.6, -- portion of launch applied upward (pop-ups)
+	MaxLaunchSpeed = 320,
 
-	-- Hit detection (server raycast / spherecast)
-	HitRange = 6.5, -- studs in front of attacker
-	HitRadius = 4.0, -- spherecast radius
+	-- Hit-stop (impact freeze) — makes hits feel weighty / clip-worthy.
+	HitStop = 0.06,
+	HeavyHitStop = 0.13, -- finisher / special
 
-	-- Physics feel
-	KnockbackForce = 36,
-	FinisherKnockbackForce = 70,
+	-- Shield (block).
+	BlockKnockbackReduction = 0.7, -- 70% of knockback absorbed while shielding
+	BlockPercentReduction = 0.6, -- 60% of incoming % absorbed
+	BlockStaminaCostPerSecond = 14,
+	BlockBreakKnockbackMult = 1.4, -- shield break => extra launch
 
-	-- Special meter (builds as you fight, spend on a heavy move)
-	SpecialMeterMax = 100,
-	SpecialMeterGainPerHitLanded = 14,
-	SpecialMeterGainPerHitTaken = 9,
-	SpecialDamage = 34,
-	SpecialStaminaCost = 0,
-	SpecialKnockbackForce = 90,
+	-- Dodge / air-dodge (i-frames).
+	DodgeStaminaCost = 22,
+	DodgeCooldown = 1.0,
+	DodgeDistance = 24,
+	DodgeDuration = 0.32,
+
+	-- Hit detection (server spherecast).
+	HitRange = 7,
+	HitRadius = 4.4,
 	SpecialRange = 9,
 	SpecialRadius = 6,
+
+	-- Special meter (builds as you fight, spend on a big launcher).
+	SpecialMeterMax = 100,
+	SpecialMeterGainPerHitLanded = 12,
+	SpecialMeterGainPerHitTaken = 8,
+
+	-- Platform-fighter mobility (floaty + high jumps for recovery).
+	Gravity = 110,
+	WalkSpeed = 26,
+	JumpPower = 58,
 }
 
--- Round / match flow.
-GameConfig.Round = {
-	BestOf = 3, -- first to ceil(BestOf/2) round wins
-	RoundTime = 90, -- seconds
-	SuddenDeathTime = 30, -- if no KO when timer expires, lowest HP loses; tie => extend
-	IntermissionTime = 4, -- between rounds
-	StartCountdown = 3, -- "3..2..1..FIGHT"
+-- Stock match flow (replaces best-of-3 rounds).
+GameConfig.Match = {
+	Stocks = 3, -- lives per fighter
+	MatchTime = 180, -- seconds; on timeout, most stocks (then lowest %) wins
+	RespawnDelay = 1.2, -- delay after a KO before respawning
+	RespawnInvuln = 2.5, -- i-frames on respawn
+	RespawnHeight = 34, -- studs above the stage to drop in from
+	IntermissionTime = 4,
+	StartCountdown = 3, -- "3..2..1..GO"
 }
 
--- Matchmaking queue behaviour.
 GameConfig.Matchmaking = {
 	QueueTickInterval = 1.5,
-	LaunchCountdown = 5, -- seconds shown to matched players before teleport-in
-	TeamSize = 1, -- 1 = 1v1. Set to 2 for 2v2 (party support handled in service).
+	LaunchCountdown = 5,
+	TeamSize = 1, -- 1 = 1v1. Set to 2 for 2v2.
 	AllowParties = true,
 }
 
--- Player progression curve & rewards.
 GameConfig.Progression = {
-	BaseXP = 100, -- XP needed for level 2
-	XPGrowth = 1.22, -- each level needs this multiple of the previous
+	BaseXP = 100,
+	XPGrowth = 1.22,
 	MaxLevel = 100,
 
 	Rewards = {
 		WinXP = 60,
 		LossXP = 20,
-		PerRoundWonXP = 15,
+		PerRoundWonXP = 15, -- awarded per surviving STOCK
 		PerKOXP = 8,
 
 		WinCoins = 120,
 		LossCoins = 35,
-		PerRoundWonCoins = 20,
+		PerRoundWonCoins = 20, -- per surviving stock
 	},
 }
 
--- Monetization. Fill these IDs in from the Creator Dashboard.
 GameConfig.Monetization = {
 	Gamepasses = {
-		VIP = 0, -- rewards boost + exclusive arena access
-		DoubleRewards = 0, -- 2x XP & coins
-		SkinPack = 0, -- unlocks the premium cosmetic set
+		VIP = 0,
+		DoubleRewards = 0,
+		SkinPack = 0,
 	},
-	-- Gameplay effects of owning a pass:
 	VIPRewardMultiplier = 1.25,
 	DoubleRewardsMultiplier = 2.0,
 
 	Products = {
-		-- Developer Products grant Fight Coins on purchase.
 		Coins500 = 0,
 		Coins1200 = 0,
 		Coins3000 = 0,
 	},
-	-- ProductId -> coin amount. Filled at runtime from the Products table above.
 	ProductCoinGrants = {
 		Coins500 = 500,
 		Coins1200 = 1200,
@@ -118,21 +144,20 @@ GameConfig.Monetization = {
 
 GameConfig.Data = {
 	StoreName = "UAF_PlayerData_v2",
-	AutoSaveInterval = 120, -- seconds
+	AutoSaveInterval = 120,
 	SessionLockStore = "UAF_SessionLock_v2",
 	MaxRetries = 5,
-	RetryBackoff = 2, -- seconds, exponential
+	RetryBackoff = 2,
 }
 
--- Underground neon ambience applied to Lighting on the server boot.
 GameConfig.Atmosphere = {
-	ClockTime = 0, -- midnight
+	ClockTime = 0,
 	Brightness = 1.5,
 	OutdoorAmbient = Color3.fromRGB(20, 16, 30),
 	Ambient = Color3.fromRGB(35, 25, 50),
 	FogColor = Color3.fromRGB(12, 10, 22),
-	FogEnd = 350,
-	FogStart = 60,
+	FogEnd = 600,
+	FogStart = 120,
 	NeonAccent = Color3.fromRGB(180, 40, 255),
 }
 

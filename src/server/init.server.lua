@@ -24,10 +24,13 @@ local Remotes = require(Shared.Remotes)
 -- 1. Remotes first so clients can WaitForChild them.
 Remotes.init()
 
--- Take full control of spawning: the round system loads characters explicitly,
+-- Take full control of spawning: the match system loads characters explicitly,
 -- so Roblox's auto-respawn-on-death must be off or it would yank fighters out
--- of the arena mid-match. PlayerService spawns players into the lobby on join.
+-- of the stage mid-match. PlayerService spawns players into the lobby on join.
 Players.CharacterAutoLoads = false
+
+-- Floaty platform-fighter gravity (Smash-style hang time + recovery).
+workspace.Gravity = GameConfig.Combat.Gravity
 
 -- 2. Atmosphere.
 local function applyAtmosphere()

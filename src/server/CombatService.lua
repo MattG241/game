@@ -1,31 +1,38 @@
 --!strict
 --[[
-	CombatService
-	-------------
-	Fully SERVER-AUTHORITATIVE combat. Clients only ever *request* actions; the
-	server validates cooldowns, stamina, and hit geometry, then applies damage.
-	This means a hacked client can spam requests but cannot deal illegitimate
-	damage, ignore cooldowns, or hit through i-frames.
+	CombatService (Smash-style)
+	---------------------------
+	Fully SERVER-AUTHORITATIVE platform-fighter combat. Clients only ever
+	*request* actions; the server validates cooldowns, stamina, and hit geometry,
+	then applies the result.
 
-	Per-fighter runtime state lives in `state[player]`. It is created lazily and
-	reset on spawn. Stamina + special meter regen on a Heartbeat loop.
+	DAMAGE MODEL:
+	  * Hits add a DAMAGE PERCENT to the victim (they do NOT drain health).
+	  * Knockback scales with the victim's CURRENT percent:
+	        launchSpeed = (BaseKnockback + percent * KnockbackGrowth) * moveMult
+	  * A KO only happens when a launched fighter flies into a blast zone (which
+	    sets their Health to 0 -> Humanoid.Died -> onKO -> MatchmakingService
+	    handles the stock loss).
 
-	Hit detection uses a spherecast-style overlap (GetPartBoundsInRadius) in
-	front of the attacker — cheap and accurate enough for melee.
+	JUICE: every landed hit triggers hit-stop (Animations.freeze) + a server-
+	played attack/reaction animation + a CombatFeedback event for VFX/sound.
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.GameConfig)
 local Remotes = require(Shared.Remotes)
+local Animations = require(Shared.Animations)
 
 local CombatService = {}
 local C = GameConfig.Combat
 
 type FighterState = {
+	damage: number, -- accumulated % (the Smash damage meter)
 	stamina: number,
 	special: number,
 	combo: number,
@@ -40,7 +47,6 @@ type FighterState = {
 
 local state: { [Player]: FighterState } = {}
 
--- KO callback wired up by MatchmakingService so it can score rounds.
 local onKO: ((victim: Player, killer: Player?) -> ())? = nil
 function CombatService.setKOHandler(fn: (Player, Player?) -> ())
 	onKO = fn
@@ -52,6 +58,7 @@ end
 
 local function freshState(): FighterState
 	return {
+		damage = 0,
 		stamina = C.MaxStamina,
 		special = 0,
 		combo = 0,
@@ -74,12 +81,12 @@ local function getState(player: Player): FighterState
 	return s
 end
 
--- MatchmakingService toggles this so combat damage only lands during a match.
+-- Toggle combat for a fighter and (when enabling) reset all combat resources.
 function CombatService.setInCombat(player: Player, value: boolean)
 	local s = getState(player)
 	s.inCombat = value
 	if value then
-		-- Reset combat resources at the start of a round.
+		s.damage = 0
 		s.stamina = C.MaxStamina
 		s.special = 0
 		s.combo = 0
@@ -88,22 +95,38 @@ function CombatService.setInCombat(player: Player, value: boolean)
 	end
 end
 
+-- Reset a fighter on respawn (after losing a stock): fresh %, full shield,
+-- spawn invulnerability, combat re-enabled. Keeps nothing from the last life.
+function CombatService.resetFighter(player: Player, invulnSeconds: number)
+	local s = getState(player)
+	s.damage = 0
+	s.stamina = C.MaxStamina
+	s.special = 0
+	s.combo = 0
+	s.blocking = false
+	s.inCombat = true
+	s.iFrameUntil = now() + (invulnSeconds or 0)
+end
+
+function CombatService.getDamage(player: Player): number
+	local s = state[player]
+	return s and s.damage or 0
+end
+
 local function pushStats(player: Player)
 	local s = state[player]
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not s or not humanoid then
+	if not s then
 		return
 	end
 	Remotes.get("StatsChanged"):FireClient(player, {
-		health = humanoid.Health,
-		maxHealth = humanoid.MaxHealth,
+		damage = s.damage,
 		stamina = s.stamina,
 		maxStamina = C.MaxStamina,
 		special = s.special,
 		maxSpecial = C.SpecialMeterMax,
 		combo = s.combo,
 		blocking = s.blocking,
+		invuln = now() < s.iFrameUntil,
 	})
 end
 
@@ -120,7 +143,6 @@ local function addSpecial(s: FighterState, amount: number)
 	s.special = math.clamp(s.special + amount, 0, C.SpecialMeterMax)
 end
 
--- Get the live character + humanoid + root for a player, if alive.
 local function getRig(player: Player): (Model?, Humanoid?, BasePart?)
 	local character = player.Character
 	if not character then
@@ -134,13 +156,12 @@ local function getRig(player: Player): (Model?, Humanoid?, BasePart?)
 	return character, humanoid, root
 end
 
--- Find enemy fighters within `range`/`radius` in front of the attacker.
+-- Enemy fighters within range/radius in front of the attacker.
 local function findTargets(attacker: Player, range: number, radius: number): { Player }
 	local _, _, root = getRig(attacker)
 	if not root then
 		return {}
 	end
-
 	local origin = root.Position + root.CFrame.LookVector * (range * 0.5)
 	local params = OverlapParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -149,22 +170,17 @@ local function findTargets(attacker: Player, range: number, radius: number): { P
 	local parts = workspace:GetPartBoundsInRadius(origin, radius, params)
 	local seen: { [Player]: boolean } = {}
 	local results: { Player } = {}
-
-	for _, part in parts do
-		local model = part:FindFirstAncestorOfClass("Model")
+	for _, p in parts do
+		local model = p:FindFirstAncestorOfClass("Model")
 		if model then
 			local victim = Players:GetPlayerFromCharacter(model)
 			if victim and victim ~= attacker and not seen[victim] then
-				-- Must be roughly in front of the attacker (within ~120° cone).
 				local _, _, vroot = getRig(victim)
-				if vroot then
-					local toTarget = (vroot.Position - root.Position)
-					if toTarget.Magnitude <= range + radius then
-						local facing = root.CFrame.LookVector:Dot(toTarget.Unit)
-						if facing > -0.2 then
-							seen[victim] = true
-							table.insert(results, victim)
-						end
+				if vroot and (vroot.Position - root.Position).Magnitude <= range + radius then
+					local facing = root.CFrame.LookVector:Dot((vroot.Position - root.Position).Unit)
+					if facing > -0.3 then
+						seen[victim] = true
+						table.insert(results, victim)
 					end
 				end
 			end
@@ -173,99 +189,117 @@ local function findTargets(attacker: Player, range: number, radius: number): { P
 	return results
 end
 
-local function applyKnockback(victimRoot: BasePart, fromRoot: BasePart, force: number, up: number?)
-	local dir = (victimRoot.Position - fromRoot.Position)
+-- Launch a victim away from the attacker at `speed`, with hitstun.
+local function applyLaunch(victim: Player, victimRoot: BasePart, fromRoot: BasePart, speed: number)
+	speed = math.min(speed, C.MaxLaunchSpeed)
+	local dir = victimRoot.Position - fromRoot.Position
 	dir = Vector3.new(dir.X, 0, dir.Z)
 	if dir.Magnitude < 0.1 then
 		dir = fromRoot.CFrame.LookVector
 	end
 	dir = dir.Unit
 
-	-- A short-lived LinearVelocity gives a snappy, network-friendly shove.
+	local up = speed * C.LaunchUpRatio
+	local duration = math.clamp(speed / 400, 0.16, 0.6)
+
+	-- Hitstun: disable the victim's control for the launch.
+	local humanoid = victim.Character and victim.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.PlatformStand = true
+	end
+
 	local attachment = Instance.new("Attachment")
 	attachment.Parent = victimRoot
 	local lv = Instance.new("LinearVelocity")
 	lv.Attachment0 = attachment
 	lv.MaxForce = math.huge
-	lv.VectorVelocity = dir * force + Vector3.new(0, up or 14, 0)
+	lv.VectorVelocity = dir * speed + Vector3.new(0, up, 0)
 	lv.Parent = victimRoot
-	game:GetService("Debris"):AddItem(lv, 0.18)
-	game:GetService("Debris"):AddItem(attachment, 0.2)
+	Debris:AddItem(lv, duration)
+	Debris:AddItem(attachment, duration + 0.05)
+
+	task.delay(duration + 0.08, function()
+		if humanoid and humanoid.Health > 0 then
+			humanoid.PlatformStand = false
+		end
+	end)
 end
 
--- Tag the victim's humanoid with the attacker so Died can attribute the KO.
-local function tagCreator(victimHumanoid: Humanoid, attacker: Player)
-	local existing = victimHumanoid:FindFirstChild("creator")
-	if existing then
-		existing:Destroy()
-	end
-	local attackerHumanoid = attacker.Character and attacker.Character:FindFirstChildOfClass("Humanoid")
-	if not attackerHumanoid then
-		return
-	end
-	local tag = Instance.new("ObjectValue")
-	tag.Name = "creator"
-	tag.Value = attackerHumanoid -- its .Parent is the attacker's character
-	tag.Parent = victimHumanoid
-	game:GetService("Debris"):AddItem(tag, 5)
-end
-
--- Core damage application. Honours blocking + i-frames. Returns damage dealt.
-local function dealDamage(attacker: Player, victim: Player, baseDamage: number, knockback: number, up: number?): number
-	local victimState = getState(victim)
-	if now() < victimState.iFrameUntil then
-		return 0 -- dodged through it
+-- Apply a hit. `percent` is the base damage %, `kbMult` the move's knockback
+-- multiplier. Returns true if it landed.
+local function dealHit(attacker: Player, victim: Player, percent: number, kbMult: number, heavy: boolean): boolean
+	local vs = getState(victim)
+	if now() < vs.iFrameUntil then
+		return false -- dodged / spawn-invuln
 	end
 	local _, _, aRoot = getRig(attacker)
 	local _, vHum, vRoot = getRig(victim)
 	if not aRoot or not vHum or not vRoot then
-		return 0
+		return false
 	end
 
-	tagCreator(vHum, attacker)
-
-	local damage = baseDamage
-	if victimState.blocking and victimState.stamina > 0 then
-		damage *= (1 - C.BlockDamageReduction)
-		-- Blocking a hit chips stamina; a fully drained blocker gets stunned.
-		victimState.stamina = math.max(0, victimState.stamina - baseDamage * 0.6)
-		if victimState.stamina <= 0 then
-			-- Guard break: take the knockback and a bit of bonus damage.
-			damage = baseDamage * 0.5
-			applyKnockback(vRoot, aRoot, C.BlockBreakKnockback, 18)
+	-- Tag for KO attribution (its .Parent is the attacker's character).
+	local attackerHum = attacker.Character and attacker.Character:FindFirstChildOfClass("Humanoid")
+	if attackerHum then
+		local old = vHum:FindFirstChild("creator")
+		if old then
+			old:Destroy()
 		end
-	else
-		applyKnockback(vRoot, aRoot, knockback, up)
+		local tag = Instance.new("ObjectValue")
+		tag.Name = "creator"
+		tag.Value = attackerHum
+		tag.Parent = vHum
+		Debris:AddItem(tag, 6)
 	end
 
-	vHum:TakeDamage(damage)
-	addSpecial(victimState, C.SpecialMeterGainPerHitTaken)
+	-- Shield (block) absorbs % and knockback; a broken shield punishes hard.
+	if vs.blocking and vs.stamina > 0 then
+		percent *= (1 - C.BlockPercentReduction)
+		kbMult *= (1 - C.BlockKnockbackReduction)
+		vs.stamina = math.max(0, vs.stamina - (percent + 6))
+		if vs.stamina <= 0 then
+			vs.blocking = false
+			kbMult = (kbMult / (1 - C.BlockKnockbackReduction)) * C.BlockBreakKnockbackMult
+			percent /= (1 - C.BlockPercentReduction)
+			heavy = true
+		end
+	end
+
+	-- Add damage, then launch scaled by the NEW percent.
+	vs.damage = math.min(vs.damage + percent, 999)
+	local speed = (C.BaseKnockback + vs.damage * C.KnockbackGrowth) * kbMult
+	applyLaunch(victim, vRoot, aRoot, speed)
+	addSpecial(vs, C.SpecialMeterGainPerHitTaken)
+
+	-- Juice: hit-stop on both fighters + reaction animation.
+	local stop = heavy and C.HeavyHitStop or C.HitStop
+	Animations.freeze(attackerHum, stop)
+	Animations.freeze(vHum, stop)
+	if heavy then
+		Animations.play(vHum, "hit", { priority = Enum.AnimationPriority.Action4 })
+	end
 
 	pushStats(victim)
-	return damage
+	return true
 end
 
 -- ---------------------------------------------------------------------------
--- Action handlers (all triggered by client requests, all validated here)
+-- Action handlers (client-requested, server-validated)
 -- ---------------------------------------------------------------------------
 
 local function handlePunch(player: Player)
 	local s = getState(player)
-	if not s.inCombat then
+	if not s.inCombat or s.blocking then
 		return
 	end
 	if now() - s.lastPunchAt < C.PunchCooldown then
-		return -- cooldown (anti-spam)
-	end
-	if s.blocking then
-		return -- can't punch while blocking
+		return
 	end
 	if not spendStamina(s, C.PunchStaminaCost) then
 		return
 	end
 	s.lastPunchAt = now()
 
-	-- Combo accounting.
 	if now() <= s.comboExpireAt then
 		s.combo = math.min(s.combo + 1, C.MaxCombo)
 	else
@@ -274,14 +308,19 @@ local function handlePunch(player: Player)
 	s.comboExpireAt = now() + C.ComboWindow
 
 	local isFinisher = s.combo >= C.MaxCombo
-	local damage = C.PunchDamage * (isFinisher and C.ComboFinisherMultiplier or 1)
-	local knockback = isFinisher and C.FinisherKnockbackForce or C.KnockbackForce
+	local percent = isFinisher and (C.PunchPercent * C.ComboFinisherMultiplier) or C.PunchPercent
+	local kbMult = isFinisher and C.FinisherKnockbackMult or C.PunchKnockbackMult
 
-	local targets = findTargets(player, C.HitRange, C.HitRadius)
+	-- Attack animation (cycles punch1/2/3, or the finisher).
+	local _, aHum = getRig(player)
+	if aHum then
+		local animName = isFinisher and "finisher" or ("punch" .. (((s.combo - 1) % 3) + 1))
+		Animations.play(aHum, animName, { priority = Enum.AnimationPriority.Action })
+	end
+
 	local landed = false
-	for _, victim in targets do
-		local dealt = dealDamage(player, victim, damage, knockback, isFinisher and 22 or nil)
-		if dealt > 0 then
+	for _, victim in findTargets(player, C.HitRange, C.HitRadius) do
+		if dealHit(player, victim, percent, kbMult, isFinisher) then
 			landed = true
 			addSpecial(s, C.SpecialMeterGainPerHitLanded)
 		end
@@ -294,9 +333,8 @@ local function handlePunch(player: Player)
 	end
 
 	if isFinisher then
-		s.combo = 0 -- finisher resets the chain
+		s.combo = 0
 	end
-
 	if landed then
 		pushStats(player)
 	end
@@ -307,7 +345,16 @@ local function handleBlock(player: Player, held: boolean)
 	if not s.inCombat then
 		return
 	end
-	s.blocking = held == true and s.stamina > 0
+	local wantBlock = held == true and s.stamina > 0
+	if wantBlock ~= s.blocking then
+		s.blocking = wantBlock
+		local _, hum = getRig(player)
+		if wantBlock then
+			Animations.play(hum, "block", { looped = true, priority = Enum.AnimationPriority.Action2 })
+		else
+			Animations.stop(hum, "block")
+		end
+	end
 	pushStats(player)
 end
 
@@ -322,7 +369,7 @@ local function handleDodge(player: Player, direction: Vector3)
 	if not spendStamina(s, C.DodgeStaminaCost) then
 		return
 	end
-	local _, _, root = getRig(player)
+	local _, hum, root = getRig(player)
 	if not root then
 		return
 	end
@@ -330,7 +377,6 @@ local function handleDodge(player: Player, direction: Vector3)
 	s.iFrameUntil = now() + C.DodgeDuration
 	s.blocking = false
 
-	-- Sanitize client direction; default to backwards.
 	local dir = direction
 	if typeof(dir) ~= "Vector3" or dir.Magnitude < 0.1 then
 		dir = -root.CFrame.LookVector
@@ -344,48 +390,41 @@ local function handleDodge(player: Player, direction: Vector3)
 	lv.MaxForce = math.huge
 	lv.VectorVelocity = dir * (C.DodgeDistance / C.DodgeDuration)
 	lv.Parent = root
-	game:GetService("Debris"):AddItem(lv, C.DodgeDuration)
-	game:GetService("Debris"):AddItem(attachment, C.DodgeDuration + 0.05)
+	Debris:AddItem(lv, C.DodgeDuration)
+	Debris:AddItem(attachment, C.DodgeDuration + 0.05)
 
-	Remotes.get("CombatFeedback"):FireAllClients({
-		kind = "dodge",
-		attacker = player.UserId,
-	})
+	Animations.play(hum, "dodge", { priority = Enum.AnimationPriority.Action3 })
+	Remotes.get("CombatFeedback"):FireAllClients({ kind = "dodge", attacker = player.UserId })
 	pushStats(player)
 end
 
 local function handleSpecial(player: Player)
 	local s = getState(player)
-	if not s.inCombat then
+	if not s.inCombat or s.blocking then
 		return
 	end
 	if s.special < C.SpecialMeterMax then
-		return -- meter not full
-	end
-	if s.blocking then
 		return
 	end
 	s.special = 0
 
-	local targets = findTargets(player, C.SpecialRange, C.SpecialRadius)
-	for _, victim in targets do
-		dealDamage(player, victim, C.SpecialDamage, C.SpecialKnockbackForce, 34)
+	local _, hum = getRig(player)
+	Animations.play(hum, "special", { priority = Enum.AnimationPriority.Action4 })
+
+	for _, victim in findTargets(player, C.SpecialRange, C.SpecialRadius) do
+		dealHit(player, victim, C.SpecialPercent, C.SpecialKnockbackMult, true)
 		Remotes.get("CombatFeedback"):FireAllClients({
 			kind = "special",
 			attacker = player.UserId,
 			victim = victim.UserId,
 		})
 	end
-	-- Always show the special burst even on a whiff.
-	Remotes.get("CombatFeedback"):FireAllClients({
-		kind = "special_cast",
-		attacker = player.UserId,
-	})
+	Remotes.get("CombatFeedback"):FireAllClients({ kind = "special_cast", attacker = player.UserId })
 	pushStats(player)
 end
 
 -- ---------------------------------------------------------------------------
--- Regen + ragdoll-on-KO
+-- Ragdoll on KO (ring-out)
 -- ---------------------------------------------------------------------------
 
 local function ragdoll(character: Model)
@@ -422,9 +461,11 @@ local function onCharacterAdded(player: Player, character: Model)
 		end
 		ragdoll(character)
 		if onKO then
-			-- killer attribution is best-effort via the creator tag.
 			local creator = humanoid:FindFirstChild("creator") :: ObjectValue?
-			local killer = creator and creator.Value and Players:GetPlayerFromCharacter((creator.Value :: Instance).Parent)
+			local killer = nil
+			if creator and creator.Value then
+				killer = Players:GetPlayerFromCharacter((creator.Value :: Instance).Parent)
+			end
 			onKO(player, killer)
 		end
 	end)
@@ -453,35 +494,29 @@ function CombatService.start()
 			onCharacterAdded(player, character)
 		end)
 	end
-
 	Players.PlayerRemoving:Connect(function(player)
 		state[player] = nil
 	end)
 
-	-- Stamina / special regen + stat replication tick.
+	-- Regen + stat replication tick.
 	local accum = 0
 	RunService.Heartbeat:Connect(function(dt)
-		for player, s in state do
+		for _, s in state do
 			if s.inCombat then
-				-- Stamina regen (after a short delay since last spend).
-				if now() - s.lastStaminaSpendAt >= C.StaminaRegenDelay then
+				if now() - s.lastStaminaSpendAt >= C.StaminaRegenDelay and not s.blocking then
 					s.stamina = math.min(C.MaxStamina, s.stamina + C.StaminaRegenPerSecond * dt)
 				end
-				-- Blocking drains stamina continuously.
 				if s.blocking then
 					s.stamina = math.max(0, s.stamina - C.BlockStaminaCostPerSecond * dt)
 					if s.stamina <= 0 then
 						s.blocking = false
 					end
 				end
-				-- Expire combo windows.
 				if s.combo > 0 and now() > s.comboExpireAt then
 					s.combo = 0
 				end
 			end
 		end
-
-		-- Replicate stats at ~10Hz to keep HUD smooth without spamming.
 		accum += dt
 		if accum >= 0.1 then
 			accum = 0
