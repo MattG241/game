@@ -8,6 +8,10 @@
 
 config_version=5
 
+[admob]
+
+general/android/app_id="ca-app-pub-1837596758312011~9171190618"
+
 [application]
 
 config/name="Lunar Cleanup"

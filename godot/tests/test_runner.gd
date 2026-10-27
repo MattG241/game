@@ -297,6 +297,9 @@ func _test_ads() -> void:
 	print("[ads and remove-ads purchase]")
 	check(not Ads.available and not IAP.available, "no ad or billing SDK off-device (game still runs)")
 	check(not Ads.rewarded_ready(), "no rewarded offer without an ad SDK")
+	check(Ads._unit("rewarded").begins_with("ca-app-pub-3940256099942544/") and Ads._unit("interstitial").begins_with("ca-app-pub-3940256099942544/"),
+		"non-Play builds use Google test ad units")
+	check(str(Ads.config.get("rewarded_unit_android", "")) != Ads._unit("rewarded"), "Play build has its own real ad units")
 	var saved_removed := IAP.ads_removed
 	IAP.ads_removed = false
 	Ads.reset_pacing()

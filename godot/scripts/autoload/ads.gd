@@ -43,6 +43,16 @@ func _ready() -> void:
 		_gather_consent()
 
 
+## Real ad units only in the Play Store bundle ("play_store" export feature). The
+## sideloaded APK always shows Google test ads, so playing it can never count as
+## invalid clicks on the developer's own ads.
+func _unit(kind: String) -> String:
+	var key := "%s_unit_android" % kind
+	if not OS.has_feature("play_store"):
+		key = "test_" + key
+	return str(config.get(key, ""))
+
+
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
@@ -112,7 +122,7 @@ func _load_rewarded() -> void:
 	cb.on_ad_failed_to_load = func(_err):
 		_loading_rewarded = false
 		_retry_t = 30.0
-	RewardedAdLoader.new().load(str(config.get("rewarded_unit_android", "")), AdRequest.new(), cb)
+	RewardedAdLoader.new().load(_unit("rewarded"), AdRequest.new(), cb)
 
 
 func _load_interstitial() -> void:
@@ -126,7 +136,7 @@ func _load_interstitial() -> void:
 	cb.on_ad_failed_to_load = func(_err):
 		_loading_interstitial = false
 		_retry_t = 30.0
-	InterstitialAdLoader.new().load(str(config.get("interstitial_unit_android", "")), AdRequest.new(), cb)
+	InterstitialAdLoader.new().load(_unit("interstitial"), AdRequest.new(), cb)
 
 
 func _process(delta: float) -> void:
