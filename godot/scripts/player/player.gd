@@ -128,11 +128,19 @@ func _physics_process(delta: float) -> void:
 	var reg := TerrainGen.region_at(p.x, p.z)
 	var r := Vector2(p.x, p.z).length()
 	if not GameState.region_unlocked(reg) or r > TerrainGen.WORLD_RADIUS - 50.0:
-		# Return to the last spot that was allowed (never fight the player frame by frame).
-		var back := _last_ok if _last_ok != Vector3.INF else Vector3(0, 1, 14)
-		back.y = maxf(back.y, TerrainGen.height(back.x, back.z) + 0.1)
-		global_position = back
-		velocity = Vector3.ZERO
+		# Stop at the border smoothly (stay where we were last frame). Only if that spot
+		# was also off-limits (e.g. a save inside a now-locked area) jump to the last
+		# allowed spot, so the player can never be trapped bouncing in place.
+		var prev_ok := GameState.region_unlocked(TerrainGen.region_at(prev.x, prev.z)) \
+			and Vector2(prev.x, prev.z).length() <= TerrainGen.WORLD_RADIUS - 50.0
+		if prev_ok:
+			global_position = Vector3(prev.x, maxf(prev.y, TerrainGen.height(prev.x, prev.z)), prev.z)
+		else:
+			var back := _last_ok if _last_ok != Vector3.INF else Vector3(0, 1, 14)
+			back.y = maxf(back.y, TerrainGen.height(back.x, back.z) + 0.1)
+			global_position = back
+		velocity.x = 0.0
+		velocity.z = 0.0
 		_blocked_msg_t -= delta
 		if _blocked_msg_t <= 0.0:
 			_blocked_msg_t = 3.0

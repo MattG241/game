@@ -136,6 +136,41 @@ func _test_touch_and_movement() -> void:
 	await frames(2)
 	_touch(c, 1, Vector2(800, 300), false)
 	check(not is_equal_approx(pl.yaw, yaw0), "swipe rotates the camera")
+	# Border on foot: walking into a locked region stops smoothly (no back-and-forth).
+	var edge := Vector3(5, 0, -140)
+	edge.y = TerrainGen.height(edge.x, edge.z) + 0.3
+	game.terrain.prewarm(edge)
+	pl.global_position = edge
+	var yaw_save := pl.yaw
+	pl.yaw = 0.0
+	c.move_vector = Vector2(0.15, -1)
+	var last := pl.global_position
+	var last_dir := Vector3.ZERO
+	var flips := 0
+	for i in 400:
+		await get_tree().physics_frame
+		var step := pl.global_position - last
+		step.y = 0
+		if step.length() > 0.05 and last_dir.length() > 0.05 and step.normalized().dot(last_dir.normalized()) < -0.5:
+			flips += 1
+		last_dir = step
+		last = pl.global_position
+	var e2 := pl.global_position
+	check(flips == 0 and GameState.region_unlocked(TerrainGen.region_at(e2.x, e2.z)), "walking into a locked border stops smoothly", "flips=%d" % flips)
+	# Trapped inside a locked region (e.g. old save): player is moved out, not stuck.
+	var trapped := Vector3(0, 0, -200)
+	trapped.y = TerrainGen.height(trapped.x, trapped.z) + 0.5
+	game.terrain.prewarm(trapped)
+	pl.global_position = trapped
+	for i in 30:
+		await get_tree().physics_frame
+	var t2 := pl.global_position
+	check(GameState.region_unlocked(TerrainGen.region_at(t2.x, t2.z)), "player trapped in a locked region is moved out")
+	c.move_vector = Vector2.ZERO
+	pl.yaw = yaw_save
+	pl.global_position = start + Vector3(0, 0.5, 0)
+	game.terrain.prewarm(pl.global_position)
+	await frames(10)
 	# Clean button
 	var cb := c.button_center("clean")
 	_touch(c, 2, cb, true)
