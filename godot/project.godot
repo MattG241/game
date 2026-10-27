@@ -1,5 +1,10 @@
 ; Engine configuration file.
-; Lunar Cleanup - Godot 4.3 (GL Compatibility renderer for broad Android support)
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -11,12 +16,10 @@ config/version="0.1.0"
 run/main_scene="res://scenes/boot.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="LunarCleanup"
-config/features=PackedStringArray("4.3", "GL Compatibility")
+config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/bg_color=Color(0.016, 0.02, 0.043, 1)
-boot_splash/show_image=true
+boot_splash/stretch_mode=0
 boot_splash/image="res://assets/textures/splash.png"
-boot_splash/fullsize=false
-boot_splash/use_filter=true
 config/icon="res://icon.png"
 
 [autoload]
@@ -27,6 +30,13 @@ GameData="*res://scripts/autoload/game_data.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 Audio="*res://scripts/autoload/audio.gd"
+IAP="*res://scripts/autoload/iap.gd"
+Ads="*res://scripts/autoload/ads.gd"
+
+[debug]
+
+file_logging/enable_file_logging=true
+file_logging/max_log_files=6
 
 [display]
 
@@ -35,23 +45,19 @@ window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=4
-window/vsync/vsync_mode=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg", "res://addons/admob/plugin.cfg")
 
 [gui]
 
 common/drag_threshold=12
-theme/default_font_antialiasing=1
-
-[input_devices]
-
-pointing/emulate_touch_from_mouse=false
-pointing/emulate_mouse_from_touch=true
 
 [physics]
 
-common/physics_ticks_per_second=60
-3d/default_gravity=3.2
 common/max_physics_steps_per_frame=4
+3d/default_gravity=3.2
 
 [rendering]
 
@@ -59,15 +65,9 @@ renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 lights_and_shadows/directional_shadow/size=2048
-lights_and_shadows/directional_shadow/size.mobile=2048
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality.mobile=1
+anti_aliasing/quality/msaa_3d=1
+environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 lights_and_shadows/positional_shadow/atlas_size=1024
 lights_and_shadows/positional_shadow/atlas_size.mobile=1024
-environment/defaults/default_clear_color=Color(0, 0, 0, 1)
-anti_aliasing/quality/msaa_3d=1
-
-[debug]
-
-file_logging/enable_file_logging=true
-file_logging/max_log_files=6

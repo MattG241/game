@@ -2,7 +2,7 @@
 
 You're a cleaner for a badly underfunded lunar cleaning company. You start with one toothbrush. Clean the Moon, sell the dust, and build up a self-running lunar cleaning business.
 
-It's a 3D first-person Android game (landscape) built with **Godot 4.3** in GDScript. It's single-player and works offline, with no ads and no purchases.
+It's a 3D first-person Android game (landscape) built with **Godot 4.7** in GDScript. It's single-player and works offline. It has optional Google AdMob ads (rewarded bonuses plus occasional full-screen ads) and a one-off "Remove ads" purchase - see [`PLAY_STORE.md`](../PLAY_STORE.md).
 
 ## Install on your phone (no computer needed)
 

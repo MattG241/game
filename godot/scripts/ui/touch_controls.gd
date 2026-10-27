@@ -46,6 +46,7 @@ var _edit_drag := {}           # touch index -> id
 var _insets := Vector4(12, 8, 12, 8)
 var _font: Font
 var _pulse := 0.0
+var blockers: Array[Control] = []   # visible HUD buttons that take touches first
 
 
 func _ready() -> void:
@@ -177,6 +178,9 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 			if hid != "":
 				_edit_drag[e.index] = hid
 			return
+		for b in blockers:
+			if is_instance_valid(b) and b.is_visible_in_tree() and b.get_global_rect().has_point(pos):
+				return
 		var id := _hit(pos)
 		if id != "":
 			_button_touch[e.index] = id

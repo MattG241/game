@@ -2,6 +2,8 @@ name: Build Android APK
 
 # Every push builds, tests and signs a fresh APK and publishes it as a GitHub Release,
 # so it can be downloaded straight from a phone. No computer needed.
+# When the Play upload key is in the repository secrets (PLAY_UPLOAD_*), the same run
+# also builds the Google Play bundle (LunarCleanup.aab) for the Play Console.
 on:
   push:
     branches: ["**"]
@@ -17,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GODOT_VERSION: "4.3"
+  GODOT_VERSION: "4.7.2"
   GODOT_STATUS: "stable"
 
 jobs:
@@ -39,7 +41,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/godot-cache
-          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-android-v1
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-android-v2
 
       - name: Download Godot ${{ env.GODOT_VERSION }}
         if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -51,9 +53,18 @@ jobs:
           unzip -q "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip" && rm "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
           wget -q "$base/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
           unzip -qj "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz" \
-            templates/android_release.apk templates/android_debug.apk templates/version.txt -d templates
+            templates/android_release.apk templates/android_debug.apk templates/android_source.zip templates/version.txt -d templates
           rm "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
           ls -la ~/godot-cache ~/godot-cache/templates
+
+      - name: Cache Gradle downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ env.GODOT_VERSION }}-${{ hashFiles('godot/addons/**/*.gd') }}
+          restore-keys: gradle-${{ env.GODOT_VERSION }}-
 
       - name: Install Godot, templates and Android tooling
         run: |
@@ -63,20 +74,22 @@ jobs:
           tpl=~/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}
           mkdir -p "$tpl" && cp ~/godot-cache/templates/* "$tpl/"
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          if [ ! -x "$SDK/build-tools/34.0.0/apksigner" ]; then
-            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "build-tools;34.0.0" "platform-tools" > /dev/null
+          # Godot 4.7's gradle template targets Android 16 (API 36).
+          if [ ! -x "$SDK/build-tools/36.1.0/apksigner" ] || [ ! -d "$SDK/platforms/android-36" ]; then
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "build-tools;36.1.0" "platforms;android-36" "platform-tools" > /dev/null
           fi
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-${GODOT_VERSION}.tres <<EOT
+          ES=~/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres
+          cat > "$ES" <<EOT
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
           export/android/android_sdk_path = "$SDK"
           export/android/java_sdk_path = "$JAVA_HOME"
           EOT
-          sed -i 's/^ *//' ~/.config/godot/editor_settings-${GODOT_VERSION}.tres
-          cat ~/.config/godot/editor_settings-${GODOT_VERSION}.tres
-          echo "APKSIGNER=$SDK/build-tools/34.0.0/apksigner" >> "$GITHUB_ENV"
+          sed -i 's/^ *//' "$ES"
+          cat "$ES"
+          echo "APKSIGNER=$SDK/build-tools/36.1.0/apksigner" >> "$GITHUB_ENV"
           godot --version
 
       - name: Import project (validates every script and resource)
@@ -144,15 +157,48 @@ jobs:
             echo "Signing with the committed development key."
           fi
 
-      - name: Export signed ARM64 APK
+      - name: Export signed ARM64 APK (gradle build with AdMob + Play Billing)
         working-directory: godot
         run: |
+          set -o pipefail
           mkdir -p ../build
-          timeout 600 godot --headless --path . --export-release "Android" ../build/LunarCleanup.apk 2>&1 \
+          timeout 1500 godot --headless --path . --install-android-build-template --export-release "Android" ../build/LunarCleanup.apk 2>&1 \
             | grep -vE "mesh_get_surface_count|Parameter \"m\" is null|^ADDING" | tee export.log
           test -s ../build/LunarCleanup.apk
           "$APKSIGNER" verify --print-certs ../build/LunarCleanup.apk
           ls -la ../build
+
+      - name: Export Google Play bundle (AAB, signed with the private upload key)
+        id: aab
+        env:
+          UP_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          UP_USER: ${{ secrets.PLAY_UPLOAD_KEYSTORE_ALIAS }}
+          UP_PASS: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+        working-directory: godot
+        run: |
+          set -o pipefail
+          if [ -z "$UP_B64" ]; then
+            echo "::notice::No Play upload key in secrets (PLAY_UPLOAD_KEYSTORE_*): skipping the Play Store bundle. See PLAY_STORE.md."
+            exit 0
+          fi
+          echo "::add-mask::$UP_PASS"
+          echo "$UP_B64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH="$RUNNER_TEMP/upload.keystore" \
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER="$UP_USER" \
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD="$UP_PASS" \
+          timeout 1500 godot --headless --path . --export-release "Android Play" ../build/LunarCleanup.aab 2>&1 \
+            | grep -vE "mesh_get_surface_count|Parameter \"m\" is null|^ADDING" | tee export_aab.log
+          rm -f "$RUNNER_TEMP/upload.keystore"
+          test -s ../build/LunarCleanup.aab
+          jarsigner -verify ../build/LunarCleanup.aab | tail -1
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Play bundle artifact
+        if: steps.aab.outputs.built == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunarCleanup-${{ env.APP_VERSION }}-play-aab
+          path: build/LunarCleanup.aab
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -169,7 +215,9 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Lunar Cleanup ${{ env.APP_VERSION }}
           make_latest: "true"
-          files: build/LunarCleanup.apk
+          files: |
+            build/LunarCleanup.apk
+            build/LunarCleanup.aab
           body: |
             **Lunar Cleanup ${{ env.APP_VERSION }}** (version code ${{ env.APP_CODE }}, branch `${{ github.ref_name }}`, commit ${{ github.sha }})
 
@@ -177,6 +225,9 @@ jobs:
             1. Tap **LunarCleanup.apk** below to download it in Chrome.
             2. Open the download. If asked, allow Chrome (or Files) to *install unknown apps*.
             3. Tap **Install** (or **Update** - your saves are kept), then **Open**.
+
+            **LunarCleanup.aab** (when listed) is the Google Play bundle: upload it in
+            Play Console -> Test and release -> Create new release. Don't install it directly.
 
             Permanent link to the newest build:
             https://github.com/${{ github.repository }}/releases/latest/download/LunarCleanup.apk

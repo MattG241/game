@@ -21,7 +21,7 @@ CAPTIONS = {
     "04_buggy": ("HIT THE ROAD", "Cleaning vehicles built for low gravity"),
     "05_automation": ("AUTOMATE EVERYTHING", "Collectors, drones, conveyors and rocket depots"),
     "06_beam": ("EXPLORE 5 REGIONS", "Each one dustier - and more valuable - than the last"),
-    "07_shop": ("NO ADS. NO PAYWALLS.", "Every upgrade is earned in-game. Plays fully offline."),
+    "07_shop": ("NO PAYWALLS.", "Every upgrade is earned in-game. Plays fully offline."),
 }
 
 
@@ -105,7 +105,7 @@ def feature_graphic(raw_path, out_path):
     d.text((48, 120), "LUNAR", font=f1, fill=ACCENT)
     d.text((48, 210), "CLEANUP", font=f1, fill=TEXT)
     d.text((52, 330), "One toothbrush. One Moon.", font=f2, fill=MUTED)
-    d.text((52, 372), "No ads - no purchases - offline", font=f2, fill=MUTED)
+    d.text((52, 372), "Build a lunar cleaning empire - plays offline", font=f2, fill=MUTED)
     img.convert("RGB").save(out_path, optimize=True)
 
 

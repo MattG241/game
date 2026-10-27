@@ -124,7 +124,7 @@ func _show_main() -> void:
 		var warn := UIKit.label("The game closed unexpectedly last time. Settings > Copy crash log, then paste it to the developer.", 17, UIKit.ACCENT)
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_panel.add_child(warn)
-	_panel.add_child(UIKit.label("v%s   offline - no ads - no purchases" % ProjectSettings.get_setting("application/config/version"), 16, UIKit.MUTED))
+	_panel.add_child(UIKit.label("v%s   plays offline - no pay-to-win" % ProjectSettings.get_setting("application/config/version"), 16, UIKit.MUTED))
 
 
 func _close_side() -> void:
@@ -213,12 +213,14 @@ func _show_credits() -> void:
 	var text := """LUNAR CLEANUP
 Design, code, models, sound and music: generated for this project (original work).
 
-Built with Godot Engine 4.3 (MIT licence) - godotengine.org
+Built with Godot Engine 4.7 (MIT licence) - godotengine.org
 Fonts: Exo 2 and Rajdhani - SIL Open Font License 1.1 (see assets/fonts)
 All 3D models are procedural meshes built in GDScript.
 All sound effects and music are synthesised by tools/gen_audio.py.
 
-No ads. No microtransactions. No internet required.
+Every upgrade is earned in-game. Plays fully offline.
+Optional ads (Google AdMob) - one purchase removes the
+interruptions; rewarded bonuses stay optional.
 Thank you for cleaning the Moon."""
 	var l := UIKit.label(text, 21)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

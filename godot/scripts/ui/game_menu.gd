@@ -79,6 +79,7 @@ func _ready() -> void:
 	_scroll.add_child(_content)
 	GameState.inventory_changed.connect(_mark_dirty)
 	GameState.credits_changed.connect(_mark_dirty.unbind(1))
+	IAP.changed.connect(_mark_dirty)
 
 
 func _mark_dirty() -> void:
@@ -438,7 +439,22 @@ func _tab_pause() -> void:
 	box.add_child(UIKit.button("SAVE & QUIT", func():
 		SaveManager.save_game(-1, false)
 		get_tree().quit(), Vector2(420, 76), 26))
+	_tab_support(box)
 	_note("Lunar Cleanup v%s - made with Godot Engine (MIT). Fonts: Exo 2 and Rajdhani (SIL Open Font License). All models, sounds and music are procedurally generated originals." % ProjectSettings.get_setting("application/config/version"))
+
+
+## Remove ads (one-off Google Play purchase), restore, and the GDPR privacy form.
+func _tab_support(box: VBoxContainer) -> void:
+	box.add_child(UIKit.label("SUPPORT THE GAME", 18, UIKit.ACCENT, true))
+	if IAP.ads_removed:
+		box.add_child(UIKit.label("Ads removed - thank you! Rewarded bonuses stay available if you want them.", 18, UIKit.GOOD))
+	else:
+		var price := (" (%s)" % IAP.price_text) if IAP.price_text != "" else ""
+		box.add_child(UIKit.accent_button("REMOVE ADS" + price, func(): IAP.buy(), Vector2(420, 76), 26))
+		box.add_child(UIKit.label("One purchase stops the occasional full-screen ads for good.", 16, UIKit.MUTED))
+	box.add_child(UIKit.button("RESTORE PURCHASES", func(): IAP.restore(), Vector2(420, 64), 22))
+	if Ads.privacy_options_required():
+		box.add_child(UIKit.button("AD PRIVACY OPTIONS", func(): Ads.show_privacy_options(), Vector2(420, 64), 22))
 
 
 # -------------------------------------------------------------------- modals

@@ -32,16 +32,18 @@ Your equipment: one slightly used toothbrush. Your job: the Moon.
 - Build an automated operation: solar power, dust collectors, cleaning drones, rovers,
   conveyors, refineries and rocket shipping depots
 - Unlock five regions, research 16 upgrades and complete 30+ contracts
-- No ads. No microtransactions. Plays fully offline.
+- Every upgrade is earned in-game - no paywalls. Plays fully offline.
+- Optional rewarded ads for bonuses; a one-off "Remove ads" purchase turns off the
+  occasional full-screen ads.
 
-**Category:** Games > Simulation. **Content rating:** Everyone (no violence, no data collection).
+**Category:** Games > Simulation. **Store labels:** Contains ads, In-app purchases.
+**Target audience:** 13+ (see `PLAY_STORE.md` for content rating, ads and Data safety answers).
 
 ## Before submitting
 
-- **Google Play** needs an Android App Bundle (.aab) signed with a *private* upload key,
-  not the public development key this repo uses for sideloading. A Google Play developer
-  account costs a one-off USD 25. Ask Claude to add an AAB export to the workflow when
-  you are ready.
+- **Google Play:** follow `PLAY_STORE.md`. The workflow builds the Play bundle
+  (`LunarCleanup.aab`) once the private upload key is in the repository secrets. A Google
+  Play developer account costs a one-off USD 25.
 - **Apple App Store** needs an iOS build. Godot can export to iOS, but Apple requires
   Xcode on macOS to compile and sign it, plus an Apple Developer Program membership
   (USD 99/year). GitHub's macOS runners can do the compile in the cloud, so it is
@@ -50,7 +52,7 @@ Your equipment: one slightly used toothbrush. Your job: the Moon.
 ## Regenerating
 
 ```
-# raw captures (needs Xvfb + Godot 4.3); scene = title|brush|wide|buggy|automation|beam|shop
+# raw captures (needs Xvfb + Godot 4.7); scene = title|brush|wide|buggy|automation|beam|shop
 godot --path godot --rendering-driver opengl3 --resolution 1920x1080 \
   res://tests/store_shots.tscn -- --scene=brush --out=store/raw/play_1920x1080/02_toothbrush.png
 python3 tools/make_store_art.py

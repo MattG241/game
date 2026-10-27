@@ -6,6 +6,8 @@ npm-debug.log*
 
 # Godot
 godot/.godot/
+# Gradle build template (CI installs it on every build)
+godot/android/
 godot/*.log
 godot/tests/*.log
 # Build output
@@ -13,3 +15,6 @@ build/
 *.apk
 *.aab
 *.idsig
+# Signing keys other than the public development key
+*.jks
+upload*.keystore

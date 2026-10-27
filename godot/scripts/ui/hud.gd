@@ -31,6 +31,12 @@ var _shown_credits := 0.0
 var _insets := Vector4.ZERO
 var _tank_flash := 0.0
 var _t := 0.0
+# Optional rewarded-ad buttons
+var _offer: Button
+var _offer_amount := 0.0
+var _offer_t := 0.0
+var _recharge: Button
+var _recharge_cooldown := 0.0
 
 
 func _ready() -> void:
@@ -152,6 +158,13 @@ func _build() -> void:
 	_perf.add_theme_constant_override("outline_size", 6)
 	_perf.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	add_child(_perf)
+	# Rewarded ads (always optional)
+	_offer = UIKit.accent_button("", _take_double, Vector2(420, 70), 22)
+	_offer.visible = false
+	add_child(_offer)
+	_recharge = UIKit.button("WATCH AD: FULL RECHARGE", _take_recharge, Vector2(300, 56), 18)
+	_recharge.visible = false
+	add_child(_recharge)
 
 
 func _layout() -> void:
@@ -170,6 +183,8 @@ func _layout() -> void:
 	_vehicle_panel.position = Vector2(_insets.x + 6, _insets.y + 250)
 	_place_panel.position = Vector2(s.x * 0.5 - 260, s.y - _insets.w - 90)
 	_perf.position = Vector2(_insets.x + 8, s.y * 0.5)
+	_offer.position = Vector2(s.x * 0.5 - 210, s.y * 0.36 + 96)
+	_recharge.position = _left.position + Vector2(0, _left.size.y + 8)
 
 
 func _update_tank() -> void:
@@ -247,12 +262,56 @@ func _on_sold(amount: float, credits: float) -> void:
 	Settings.vibrate(35, 0.6)
 
 
+## HUD buttons that must receive touches before the look/joystick areas do.
+func touch_buttons() -> Array[Control]:
+	return [_offer, _recharge]
+
+
+## After a sale: offer to double it by watching a rewarded ad (ignored = nothing happens).
+func offer_double(amount: float) -> void:
+	_offer_amount = amount
+	_offer_t = float(Ads.config.get("double_sale_offer_seconds", 8))
+	_offer.visible = true
+
+
+func _take_double() -> void:
+	_offer.visible = false
+	var amount := _offer_amount
+	Ads.show_rewarded(func():
+		GameState.add_credits(amount)
+		Audio.play("coin")
+		GameState.notify.emit("Sale doubled: +%s CR" % GameState.fmt(amount), "purchase"))
+
+
+func _take_recharge() -> void:
+	_recharge.visible = false
+	_recharge_cooldown = 180.0
+	Ads.show_rewarded(func():
+		GameState.charge_battery(GameState.battery_capacity())
+		GameState.notify.emit("Battery fully recharged", "purchase"))
+
+
+func _update_ad_buttons(delta: float) -> void:
+	if _offer.visible:
+		_offer_t -= delta
+		_offer.text = "WATCH AD: DOUBLE IT  +%s CR  (%d)" % [GameState.fmt(_offer_amount), ceili(maxf(_offer_t, 0.0))]
+		if _offer_t <= 0.0 or not Ads.rewarded_ready():
+			_offer.visible = false
+	_recharge_cooldown -= delta
+	var low := GameState.battery < GameState.battery_capacity() * float(Ads.config.get("recharge_offer_below_fraction", 0.2))
+	_recharge.visible = low and _recharge_cooldown <= 0.0 and _bat_row.visible and Ads.rewarded_ready() \
+		and not (world and world.menu.visible)
+	if _recharge.visible:
+		_recharge.position = _left.position + Vector2(0, _left.size.y + 8)
+
+
 func set_prompt(text: String) -> void:
 	_prompt.text = text
 
 
 func _process(delta: float) -> void:
 	_t += delta
+	_update_ad_buttons(delta)
 	# Smoothly count credits up/down for satisfying feedback.
 	var target := GameState.credits
 	if absf(target - _shown_credits) < 0.5:

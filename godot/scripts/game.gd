@@ -52,6 +52,7 @@ func _ready() -> void:
 	ui.add_child(hud)
 	controls = TouchControls.new()
 	ui.add_child(controls)
+	controls.blockers = hud.touch_buttons()
 	menu = GameMenu.new()
 	menu.world = self
 	ui.add_child(menu)
@@ -401,7 +402,21 @@ func sell_all() -> void:
 	GameState.tank_dust = 0.0
 	GameState.tank_value = 0.0
 	GameState.tank_changed.emit(0.0, GameState.tank_capacity())
-	GameState.sell(amount, value)
+	var earned := GameState.sell(amount, value)
+	# Natural break: occasionally an interstitial, otherwise an optional "double it" offer.
+	if not Ads.maybe_show_interstitial() and earned >= float(Ads.config.get("double_sale_min_credits", 25)) \
+			and Ads.rewarded_ready():
+		hud.offer_double(earned)
+
+
+## Called when a full-screen ad opens: nothing may stay held underneath it.
+func release_input() -> void:
+	controls.release_all()
+	player.cleaner.cleaning = false
+	_mouse_clean = false
+	if current_vehicle:
+		current_vehicle.throttle = 0.0
+		current_vehicle.steer_input = 0.0
 
 
 # ------------------------------------------------------------------ vehicles

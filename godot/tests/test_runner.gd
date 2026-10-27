@@ -36,6 +36,7 @@ func _ready() -> void:
 	await _test_touch_and_movement()
 	await _test_cleaning_loop()
 	await _test_economy()
+	await _test_ads()
 	await _test_menus()
 	await _test_vehicle()
 	await _test_automation()
@@ -290,6 +291,63 @@ func _test_economy() -> void:
 	GameState.missions_done.append("m_sell_1")
 	GameState.regions[1] = false
 	check(GameState.buy_permit(1) and GameState.region_unlocked(1), "permit unlocks region")
+
+
+func _test_ads() -> void:
+	print("[ads and remove-ads purchase]")
+	check(not Ads.available and not IAP.available, "no ad or billing SDK off-device (game still runs)")
+	check(not Ads.rewarded_ready(), "no rewarded offer without an ad SDK")
+	var saved_removed := IAP.ads_removed
+	IAP.ads_removed = false
+	Ads.reset_pacing()
+	var now := 10000.0
+	check(not Ads.interstitial_allowed(120.0, now), "no interstitial in the first 10 minutes")
+	check(Ads.interstitial_allowed(900.0, now), "interstitial allowed later at a natural break")
+	Ads.simulate = true
+	IAP.simulate = true
+	GameState.stats["play_time"] = 900.0
+	GameState.tank_dust = 50.0
+	GameState.tank_value = 100.0
+	var shown0 := Ads.interstitials_shown
+	game.sell_all()
+	check(Ads.interstitials_shown == shown0 + 1, "selling can show an interstitial")
+	check(not game.hud._offer.visible, "no double offer on top of an interstitial")
+	GameState.tank_dust = 50.0
+	GameState.tank_value = 100.0
+	game.sell_all()
+	check(Ads.interstitials_shown == shown0 + 1, "interstitials are spaced out (5 min)")
+	check(game.hud._offer.visible, "sale offers an optional rewarded double")
+	var c0 := GameState.credits
+	game.hud._take_double()
+	check(is_equal_approx(GameState.credits - c0, game.hud._offer_amount) and c0 > 0.0, "watching the rewarded ad doubles the sale")
+	check(not Ads.interstitial_allowed(900.0, Ads._now() + 30.0), "no interstitial right after a rewarded ad")
+	# Low battery -> optional instant recharge
+	GameState.battery = 1.0
+	game.hud._recharge_cooldown = 0.0
+	game.hud._bat_row.visible = true
+	await frames(2)
+	check(game.hud._recharge.visible, "low battery offers a rewarded recharge")
+	game.hud._take_recharge()
+	check(GameState.battery >= GameState.battery_capacity() - 0.01, "rewarded recharge fills the battery")
+	# Touches on the HUD offer must not be eaten by the look area
+	game.hud.offer_double(30.0)
+	await frames(1)
+	var r: Rect2 = game.hud._offer.get_global_rect()
+	_touch(game.controls, 5, r.get_center(), true)
+	check(game.controls._look_index != 5, "HUD ad button takes the touch, not the camera")
+	_touch(game.controls, 5, r.get_center(), false)
+	game.hud._offer.visible = false
+	# Remove ads
+	Ads.reset_pacing()
+	IAP.buy()
+	check(IAP.ads_removed and bool(Settings.get_value("ads_removed", false)), "remove-ads purchase is stored")
+	check(not Ads.interstitial_allowed(900.0, 1e6), "remove ads stops interstitials")
+	check(Ads.rewarded_ready(), "rewarded bonuses stay available after removing ads")
+	Ads.simulate = false
+	IAP.simulate = false
+	IAP.ads_removed = saved_removed
+	Settings.set_value("ads_removed", saved_removed)
+	Ads.reset_pacing()
 
 
 func _test_menus() -> void:
