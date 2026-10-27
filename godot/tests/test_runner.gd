@@ -309,6 +309,42 @@ func _test_vehicle() -> void:
 	v.cleaning = false
 	game.controls.move_vector = Vector2.ZERO
 	check(v.hopper() > h0, "vacuum buggy collects dust into its hopper", str(v.hopper()))
+	# Stuck on a steep slope: pin it in place with throttle held, expect auto-recovery.
+	var steep := Vector3(118.0, 0, -111.5)
+	steep.y = TerrainGen.height(steep.x, steep.z) + 0.5
+	game.terrain.prewarm(steep)
+	v.global_transform = Transform3D(Basis(Vector3.RIGHT, 0.9), steep)
+	game.controls.move_vector = Vector2(0, -1)
+	var stuck_from := v.global_position
+	for i in 260:
+		v.linear_velocity = Vector3.ZERO
+		await get_tree().physics_frame
+		if v.global_position.distance_to(stuck_from) > 2.0:
+			break
+	game.controls.move_vector = Vector2.ZERO
+	check(v.global_position.distance_to(stuck_from) > 2.0 and v.global_basis.y.y > 0.9, "stuck vehicle recovers to flat ground", str(v.global_position))
+	# Locked region border: one clean put-back, no shaking at the boundary.
+	GameState.regions[2] = false
+	var inside := Vector3(0, 0, -120)
+	inside.y = TerrainGen.height(inside.x, inside.z) + 1.2
+	game.terrain.prewarm(inside)
+	v.global_transform = Transform3D(Basis.IDENTITY, inside)
+	for i in 40:
+		await get_tree().physics_frame
+	game.controls.move_vector = Vector2(0, -1)
+	var in_locked := 0
+	for i in 400:
+		await get_tree().physics_frame
+		var q := v.global_position
+		if not GameState.region_unlocked(TerrainGen.region_at(q.x, q.z)):
+			in_locked += 1
+	game.controls.move_vector = Vector2.ZERO
+	var q2 := v.global_position
+	check(GameState.region_unlocked(TerrainGen.region_at(q2.x, q2.z)) and in_locked < 5, "vehicle is put back from a locked region without shaking", "frames in locked=%d" % in_locked)
+	# Physics blow-up guard
+	v.linear_velocity = Vector3(NAN, 0, 0)
+	await frames(2)
+	check(v.global_position.is_finite() and v.linear_velocity.is_finite(), "vehicle recovers from invalid physics state")
 	v.braking = true
 	await frames(60)
 	v.braking = false
@@ -427,3 +463,9 @@ func _test_diagnostics() -> void:
 		d.queue_free()
 	await frames(1)
 	check(SettingsPanel.copy_crash_log() > 3, "copy crash log puts a report on the clipboard")
+	# Freeze watchdog: block the main thread for 4 s and check it was recorded.
+	var start := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - start < 4200:
+		pass
+	await frames(2)
+	check(FileAccess.get_file_as_string(D.SESSION).contains("FREEZE main thread stalled"), "watchdog records a main-thread freeze")

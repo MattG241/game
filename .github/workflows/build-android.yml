@@ -104,6 +104,15 @@ jobs:
           grep -q "STRESS OK" stress.log
           if grep -E "SCRIPT ERROR|Condition \"!success\"" stress.log; then exit 1; fi
 
+      - name: Driving stress test (fast vehicle across terrain)
+        working-directory: godot
+        run: |
+          set -o pipefail
+          timeout 900 godot --headless --path . res://tests/stress_drive.tscn -- --frames=2500 --vehicle=utility_rover 2>&1 \
+            | grep -vE "mesh_get_surface_count|Parameter \"m\" is null" | tee drive.log
+          grep -q "DRIVE DONE bad=0" drive.log
+          if grep -E "SCRIPT ERROR" drive.log; then exit 1; fi
+
       - name: Stamp version
         run: |
           code=$(( ${{ github.run_number }} + 1 ))

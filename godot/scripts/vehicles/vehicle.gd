@@ -23,6 +23,9 @@ var _particles: CPUParticles3D
 var _flip_t := 0.0
 var _park_t := 0.0
 var _last_pos := Vector3.ZERO
+var _stuck_t := 0.0
+var _good_xform := Transform3D.IDENTITY
+var _good_t := 0.0
 var _t := 0.0
 var _haptic_t := 0.0
 var _full_warn_t := 0.0
@@ -234,6 +237,7 @@ func look(delta: Vector2) -> void:
 
 func _physics_process(delta: float) -> void:
 	_t += delta
+	_sanity(delta)
 	var speed := linear_velocity.length()
 	var fwd_speed := -linear_velocity.dot(global_basis.z)
 	if driving:
@@ -271,13 +275,22 @@ func _physics_process(delta: float) -> void:
 				GameState.notify.emit("Vehicle flipped back onto its wheels", "info")
 		else:
 			_flip_t = 0.0
+		# Stuck (e.g. nose-up on a steep ridge): throttle held but going nowhere.
+		if absf(throttle) > 0.3 and speed < 0.6:
+			_stuck_t += delta
+			if _stuck_t > 3.0:
+				_stuck_t = 0.0
+				recover("Vehicle was stuck - moved to flat ground")
+		else:
+			_stuck_t = 0.0
 		# Region permits
 		var p := global_position
 		var reg := TerrainGen.region_at(p.x, p.z)
 		var r := Vector2(p.x, p.z).length()
 		if not GameState.region_unlocked(reg) or r > TerrainGen.WORLD_RADIUS - 50.0:
-			var push := -Vector3(p.x, 0, p.z).normalized()
-			linear_velocity = push * 6.0 + Vector3(0, linear_velocity.y, 0)
+			# Previously velocity was overwritten every frame, which fought the engine and
+			# left the vehicle shaking in place on border ridges. Now: one clean put-back.
+			_border_back(reg, r)
 		var moved := global_position.distance_to(_last_pos)
 		if moved < 5.0:
 			GameState.add_stat("distance_driven", moved)
@@ -295,8 +308,86 @@ func _physics_process(delta: float) -> void:
 	# Safety net
 	var ground := TerrainGen.height(global_position.x, global_position.z)
 	if global_position.y < ground - 3.0:
-		global_position.y = ground + 1.5
+		recover("")
+
+
+func _border_back(reg: int, r: float) -> void:
+	var back := _good_xform
+	var bp := back.origin
+	if not bp.is_finite() or bp == Vector3.ZERO or not GameState.region_unlocked(TerrainGen.region_at(bp.x, bp.z)):
+		back = Transform3D(Basis.IDENTITY, LunarBase.BAY_POS + Vector3(0, 2, 0))
+	# Land a little further inside, facing away from the border (vehicle forward is -Z).
+	var away := back.origin - global_position
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.01 else -Vector3(global_position.x, 0, global_position.z).normalized()
+	var yaw := atan2(-away.x, -away.z)
+	var pos := back.origin + away * 2.0
+	pos.y = TerrainGen.height(pos.x, pos.z) + 1.4
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
+	_stuck_t = 0.0
+	Diagnostics.event("vehicle border put-back")
+	if r > TerrainGen.WORLD_RADIUS - 50.0:
+		GameState.notify.emit("The mountains are too steep to cross", "info")
+	else:
+		var info := GameData.region(reg)
+		GameState.notify.emit("%s needs a permit (%s CR) - Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
+
+
+## Guards against physics blow-ups: caps speeds and restores the last good pose if
+## the body ever ends up with invalid (NaN/inf) values.
+func _sanity(delta: float) -> void:
+	if freeze:
+		return
+	if not global_transform.origin.is_finite() or not linear_velocity.is_finite() or not angular_velocity.is_finite():
 		linear_velocity = Vector3.ZERO
+		angular_velocity = Vector3.ZERO
+		var fallback := Transform3D(Basis.IDENTITY, LunarBase.BAY_POS + Vector3(0, 2, 0))
+		global_transform = _good_xform if _good_xform.origin.is_finite() and _good_xform.origin != Vector3.ZERO else fallback
+		Diagnostics.event("vehicle physics reset")
+		return
+	if linear_velocity.length() > 45.0:
+		linear_velocity = linear_velocity.normalized() * 45.0
+	if angular_velocity.length() > 8.0:
+		angular_velocity = angular_velocity.normalized() * 8.0
+	_good_t += delta
+	var gp := global_position
+	if _good_t > 0.5 and global_basis.y.y > 0.7 and GameState.region_unlocked(TerrainGen.region_at(gp.x, gp.z)) \
+			and Vector2(gp.x, gp.z).length() < TerrainGen.WORLD_RADIUS - 52.0:
+		_good_t = 0.0
+		_good_xform = global_transform
+
+
+## Puts the vehicle upright on the nearest gentle, unlocked ground, facing downhill.
+func recover(message: String) -> void:
+	var p := global_position
+	var back := global_basis.z
+	back.y = 0.0
+	back = back.normalized() if back.length() > 0.01 else Vector3.BACK
+	var best := p
+	var found := false
+	for ring in [4.0, 7.0, 10.0, 14.0, 20.0]:
+		for k in 12:
+			var dir := back.rotated(Vector3.UP, k * TAU / 12.0)
+			var q: Vector3 = p + dir * ring
+			if TerrainGen.normal(q.x, q.z).y > 0.9 and GameState.region_unlocked(TerrainGen.region_at(q.x, q.z)):
+				best = q
+				found = true
+				break
+		if found:
+			break
+	var n := TerrainGen.normal(best.x, best.z)
+	var downhill := Vector3(n.x, 0, n.z)
+	var yaw := atan2(-downhill.x, -downhill.z) if downhill.length() > 0.05 else global_rotation.y
+	best.y = TerrainGen.height(best.x, best.z) + 1.4
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	global_transform = Transform3D(Basis(Vector3.UP, yaw), best)
+	_good_xform = global_transform
+	Diagnostics.event("vehicle recover")
+	if message != "":
+		GameState.notify.emit(message, "info")
 
 
 func _clean(delta: float, speed: float) -> void:
@@ -346,8 +437,19 @@ func _process(delta: float) -> void:
 	var target := global_position + Vector3(0, height, 0) + offset
 	var tg := TerrainGen.height(target.x, target.z) + 1.0
 	target.y = maxf(target.y, tg)
-	cam.global_position = cam.global_position.lerp(target, minf(delta * 6.0, 1.0)) if cam.global_position.distance_to(target) < 30.0 else target
-	cam.look_at(global_position + Vector3(0, height * 0.5, 0), Vector3.UP)
+	# Keep the chase camera out of rocks, hills and buildings (like a spring arm).
+	var pivot := global_position + Vector3(0, height * 0.6, 0)
+	var q := PhysicsRayQueryParameters3D.create(pivot, target, 1, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		target = (hit["position"] as Vector3) + (pivot - target).normalized() * 0.4
+	if not target.is_finite():
+		return
+	var snap := not hit.is_empty() or cam.global_position.distance_to(target) >= 30.0
+	cam.global_position = target if snap else cam.global_position.lerp(target, minf(delta * 6.0, 1.0))
+	var look := global_position + Vector3(0, height * 0.5, 0)
+	if cam.global_position.distance_to(look) > 0.2:
+		cam.look_at(look, Vector3.UP)
 	cam_yaw = lerpf(cam_yaw, 0.0, delta * 0.4) if absf(throttle) > 0.1 else cam_yaw
 
 

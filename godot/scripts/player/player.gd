@@ -20,6 +20,8 @@ var _last_pos := Vector3.ZERO
 var _kb_look := false
 var _bob_t := 0.0
 var _land_kick := 0.0
+var _last_ok := Vector3.INF
+var _ok_t := 0.0
 
 
 func _ready() -> void:
@@ -126,10 +128,11 @@ func _physics_process(delta: float) -> void:
 	var reg := TerrainGen.region_at(p.x, p.z)
 	var r := Vector2(p.x, p.z).length()
 	if not GameState.region_unlocked(reg) or r > TerrainGen.WORLD_RADIUS - 50.0:
-		global_position = Vector3(prev.x, maxf(prev.y, p.y), prev.z)
-		var push := -Vector3(p.x, 0, p.z).normalized() * 3.0
-		velocity.x = push.x
-		velocity.z = push.z
+		# Return to the last spot that was allowed (never fight the player frame by frame).
+		var back := _last_ok if _last_ok != Vector3.INF else Vector3(0, 1, 14)
+		back.y = maxf(back.y, TerrainGen.height(back.x, back.z) + 0.1)
+		global_position = back
+		velocity = Vector3.ZERO
 		_blocked_msg_t -= delta
 		if _blocked_msg_t <= 0.0:
 			_blocked_msg_t = 3.0
@@ -140,6 +143,12 @@ func _physics_process(delta: float) -> void:
 				GameState.notify.emit("%s requires a permit (%s CR) - see Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
 	else:
 		_blocked_msg_t = 0.0
+		if is_on_floor():
+			_ok_t += delta
+			if _ok_t > 0.25:
+				_ok_t = 0.0
+				# A point 1.5 m back along the way we came, so we land clear of the border.
+				_last_ok = global_position - Vector3(velocity.x, 0, velocity.z).limit_length(1.0) * 1.5
 	# Safety net: never fall through the world.
 	var ground := TerrainGen.height(global_position.x, global_position.z)
 	if global_position.y < ground - 2.0:
