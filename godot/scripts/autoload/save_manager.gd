@@ -86,6 +86,7 @@ func save_game(slot := -1, threaded := true) -> void:
 	if _task != -1:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
+	Diagnostics.event("save slot %d" % slot)
 	var world := get_tree().get_first_node_in_group("world")
 	if world and world.has_method("write_state"):
 		world.write_state()

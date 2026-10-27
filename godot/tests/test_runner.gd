@@ -40,6 +40,7 @@ func _ready() -> void:
 	await _test_vehicle()
 	await _test_automation()
 	await _test_save_load()
+	await _test_diagnostics()
 	print("=== %d passed, %d failed ===" % [passed, failures])
 	SaveManager.delete_slot(3)
 	get_tree().quit(failures)
@@ -404,3 +405,25 @@ func _test_save_load() -> void:
 	SaveManager.save_game(3, true)
 	await frames(10)
 	check(not SaveManager.is_saving(), "threaded save completes")
+
+
+func _test_diagnostics() -> void:
+	print("[crash diagnostics]")
+	var D := load("res://scripts/autoload/diagnostics.gd")
+	var cases := [["SESSION x\n12:00:01 | foot (1,2,3) | fps 60\n", true, "abrupt end is a crash"],
+		["SESSION x\n12:00:01 | foot | fps 60\nEND 12:00:05\n", false, "clean exit is not a crash"],
+		["SESSION x\n12:00:01 | foot | fps 60\nPAUSED 12:00:05\n", false, "killed in background is not a crash"]]
+	for c in cases:
+		if FileAccess.file_exists(D.LAST_CRASH):
+			DirAccess.remove_absolute(D.LAST_CRASH)
+		var f := FileAccess.open(D.SESSION, FileAccess.WRITE)
+		f.store_string(c[0])
+		f.close()
+		var d: Node = D.new()
+		add_child(d)
+		check(d.previous_crashed == c[1], c[2])
+		if c[1]:
+			check(d.report().contains("LAST CRASHED SESSION") and d.report().contains("foot (1,2,3)"), "crash report includes the breadcrumbs")
+		d.queue_free()
+	await frames(1)
+	check(SettingsPanel.copy_crash_log() > 3, "copy crash log puts a report on the clipboard")

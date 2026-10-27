@@ -21,6 +21,7 @@ config/icon="res://icon.png"
 
 [autoload]
 
+Diagnostics="*res://scripts/autoload/diagnostics.gd"
 Settings="*res://scripts/autoload/settings.gd"
 GameData="*res://scripts/autoload/game_data.gd"
 GameState="*res://scripts/autoload/game_state.gd"

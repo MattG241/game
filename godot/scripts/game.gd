@@ -299,6 +299,7 @@ func open_menu(tab: String) -> void:
 	controls.release_all()
 	player.cleaner.cleaning = false
 	menu.open(tab)
+	Diagnostics.event("menu " + tab)
 	_pause(true)
 
 
@@ -439,6 +440,7 @@ func enter_vehicle(v: LunarVehicle) -> void:
 	if current_vehicle:
 		return
 	current_vehicle = v
+	Diagnostics.event("enter vehicle " + str(v.info["id"]))
 	player.set_active(false)
 	player.cleaner.cleaning = false
 	v.set_driving(true)
