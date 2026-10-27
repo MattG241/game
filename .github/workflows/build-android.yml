@@ -1,0 +1,164 @@
+name: Build Android APK
+
+# Every push builds, tests and signs a fresh APK and publishes it as a GitHub Release,
+# so it can be downloaded straight from a phone. No computer needed.
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.3"
+  GODOT_STATUS: "stable"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Godot editor and export templates
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-cache
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-android-v1
+
+      - name: Download Godot ${{ env.GODOT_VERSION }}
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/godot-cache && cd ~/godot-cache
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}"
+          wget -q "$base/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip" && rm "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          wget -q "$base/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
+          unzip -qj "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz" \
+            templates/android_release.apk templates/android_debug.apk templates/version.txt -d templates
+          rm "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
+          ls -la ~/godot-cache ~/godot-cache/templates
+
+      - name: Install Godot, templates and Android tooling
+        run: |
+          set -euo pipefail
+          chmod +x ~/godot-cache/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          sudo ln -sf ~/godot-cache/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 /usr/local/bin/godot
+          tpl=~/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}
+          mkdir -p "$tpl" && cp ~/godot-cache/templates/* "$tpl/"
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ ! -x "$SDK/build-tools/34.0.0/apksigner" ]; then
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK" "build-tools;34.0.0" "platform-tools" > /dev/null
+          fi
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-${GODOT_VERSION}.tres <<EOT
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$SDK"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOT
+          sed -i 's/^ *//' ~/.config/godot/editor_settings-${GODOT_VERSION}.tres
+          cat ~/.config/godot/editor_settings-${GODOT_VERSION}.tres
+          echo "APKSIGNER=$SDK/build-tools/34.0.0/apksigner" >> "$GITHUB_ENV"
+          godot --version
+
+      - name: Import project (validates every script and resource)
+        working-directory: godot
+        run: |
+          timeout 300 godot --headless --path . --import 2>&1 | tee import.log
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load" import.log; then
+            echo "::error::Project import reported script errors"; exit 1
+          fi
+
+      - name: Run gameplay test suite
+        working-directory: godot
+        run: |
+          set -o pipefail
+          timeout 900 godot --headless --path . res://tests/test_runner.tscn 2>&1 \
+            | grep -vE "mesh_get_surface_count|Parameter \"m\" is null" | tee tests.log
+          grep -q "0 failed" tests.log
+
+      - name: Stamp version
+        run: |
+          code=$(( ${{ github.run_number }} + 1 ))
+          name="0.1.${{ github.run_number }}"
+          sed -i "s/^version\/code=.*/version\/code=$code/; s/^version\/name=.*/version\/name=\"$name\"/" godot/export_presets.cfg
+          sed -i "s/^config\/version=.*/config\/version=\"$name\"/" godot/project.godot
+          echo "APP_VERSION=$name" >> "$GITHUB_ENV"
+          echo "APP_CODE=$code" >> "$GITHUB_ENV"
+
+      - name: Select signing key
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_USER: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KS_USER" >> "$GITHUB_ENV"
+            echo "::add-mask::$KS_PASS"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "Signing with the private key from repository secrets."
+          else
+            # Public development key (see android/README.md). Keeps the signature identical
+            # between builds so new APKs install over old ones and keep your saves.
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$GITHUB_WORKSPACE/android/lunarcleanup.keystore" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=lunarcleanup" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=lunarcleanup" >> "$GITHUB_ENV"
+            echo "Signing with the committed development key."
+          fi
+
+      - name: Export signed ARM64 APK
+        working-directory: godot
+        run: |
+          mkdir -p ../build
+          timeout 600 godot --headless --path . --export-release "Android" ../build/LunarCleanup.apk 2>&1 \
+            | grep -vE "mesh_get_surface_count|Parameter \"m\" is null|^ADDING" | tee export.log
+          test -s ../build/LunarCleanup.apk
+          "$APKSIGNER" verify --print-certs ../build/LunarCleanup.apk
+          ls -la ../build
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LunarCleanup-${{ env.APP_VERSION }}-apk
+          path: build/LunarCleanup.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release (phone-friendly download)
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Lunar Cleanup ${{ env.APP_VERSION }}
+          make_latest: "true"
+          files: build/LunarCleanup.apk
+          body: |
+            **Lunar Cleanup ${{ env.APP_VERSION }}** (version code ${{ env.APP_CODE }}, branch `${{ github.ref_name }}`, commit ${{ github.sha }})
+
+            Install on Android:
+            1. Tap **LunarCleanup.apk** below to download it in Chrome.
+            2. Open the download. If asked, allow Chrome (or Files) to *install unknown apps*.
+            3. Tap **Install** (or **Update** - your saves are kept), then **Open**.
+
+            Permanent link to the newest build:
+            https://github.com/${{ github.repository }}/releases/latest/download/LunarCleanup.apk

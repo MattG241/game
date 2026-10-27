@@ -1,0 +1,10 @@
+{
+  "_comment": "World regions. Index order matters (matches TerrainGen.region_at). dust_mult multiplies dust value; thickness multiplies dust quantity per m2.",
+  "regions": [
+    {"id": "landing_zone", "name": "Landing Zone", "desc": "Your humble base and starter dust fields.", "permit": 0, "requires": "", "dust_mult": 1.0, "thickness": 1.0, "tint": "#d9d4cc"},
+    {"id": "crater_fields", "name": "Crater Fields", "desc": "Enormous craters, filled to the brim with dust.", "permit": 1500, "requires": "m_sell_1", "dust_mult": 1.5, "thickness": 1.4, "tint": "#c9ccd6"},
+    {"id": "highlands", "name": "Lunar Highlands", "desc": "Bright rocky peaks. Valuable anorthosite dust.", "permit": 9000, "requires": "m_buy_scrubber", "dust_mult": 2.4, "thickness": 1.2, "tint": "#eeeae2"},
+    {"id": "research_facility", "name": "Abandoned Research Facility", "desc": "Rusty dust, wrecked domes and lots of salvage.", "permit": 30000, "requires": "m_auto_1000", "dust_mult": 3.8, "thickness": 1.3, "tint": "#d8b49a"},
+    {"id": "industrial", "name": "Industrial Expanse", "desc": "Vast flat plains made for automation at scale.", "permit": 120000, "requires": "m_research_5", "dust_mult": 6.0, "thickness": 1.5, "tint": "#a7a39c"}
+  ]
+}

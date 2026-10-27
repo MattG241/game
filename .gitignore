@@ -1,0 +1,9 @@
+# Godot
+godot/.godot/
+godot/*.log
+godot/tests/*.log
+# Build output
+build/
+*.apk
+*.aab
+*.idsig
