@@ -46,6 +46,10 @@ def icon(px):
     return img
 
 icon(512).resize((192, 192), Image.LANCZOS).save(f"{OUT}/icon.png")
+if len(sys.argv) > 2:
+    # Optional: 512x512 store icon (Google Play) and 1024x1024 (App Store, no alpha).
+    icon(1024).resize((512, 512), Image.LANCZOS).save(f"{sys.argv[2]}/icon_512.png")
+    icon(1024).convert("RGB").save(f"{sys.argv[2]}/icon_1024.png")
 fg = Image.new("RGBA", (432, 432), (0, 0, 0, 0))
 ic = icon(512).resize((300, 300), Image.LANCZOS).convert("RGBA")
 mask = Image.new("L", (300, 300), 0)

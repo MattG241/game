@@ -341,7 +341,7 @@ func _tab_missions() -> void:
 		var p := GameState.mission_progress(m)
 		var prog := "COMPLETE" if done else "%s / %s" % [GameState.fmt_short(minf(p.x, p.y)), GameState.fmt_short(p.y)]
 		if m["type"] == "landmark" and not done:
-			prog = "%d%% / %d%%" % [int(p.x * 100.0), int(p.y * 100.0)]
+			prog = "%d%% / %d%%" % [roundi(p.x * 100.0), roundi(p.y * 100.0)]
 		var accent := UIKit.GOOD if done else (UIKit.ACCENT if m == cur else UIKit.LINE)
 		_card(m["title"], m["hint"], "Reward %s CR + %d RP   -   %s" % [GameState.fmt(m["reward"]), int(m["rp"]), prog], accent, [], done)
 	_header("ACHIEVEMENTS  (%d / %d)" % [GameState.achievements_done.size(), GameData.achievements.size()])

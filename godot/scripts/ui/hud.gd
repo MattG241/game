@@ -276,7 +276,7 @@ func _process(delta: float) -> void:
 		if p.y > 1.0:
 			prog = "  (%s / %s)" % [GameState.fmt_short(minf(p.x, p.y)), GameState.fmt_short(p.y)]
 		elif m["type"] == "landmark":
-			prog = "  (%d%% / %d%%)" % [int(p.x * 100.0), int(p.y * 100.0)]
+			prog = "  (%d%% / %d%%)" % [roundi(p.x * 100.0), roundi(p.y * 100.0)]
 		_obj_hint.text = m.get("hint", "") + prog
 	if world:
 		var fp: Vector3 = world.focus_node().global_position

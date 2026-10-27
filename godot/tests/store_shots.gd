@@ -65,6 +65,7 @@ func _setup() -> void:
 	GameState.rp = 64.0
 	var pl: Player = game.player
 	game.controls.visible = _args.get("controls", "0") == "1"
+	game.hud.visible = _args.get("hud", "1") == "1"
 	match scene:
 		"brush":
 			GameState.credits = 424.0
