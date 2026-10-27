@@ -44,6 +44,15 @@ func _process(_d: float) -> void:
 		if _args.has("tool"):
 			GameState.tools[_args["tool"]] = 0
 			GameState.equip(_args["tool"])
+	if game and _args.has("vehicle"):
+		if _frames == 6:
+			GameState.credits = 1e7
+			GameState.buy_vehicle(_args["vehicle"])
+		if _frames == 8:
+			game.enter_vehicle(game.vehicles[0])
+		if _frames > 12:
+			game.controls.move_vector = Vector2(0.15, -1.0)
+			game.vehicles[0].cleaning = true
 	if game and _args.has("clean") and _frames > 10 and _frames < _target - 5:
 		game.player.cleaner.cleaning = true
 		game.player.yaw += 0.01 * sin(_frames * 0.05)
