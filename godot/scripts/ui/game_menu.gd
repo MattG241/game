@@ -487,7 +487,7 @@ func show_dialog(title: String, text: String) -> void:
 
 func _hide_frame(hidden: bool) -> void:
 	for c in get_children():
-		if c != _modal:
+		if c != _modal and c is CanvasItem:
 			(c as CanvasItem).visible = not hidden
 
 

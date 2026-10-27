@@ -76,9 +76,10 @@ static func build(id: String, stats: Dictionary) -> Dictionary:
 			for i in 8:
 				Meshes.part(disc, Meshes.box(Vector3(r * 1.9, 0.05, 0.12)), Meshes.hs(col, 0.3, 0.4), Vector3(0, 0.18, 0), Vector3(0, i * PI / 8.0, 0))
 			out["spinners"].append(disc)
-			Meshes.part(head, Meshes.sphere(r * 0.45, 20, true), Meshes.hs(col.lightened(0.2), 0.5, 0.3), Vector3(0, 0.2, 0))
+			# Low motor housing: big enough to read as a machine, small enough not to block the view.
+			Meshes.part(head, Meshes.sphere(r * 0.24, 20, true), Meshes.hs(col.lightened(0.2), 0.5, 0.3), Vector3(0, 0.18, 0), Vector3.ZERO, Vector3(1, 0.6, 1))
 			Meshes.part(head, Meshes.torus(r * 0.95, r * 1.02, 40), Meshes.glow(col, 2.0), Vector3(0, 0.18, 0))
-			out["attach"] = Vector3(0, r * 0.55, 0)
+			out["attach"] = Vector3(0, r * 0.18, 0)
 			out["shaft_mat"] = metal
 			out["shaft_r"] = 0.05
 		"heavy_cleaner":
