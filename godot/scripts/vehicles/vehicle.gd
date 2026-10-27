@@ -106,6 +106,7 @@ func setup(vehicle_index: int) -> void:
 		var q := QuadMesh.new()
 		q.size = Vector2(0.12, 0.12)
 		var m := StandardMaterial3D.new()
+		m.albedo_texture = UIKit.soft_dot()
 		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.vertex_color_use_as_albedo = true

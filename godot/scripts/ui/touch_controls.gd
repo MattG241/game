@@ -49,7 +49,7 @@ var _pulse := 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	UIKit.fill_viewport(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = UIKit.font_bold()
 	_apply_layout()

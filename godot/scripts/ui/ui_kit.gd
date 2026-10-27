@@ -118,6 +118,22 @@ static func theme() -> Theme:
 	return t
 
 
+static var _dot: ImageTexture
+
+
+## Soft round particle sprite.
+static func soft_dot() -> ImageTexture:
+	if _dot == null:
+		var n := 32
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		for y in n:
+			for x in n:
+				var d := Vector2(x + 0.5 - n * 0.5, y + 0.5 - n * 0.5).length() / (n * 0.5)
+				img.set_pixel(x, y, Color(1, 1, 1, clampf(1.0 - d, 0.0, 1.0) ** 1.5))
+		_dot = ImageTexture.create_from_image(img)
+	return _dot
+
+
 static func _circle_tex(size: int, c: Color) -> ImageTexture:
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var r := size * 0.5
@@ -224,6 +240,16 @@ static func spacer(h := true) -> Control:
 	else:
 		c.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	return c
+
+
+## Makes a root Control cover the whole viewport, now and after rotations/resizes.
+static func fill_viewport(c: Control) -> void:
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var fit := func():
+		c.position = Vector2.ZERO
+		c.size = c.get_viewport_rect().size
+	fit.call()
+	c.get_viewport().size_changed.connect(fit)
 
 
 ## Insets (left, top, right, bottom) in viewport units for notches / gesture bars.

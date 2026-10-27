@@ -1,7 +1,7 @@
 {
   "_comment": "Missions are listed in story order. The first incomplete mission is shown as the current objective. type: stat | own_tool | tool_level | tank_level | region | own_vehicle | build | landmark | flag | research_count",
   "missions": [
-    {"id": "m_first_m2", "title": "Clean your first square metre", "hint": "Hold the BRUSH button and aim at the dusty ground in front of you.", "type": "stat", "stat": "m2_cleaned", "value": 1, "reward": 10, "rp": 1},
+    {"id": "m_first_m2", "title": "Clean your first square metre", "hint": "Hold the CLEAN button and aim at the dusty ground in front of you.", "type": "stat", "stat": "m2_cleaned", "value": 1, "reward": 10, "rp": 1},
     {"id": "m_fill_tank", "title": "Collect your first container of dust", "hint": "Keep brushing until your dust tank is full.", "type": "stat", "stat": "dust_collected", "value": 40, "reward": 15, "rp": 2},
     {"id": "m_sell_1", "title": "Sell dust at the Dust Exchange", "hint": "Walk to the yellow Dust Exchange at the base and press INTERACT.", "type": "stat", "stat": "sell_count", "value": 1, "reward": 25, "rp": 2},
     {"id": "m_buy_jumbo", "title": "Purchase a better toothbrush", "hint": "Open the SHOP and buy the Jumbo Toothbrush.", "type": "own_tool", "tool": "big_toothbrush", "reward": 30, "rp": 3},

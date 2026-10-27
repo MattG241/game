@@ -44,7 +44,7 @@ func _ready() -> void:
 	dirt = GameState.dirt
 	var suit := Meshes.hs(Color(0.93, 0.93, 0.9), 0.05, 0.75, Color(0, 0, 0), 0.0, 5.0, 0.2)
 	_arm = Meshes.part(self, Meshes.cyl(0.5, 1.0, 12), suit, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
-	_glove = Meshes.part(self, Meshes.sphere(0.075, 12), Meshes.hs(Color(0.95, 0.5, 0.12), 0.1, 0.6), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
+	_glove = Meshes.part(self, Meshes.sphere(0.05, 12), Meshes.hs(Color(0.95, 0.5, 0.12), 0.1, 0.6), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
 	_shaft = Meshes.part(self, Meshes.cyl(0.5, 1.0, 10), null, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, true)
 	_grip = Meshes.part(self, Meshes.cyl(0.5, 1.0, 10), null, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
 	_ring = MeshInstance3D.new()
@@ -73,8 +73,9 @@ func _make_particles() -> CPUParticles3D:
 	p.explosiveness = 0.0
 	p.randomness = 0.6
 	var q := QuadMesh.new()
-	q.size = Vector2(0.07, 0.07)
+	q.size = Vector2(0.05, 0.05)
 	var m := StandardMaterial3D.new()
+	m.albedo_texture = UIKit.soft_dot()
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.vertex_color_use_as_albedo = true
@@ -321,12 +322,12 @@ func _update_rig(delta: float, active: bool) -> void:
 	var cam_t := camera.global_transform
 	var bob := Vector3(0, sin(_time * 2.0) * 0.006, 0)
 	var scrub := _scrub_offset()
-	var hand_local := Vector3(0.27, -0.33, -0.52) + bob
+	var hand_local := Vector3(0.27, -0.3, -0.62) + bob
 	if active:
 		hand_local += Vector3(0.0, -0.03, -0.05)
 	var hand := cam_t * hand_local + scrub * 0.25
 	var shoulder := cam_t * Vector3(0.42, -0.62, 0.15)
-	Meshes.span(_arm, shoulder, hand, 0.17)
+	Meshes.span(_arm, shoulder, hand, 0.13)
 	_glove.global_position = hand
 	var emitter: bool = _rig.get("emitter", false)
 	if emitter:

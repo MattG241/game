@@ -28,7 +28,6 @@ func build(w: Node) -> void:
 	var cyan_glow := Meshes.glow(Color(0.2, 0.9, 1.0), 2.5)
 
 	# Base floor pad
-	Meshes.part(self, Meshes.cyl(30.0, 0.12, 48), Meshes.hs(Color(0.3, 0.31, 0.33), 0.1, 0.85, Color(0, 0, 0), 0.0, 0.25, 0.5), Vector3(0, 0.02, -2))
 
 	# Habitat hub: dome + modules
 	var hab := Node3D.new()

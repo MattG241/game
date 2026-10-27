@@ -25,7 +25,7 @@ var _refresh_t := 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	UIKit.fill_viewport(self)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	theme = UIKit.theme()
 	visible = false
@@ -82,6 +82,8 @@ func _ready() -> void:
 
 
 func open(tab := "shop") -> void:
+	close_modal_only()
+	_hide_frame(false)
 	visible = true
 	Audio.play("ui_open")
 	show_tab(tab)
@@ -92,6 +94,7 @@ func close() -> void:
 		_modal.queue_free()
 		_modal = null
 	visible = false
+	_hide_frame(false)
 	closed.emit()
 
 

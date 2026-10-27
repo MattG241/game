@@ -34,7 +34,7 @@ var _t := 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	UIKit.fill_viewport(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = UIKit.theme()
 	_build()
@@ -50,6 +50,7 @@ func _ready() -> void:
 	_update_battery()
 	_update_tool()
 	_layout()
+	call_deferred("_layout")
 
 
 func _build() -> void:
@@ -154,9 +155,10 @@ func _build() -> void:
 
 func _layout() -> void:
 	_insets = UIKit.safe_insets(get_viewport())
-	var s := size
+	var s := get_viewport_rect().size
 	_left.position = Vector2(_insets.x + 6, _insets.y + 6)
-	_obj_panel.position = Vector2(s.x * 0.5 - 220, _insets.y + 6)
+	# Objective sits between the status panel and the menu buttons.
+	_obj_panel.position = Vector2(maxf(s.x * 0.5 - 250, _insets.x + 340), _insets.y + 6)
 	_obj_panel.size.x = 440
 	_toasts.position = Vector2(s.x * 0.5 - 300, _insets.y + 150)
 	_toasts.size = Vector2(600, 300)
