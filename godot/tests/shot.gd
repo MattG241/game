@@ -31,6 +31,11 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	_frames += 1
 	var game := get_tree().get_first_node_in_group("world")
+	if game == null and _args.has("page") and _frames == 5:
+		_boot.current.call("_show_" + _args["page"])
+	if game == null and _args.has("scroll") and _frames == 8:
+		for sc in _boot.current.find_children("*", "ScrollContainer", true, false):
+			(sc as ScrollContainer).scroll_vertical = int(_args["scroll"])
 	if game and _frames == 5:
 		game.menu.close()
 		var pl: Node = game.player

@@ -85,7 +85,9 @@ static func _section(t: String) -> Control:
 static func _row(text: String, ctrl: Control) -> Control:
 	var h := UIKit.hbox(16)
 	var l := UIKit.label(text, 22)
-	l.custom_minimum_size = Vector2(300, 0)
+	l.custom_minimum_size = Vector2(250, 0)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(l)
 	ctrl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(ctrl)
@@ -98,7 +100,7 @@ static func _slider(text: String, key: String, lo: float, hi: float, step: float
 	s.max_value = hi
 	s.step = step
 	s.value = float(Settings.get_value(key, lo))
-	s.custom_minimum_size = Vector2(320, 48)
+	s.custom_minimum_size = Vector2(220, 48)
 	var val := UIKit.label("%.2f" % s.value, 20, UIKit.MUTED)
 	val.custom_minimum_size = Vector2(70, 0)
 	s.value_changed.connect(func(v):

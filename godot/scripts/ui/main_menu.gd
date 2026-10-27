@@ -123,8 +123,17 @@ func _show_main() -> void:
 	_panel.add_child(UIKit.label("v%s   offline - no ads - no purchases" % ProjectSettings.get_setting("application/config/version"), 16, UIKit.MUTED))
 
 
+func _close_side() -> void:
+	Audio.play("ui_back")
+	_clear(_sub)
+	_panel.visible = true
+
+
+## Side panels take the whole screen width (the title column hides) so long
+## pages such as Settings never run off the right edge on phones.
 func _side_panel(title: String) -> VBoxContainer:
 	_clear(_sub)
+	_panel.visible = false
 	var p := UIKit.panel(UIKit.BG, UIKit.LINE, 20, 20)
 	p.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_sub.add_child(p)
@@ -134,7 +143,7 @@ func _side_panel(title: String) -> VBoxContainer:
 	v.add_child(h)
 	h.add_child(UIKit.title(title, 44))
 	h.add_child(UIKit.spacer())
-	h.add_child(UIKit.button("BACK", func(): Audio.play("ui_back"); _clear(_sub), Vector2(150, 62)))
+	h.add_child(UIKit.button("BACK", _close_side, Vector2(150, 62)))
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
