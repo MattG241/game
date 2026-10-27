@@ -1,0 +1,13 @@
+{
+  "name": "imperial-slots",
+  "version": "0.1.0",
+  "description": "Imperial-themed 5x3, 25-payline slot game configuration and engine",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test",
+    "demo": "node scripts/demo.js"
+  },
+  "license": "MIT"
+}

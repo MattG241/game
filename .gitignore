@@ -1,3 +1,9 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+*.log
+.env
+
 # Godot
 godot/.godot/
 godot/*.log

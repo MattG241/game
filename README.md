@@ -1,64 +1,132 @@
-# Lunar Cleanup
+> **Lunar Cleanup (Android game):** install the latest APK on your phone from
+> https://github.com/MattG241/game/releases/latest/download/LunarCleanup.apk
+> - full details in [`godot/README.md`](godot/README.md).
 
-You're a cleaner for a badly underfunded lunar cleaning company. You start with one toothbrush. Clean the Moon, sell the dust, and build up a self-running lunar cleaning business.
+# Golden Century
 
-It's a 3D first-person Android game (landscape) built with **Godot 4.3** in GDScript. It's single-player and works offline, with no ads and no purchases.
+A polished, playable Chinese-imperial slot game — configuration, evaluation
+engine, and a browser front end built around the supplied art.
 
-## Install on your phone (no computer needed)
+- **5 reels × 3 rows**
+- **25 fixed paylines**, evaluated left-to-right on adjacent reels
+- Emperor **Wild**, Golden Banner **Scatter** (Free Spins), Flaming Orb **Hold & Spin** bonus
 
-1. In Chrome on Android, open:
-   **https://github.com/MattG241/game/releases/latest/download/LunarCleanup.apk**
-2. When the download finishes, tap it. If Android asks, allow Chrome to *install unknown apps*.
-3. Tap **Install** (later updates show **Update**, and your saves are kept), then **Open**.
+## Play it
 
-All builds: https://github.com/MattG241/game/releases. Each one comes from the
-GitHub Actions workflow `.github/workflows/build-android.yml`, which runs on every push.
+```sh
+npm start        # serves the game at http://localhost:8080/web/
+```
 
-## Change the game from your phone
+Then open the URL in a browser. Press **SPIN** (or the spacebar) to play.
+The front end (`web/`) reuses the exact same evaluation logic as the engine in
+`src/`, so what you see is what the math produces.
 
-Edit any file on github.com or in the GitHub mobile app and commit. GitHub Actions then:
-imports the project → runs the gameplay test suite → exports a signed ARM64 APK →
-uploads it as an artifact **and** publishes a Release. The link above always points to the newest build.
-You can also open `godot/` in the official Godot Android editor.
+Features in the playable build:
 
-## What's in the game
+- Animated, staggered reel spins with win-line overlays and symbol glow
+- Free Spins round (2× wins, retriggers, more wilds)
+- Hold & Spin bonus with locking orbs, respins, orb values and jackpots
+- Adjustable bet, autoplay, sound toggle, in-game paytable and settings
+- Starting play-money balance of 10,000 (resettable from Settings)
 
-- **Cleaning:** a persistent dirt mask per 32 m chunk (128×128 texels at 0.25 m), blended into the terrain by a shader.
-  Tools stamp round, wide or beam shapes along your swipe path. Dust collected matches the dirt removed,
-  so ground you've already cleaned gives nothing. Cleaning progress is saved with ZSTD compression.
-- **12 tools**, from Toothbrush to Autonomous Swarm Controller. Each has 5 upgrade levels.
-- **Suit upgrades:** tank, battery and boots.
-- **4 vehicles** that use low-gravity suspension. The Vacuum Buggy and the Cleaning Truck clean the same dirt map as your tools.
-- **Automation:** solar power, collectors, storage, conveyors, chargers, drone bays, rover garages,
-  processors and shipping depots. Machines link into networks.
-- **5 regions** unlocked with permits, **32 missions**, **13 achievements**, a **16-node research** tree, salvage and a crashed probe.
-- **Touch controls:** floating joystick and swipe-to-look. Hold CLEAN and slide your thumb to sweep. You can change button
-  layout, size and opacity, and turn on aim assist, vibration and a CLEAN toggle mode.
-- **Performance:** Compatibility renderer, threaded chunk streaming with 2 LODs, MultiMesh rocks,
-  30/60 FPS, quality presets, render scale and a developer overlay (FPS, ms, RAM, draw calls, chunks).
-- **Saves:** 3 slots, autosave every 60 s and when the app goes to the background, atomic writes with `.bak` recovery,
-  and versioned save data.
+> ⚠️ The payout values here are **starting values**, not a mathematically balanced
+> paytable. Final return-to-player (RTP) depends on reel strips, symbol frequency,
+> bonus frequency and jackpot odds.
 
-Balancing data lives in `godot/data/*.json`.
+## Symbols
+
+| Icon | Symbol ID | Function |
+| --- | --- | --- |
+| Emperor | `emperor` | Highest-paying regular symbol. Also acts as the **Wild**. |
+| Royal women | `royal_women` | Second-highest regular payout. |
+| Terracotta warriors | `warriors` | Third-highest regular payout. |
+| Golden banner | `banner` | **Scatter** that triggers Free Spins. Pays anywhere. |
+| Flaming gold orb | `bonus_orb` | Cash-orb symbol for the **Hold & Spin** bonus. |
+| Crown K | `k` | Highest-value card symbol. |
+| Crown Q | `q` | Medium card symbol. |
+| J | `j` | Card symbol. |
+| Red 10 | `ten` | Lower-value card symbol. |
+| Green 9 | `nine` | Lowest-value card symbol. |
+
+### Paytable (bet multipliers)
+
+| Symbol | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- |
+| Emperor (Wild) | 2× | 20× | 75× | 250× |
+| Royal women | – | 10× | 30× | 100× |
+| Warriors | – | 6× | 20× | 60× |
+| K | – | 3× | 8× | 25× |
+| Q | – | 2× | 6× | 20× |
+| J | – | 2× | 5× | 15× |
+| 10 | – | 1.5× | 4× | 12× |
+| 9 | – | 1× | 3× | 10× |
+
+## Features
+
+### Emperor Wild
+Substitutes for every regular symbol **except** `banner` and `bonus_orb`.
+
+### Golden Banner Scatter — Free Spins
+Pays anywhere. Triggers: **3 → 8**, **4 → 12**, **5 → 20** free spins.
+During Free Spins, every win uses a **2× multiplier**, Wilds appear more
+frequently, and landing **3 more banners adds 5 spins**.
+
+### Flaming Orb — Hold & Spin
+**6+ orbs** in one spin start the feature: triggering orbs lock, the player gets
+**3 respins**, and every new orb locks and resets the counter to 3. The feature
+ends when the counter reaches zero or every position is filled. Orbs carry
+credit values (`1×…100×` total bet) and may be replaced by **MINI / MINOR /
+MAJOR / GRAND** jackpots. Filling all 15 positions awards the **Grand Jackpot**.
+
+## Usage
+
+```js
+import { evaluateSpin } from "./src/index.js";
+
+// grid[reel][row] of symbol ids (5 reels × 3 rows)
+const grid = [
+  ["k", "q", "nine"],
+  ["k", "ten", "j"],
+  ["k", "nine", "q"],
+  ["ten", "j", "nine"],
+  ["q", "nine", "ten"],
+];
+
+const result = evaluateSpin(grid, { totalBet: 25 });
+console.log(result.totalWin, result.lineWins);
+```
 
 ## Project layout
 
 ```
-godot/                 Godot project (open project.godot)
-  data/                balancing JSON (tools, vehicles, machines, missions, research, regions, economy)
-  scripts/autoload/    Settings, GameData, GameState (economy), SaveManager, Audio
-  scripts/world/       TerrainGen (deterministic), Terrain (streaming), DirtMap (cleaning), base, landmarks
-  scripts/player/      Player, Cleaner (tool rig + stamping), ToolModels
-  scripts/vehicles/    LunarVehicle
-  scripts/automation/  AutomationSim (rules), Automation (visuals/placement), MachineModels
-  scripts/ui/          HUD, TouchControls, GameMenu, MapView, SettingsPanel, MainMenu, UIKit
-  shaders/             terrain, sky, earth, hard-surface, energy, brush ring
-  tests/               test_runner (headless gameplay tests), shot (screenshot harness)
-tools/                 gen_audio.py, gen_images.py (procedural audio/icon generation)
-android/               signing key (see android/README.md)
+src/
+  symbols.js    Symbol definitions, types, paytable
+  paylines.js   The 25 payline patterns
+  config.js     Reel / feature configuration
+  reels.js      Weighted reel strips + random grid generator
+  engine.js     Spin evaluation (line wins, scatter, hold & spin)
+  index.js      Public entry point
+web/
+  index.html    Game shell
+  style.css     Theme / layout
+  game.js       Front-end controller (imports the engine from src/)
+  assets/       Game art (logo, frame, symbols, UI buttons)
+test/           Engine tests (node --test)
+scripts/
+  serve.js      Zero-dependency static server (npm start)
+  demo.js       Random-spin demo
 ```
 
-## Licences
+## Develop
 
-Godot Engine is MIT. Exo 2 and Rajdhani fonts are SIL OFL 1.1 (licence files are in `godot/assets/fonts`).
-All models, textures, sounds and music were generated procedurally for this project.
+```sh
+npm start      # play the game in a browser
+npm test       # run the test suite
+npm run demo   # print a random evaluated spin
+```
+
+## Assets
+
+UI and theme art live in `web/assets/` (Golden Century pack: logo, dragon reel
+frame, Emperor wild, and control buttons). Card and premium symbols are rendered
+as styled tiles. White backgrounds were made transparent for compositing.
