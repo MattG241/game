@@ -95,6 +95,15 @@ jobs:
             | grep -vE "mesh_get_surface_count|Parameter \"m\" is null" | tee tests.log
           grep -q "0 failed" tests.log
 
+      - name: Streaming stress test (walks every region)
+        working-directory: godot
+        run: |
+          set -o pipefail
+          timeout 900 godot --headless --path . res://tests/stress.tscn -- --frames=2000 2>&1 \
+            | grep -vE "mesh_get_surface_count|Parameter \"m\" is null" | tee stress.log
+          grep -q "STRESS OK" stress.log
+          if grep -E "SCRIPT ERROR|Condition \"!success\"" stress.log; then exit 1; fi
+
       - name: Stamp version
         run: |
           code=$(( ${{ github.run_number }} + 1 ))

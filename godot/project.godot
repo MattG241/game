@@ -65,3 +65,8 @@ lights_and_shadows/positional_shadow/atlas_size=1024
 lights_and_shadows/positional_shadow/atlas_size.mobile=1024
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 anti_aliasing/quality/msaa_3d=1
+
+[debug]
+
+file_logging/enable_file_logging=true
+file_logging/max_log_files=6

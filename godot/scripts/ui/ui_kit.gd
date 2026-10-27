@@ -245,11 +245,16 @@ static func spacer(h := true) -> Control:
 ## Makes a root Control cover the whole viewport, now and after rotations/resizes.
 static func fill_viewport(c: Control) -> void:
 	c.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var fit := func():
-		c.position = Vector2.ZERO
-		c.size = c.get_viewport_rect().size
-	fit.call()
-	c.get_viewport().size_changed.connect(fit)
+	_fit(c)
+	# _fit guards against `c` having been freed (screens outlive menus on rotation).
+	c.get_viewport().size_changed.connect(_fit.bind(c))
+
+
+static func _fit(c) -> void:
+	if not is_instance_valid(c) or not c.is_inside_tree():
+		return
+	c.position = Vector2.ZERO
+	c.size = c.get_viewport_rect().size
 
 
 ## Insets (left, top, right, bottom) in viewport units for notches / gesture bars.

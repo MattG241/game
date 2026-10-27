@@ -26,6 +26,7 @@ var _autosave_t := 0.0
 var _landmark_t := 0.0
 var _charge_msg_t := 0.0
 var _supervisor_idx := 0
+var _mouse_clean := false
 
 
 func _ready() -> void:
@@ -229,8 +230,15 @@ func _on_released(id: String) -> void:
 		current_vehicle.braking = false
 
 
+func _input(event: InputEvent) -> void:
+	# A real mouse (never the click Android emulates for the first finger).
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT \
+			and event.device != InputEvent.DEVICE_ID_EMULATION:
+		_mouse_clean = event.pressed and not menu.visible
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	# Keyboard/mouse fallback for desktop testing.
+	# Keyboard fallback for desktop testing.
 	if menu.visible:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -245,11 +253,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and not event.pressed:
 		if event.keycode == KEY_SPACE:
 			_on_released("jump")
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			_on_pressed("clean")
-		else:
-			_on_released("clean")
+
+
+## Desktop testing only: hold the left mouse button to clean. Ignored on touchscreens,
+## where Android also reports each first finger as an emulated mouse click.
+func _desktop_mouse_cleaning() -> bool:
+	return _mouse_clean and not menu.visible
 
 
 func _set_mode(m: String) -> void:
@@ -470,6 +479,10 @@ func exit_vehicle() -> void:
 func _process(delta: float) -> void:
 	if get_tree().paused:
 		return
+	# Cleaning is driven by the live button state every frame (not by press/release
+	# events), so a lost touch-release can never leave the brush stuck on.
+	if mode == "foot" and not Settings.get_value("clean_toggle", false):
+		player.cleaner.cleaning = controls.is_held("clean") or _desktop_mouse_cleaning()
 	if current_vehicle:
 		current_vehicle.look(controls.consume_look())
 		var mv := controls.move_vector

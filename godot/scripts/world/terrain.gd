@@ -264,7 +264,9 @@ func _build_task(key: Vector2i, lod: int, need_dirt: bool, res: Dictionary) -> v
 			idx.append_array([a, b, c, b, d, c])
 	# Skirts hide cracks between neighbouring LODs.
 	var skirt := 2.5 if lod == 0 else 5.0
-	var edges := [[], [], [], []]
+	var edges := Array()
+	for e in 4:
+		edges.append(Array())
 	for i in n:
 		edges[0].append(i)                  # north row (j = 0)
 		edges[1].append((n - 1) * n + i)    # south row
@@ -285,7 +287,7 @@ func _build_task(key: Vector2i, lod: int, need_dirt: bool, res: Dictionary) -> v
 			var b2 := base + k + 1
 			# Double-sided so winding does not matter.
 			idx.append_array([a, a2, b, b, a2, b2, a, b, a2, b, b2, a2])
-	var arrays := []
+	var arrays := Array()
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = norms
@@ -318,6 +320,21 @@ func _tint(x: float, z: float, interior: float) -> Color:
 	return c
 
 
+## Large boulders per chunk by region. A match instead of a constant array: constant
+## arrays are shared between threads and their reference counting raced on 8-core phones.
+static func _rocks_for_region(region: int) -> int:
+	match region:
+		TerrainGen.Region.CRATERS:
+			return 7
+		TerrainGen.Region.HIGHLANDS:
+			return 14
+		TerrainGen.Region.RESEARCH:
+			return 6
+		TerrainGen.Region.INDUSTRIAL:
+			return 3
+	return 4
+
+
 func _rock_placements(key: Vector2i, lod: int) -> Array:
 	var ox := key.x * TerrainGen.CHUNK
 	var oz := key.y * TerrainGen.CHUNK
@@ -325,13 +342,13 @@ func _rock_placements(key: Vector2i, lod: int) -> Array:
 	var cz := oz + TerrainGen.CHUNK * 0.5
 	var r := sqrt(cx * cx + cz * cz)
 	if r < 30.0:
-		return []
+		return Array()
 	var region := TerrainGen.region_at(cx, cz)
-	var counts := [4, 7, 14, 6, 3]
-	var count: int = counts[region]
+	var big_count := _rocks_for_region(region)
+	var count: int = big_count
 	if lod == 0:
 		count += 26 if detail_level >= 1 else 10
-	var out := []
+	var out := Array()
 	for i in count:
 		var hx := TerrainGen.hashf(key.x * 31 + i, key.y * 17 - i, 991)
 		var hz := TerrainGen.hashf(key.x * 13 - i, key.y * 29 + i, 553)
@@ -340,7 +357,7 @@ func _rock_placements(key: Vector2i, lod: int) -> Array:
 		var z := oz + hz * TerrainGen.CHUNK
 		if x * x + z * z < 60.0 * 60.0:
 			continue
-		var big: bool = i < counts[region]
+		var big: bool = i < big_count
 		var s := (0.5 + hsz * hsz * 2.6) if big else (0.08 + hsz * 0.22)
 		var s3 := TerrainGen.sample(x, z)
 		if s3.z > 0.4 and big:

@@ -72,6 +72,8 @@ func set_active(on: bool) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
 		return
+	if (event is InputEventMouse) and event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
 	# Desktop fallback (testing): right mouse drag to look.
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		_kb_look = event.pressed

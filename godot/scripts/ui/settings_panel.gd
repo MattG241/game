@@ -44,7 +44,37 @@ static func build(on_edit_layout: Callable = Callable()) -> Control:
 	root.add_child(_section("AUDIO"))
 	root.add_child(_slider("Music volume", "music_volume", 0.0, 1.0, 0.05))
 	root.add_child(_slider("Effects volume", "sfx_volume", 0.0, 1.0, 0.05))
+	root.add_child(_section("TROUBLESHOOTING"))
+	var status := UIKit.label("If the game closed unexpectedly, reopen it and tap this, then paste the text to the developer.", 18, UIKit.MUTED)
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(status)
+	root.add_child(UIKit.button("COPY CRASH LOG", func():
+		var n := copy_crash_log()
+		status.text = "Copied %d lines to the clipboard." % n if n > 0 else "No log found yet.", Vector2(320, 64)))
 	return root
+
+
+## Copies the most useful log to the clipboard: the previous session's log (the one
+## that ended in a crash) if there is one, otherwise the current session's.
+static func copy_crash_log() -> int:
+	var dir := "user://logs"
+	var files := DirAccess.get_files_at(dir)
+	var older := []
+	for f in files:
+		if f.ends_with(".log") and f != "godot.log":
+			older.append(f)
+	older.sort()
+	var pick: String = dir + "/" + (older[older.size() - 1] if not older.is_empty() else "godot.log")
+	if not FileAccess.file_exists(pick):
+		return 0
+	var text := FileAccess.get_file_as_string(pick)
+	var lines := text.split("\n")
+	# Keep the end of the log (where the crash is) within clipboard-friendly size.
+	var start := maxi(lines.size() - 400, 0)
+	var header := "Lunar Cleanup %s | %s | %s | %d cores\n%s\n" % [ProjectSettings.get_setting("application/config/version"),
+		OS.get_model_name(), OS.get_name(), OS.get_processor_count(), pick.get_file()]
+	DisplayServer.clipboard_set(header + "\n".join(lines.slice(start)))
+	return lines.size() - start
 
 
 static func _section(t: String) -> Control:

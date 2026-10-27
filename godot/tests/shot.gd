@@ -54,7 +54,7 @@ func _process(_d: float) -> void:
 			game.controls.move_vector = Vector2(0.15, -1.0)
 			game.vehicles[0].cleaning = true
 	if game and _args.has("clean") and _frames > 10 and _frames < _target - 5:
-		game.player.cleaner.cleaning = true
+		game.controls.held["clean"] = true
 		game.player.yaw += 0.01 * sin(_frames * 0.05)
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])

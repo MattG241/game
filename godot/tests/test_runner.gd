@@ -143,6 +143,36 @@ func _test_touch_and_movement() -> void:
 	_touch(c, 2, cb, false)
 	await frames(1)
 	check(not pl.cleaner.cleaning, "releasing CLEAN stops cleaning")
+	# Regression: a finger on the joystick or look area must never start cleaning
+	# (Android emulates a mouse click for the first finger).
+	_touch(c, 3, Vector2(200, 500), true)
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.device = InputEvent.DEVICE_ID_EMULATION
+	Input.parse_input_event(click)
+	await frames(3)
+	check(not pl.cleaner.cleaning, "joystick touch / emulated click does not start cleaning")
+	_touch(c, 3, Vector2(200, 500), false)
+	# Regression: a release that arrives while a menu is open still stops cleaning.
+	_touch(c, 4, cb, true)
+	await frames(1)
+	game.controls.enabled = false
+	_touch(c, 4, cb, false)
+	game.controls.enabled = true
+	await frames(2)
+	check(not pl.cleaner.cleaning, "release during a menu still stops cleaning")
+	# Regression: an OS-cancelled touch (gesture bar) releases everything.
+	_touch(c, 5, cb, true)
+	await frames(1)
+	var cancel := InputEventScreenTouch.new()
+	cancel.index = 5
+	cancel.position = cb
+	cancel.pressed = false
+	cancel.canceled = true
+	c._input(cancel)
+	await frames(2)
+	check(not pl.cleaner.cleaning and c.held.is_empty(), "cancelled touch stops cleaning")
 
 
 func _touch(c: Control, idx: int, pos: Vector2, pressed: bool) -> void:
@@ -171,9 +201,9 @@ func _test_cleaning_loop() -> void:
 	GameState.tank_value = 0.0
 	var aim: Vector3 = pl.cleaner.aim_point
 	var before := GameState.dirt.sample(aim.x, aim.z)
-	pl.cleaner.cleaning = true
+	game.controls.held["clean"] = true
 	await frames(45)
-	pl.cleaner.cleaning = false
+	game.controls.held.erase("clean")
 	await frames(1)
 	var after := GameState.dirt.sample(aim.x, aim.z)
 	check(GameState.tank_dust > 0.0, "dust enters the container", str(GameState.tank_dust))
@@ -185,9 +215,9 @@ func _test_cleaning_loop() -> void:
 	await frames(5)
 	var aim2: Vector3 = pl.cleaner.aim_point
 	var b2 := GameState.dirt.sample(aim2.x, aim2.z)
-	pl.cleaner.cleaning = true
+	game.controls.held["clean"] = true
 	await frames(30)
-	pl.cleaner.cleaning = false
+	game.controls.held.erase("clean")
 	check(is_equal_approx(GameState.tank_dust, GameState.tank_capacity()), "container stops collecting when full")
 	check(is_equal_approx(GameState.dirt.sample(aim2.x, aim2.z), b2), "dirt is not wasted when the tank is full")
 	# Mission progression from cleaning

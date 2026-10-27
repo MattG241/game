@@ -40,9 +40,10 @@ func _ready() -> void:
 	_build()
 	GameState.notify.connect(toast)
 	GameState.sold.connect(_on_sold)
-	GameState.tank_changed.connect(func(a, c): _update_tank())
-	GameState.battery_changed.connect(func(a, c): _update_battery())
-	GameState.tool_changed.connect(func(id): _update_tool())
+	# Bound methods (not lambdas) so the connections are dropped when the HUD is freed.
+	GameState.tank_changed.connect(_update_tank.unbind(2))
+	GameState.battery_changed.connect(_update_battery.unbind(2))
+	GameState.tool_changed.connect(_update_tool.unbind(1))
 	GameState.inventory_changed.connect(_update_tool)
 	get_viewport().size_changed.connect(_layout)
 	_shown_credits = GameState.credits

@@ -77,8 +77,12 @@ func _ready() -> void:
 	_content = UIKit.vbox(12)
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll.add_child(_content)
-	GameState.inventory_changed.connect(func(): _dirty = true)
-	GameState.credits_changed.connect(func(v): _dirty = true)
+	GameState.inventory_changed.connect(_mark_dirty)
+	GameState.credits_changed.connect(_mark_dirty.unbind(1))
+
+
+func _mark_dirty() -> void:
+	_dirty = true
 
 
 func open(tab := "shop") -> void:

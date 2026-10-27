@@ -54,8 +54,13 @@ func _ready() -> void:
 	_font = UIKit.font_bold()
 	_apply_layout()
 	Settings.changed.connect(_apply_layout)
-	get_viewport().size_changed.connect(func(): _insets = UIKit.safe_insets(get_viewport()))
+	get_viewport().size_changed.connect(_on_resized)
 	_insets = UIKit.safe_insets(get_viewport())
+
+
+func _on_resized() -> void:
+	_insets = UIKit.safe_insets(get_viewport())
+	queue_redraw()
 
 
 func _apply_layout() -> void:
@@ -150,8 +155,15 @@ func release_all() -> void:
 
 func _input(event: InputEvent) -> void:
 	if not enabled or not is_visible_in_tree():
+		# Still honour finger-up events so nothing stays held while a menu is open.
+		if event is InputEventScreenTouch and not event.pressed:
+			_on_touch(event)
 		return
 	if event is InputEventScreenTouch:
+		if event.canceled:
+			# The OS took the touch (gesture bar, notification shade): drop everything.
+			release_all()
+			return
 		_on_touch(event)
 	elif event is InputEventScreenDrag:
 		_on_drag(event)

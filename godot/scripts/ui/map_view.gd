@@ -18,15 +18,16 @@ func _ready() -> void:
 	_font = UIKit.font_bold()
 	custom_minimum_size = Vector2(520, 520)
 	if _cached == null and _task == -1:
-		_task = WorkerThreadPool.add_task(_generate, false, "map")
+		# Region tints are read here on the main thread; the worker only gets a copy.
+		var tints := PackedColorArray()
+		for r in GameData.regions:
+			tints.append(Color.html(r["tint"]))
+		_task = WorkerThreadPool.add_task(_generate.bind(tints), false, "map")
 
 
-static func _generate() -> void:
+static func _generate(tints: PackedColorArray) -> void:
 	TerrainGen.setup()
 	var img := Image.create(RES, RES, false, Image.FORMAT_RGB8)
-	var tints := []
-	for r in GameData.regions:
-		tints.append(Color.html(r["tint"]))
 	for y in RES:
 		for x in RES:
 			var wx := (float(x) / RES * 2.0 - 1.0) * EXTENT
