@@ -161,8 +161,10 @@ jobs:
         working-directory: godot
         run: |
           set -o pipefail
-          mkdir -p ../build
-          timeout 1500 godot --headless --path . --install-android-build-template --export-release "Android" ../build/LunarCleanup.apk 2>&1 \
+          # Absolute output paths: Godot resolves relative export paths itself, and one
+          # PR run failed with "Target folder does not exist" for ../build.
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          timeout 1500 godot --headless --path . --install-android-build-template --export-release "Android" "$GITHUB_WORKSPACE/build/LunarCleanup.apk" 2>&1 \
             | grep -vE "mesh_get_surface_count|Parameter \"m\" is null|^ADDING" | tee export.log
           test -s ../build/LunarCleanup.apk
           "$APKSIGNER" verify --print-certs ../build/LunarCleanup.apk
@@ -186,7 +188,7 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH="$RUNNER_TEMP/upload.keystore" \
           GODOT_ANDROID_KEYSTORE_RELEASE_USER="$UP_USER" \
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD="$UP_PASS" \
-          timeout 1500 godot --headless --path . --export-release "Android Play" ../build/LunarCleanup.aab 2>&1 \
+          timeout 1500 godot --headless --path . --export-release "Android Play" "$GITHUB_WORKSPACE/build/LunarCleanup.aab" 2>&1 \
             | grep -vE "mesh_get_surface_count|Parameter \"m\" is null|^ADDING" | tee export_aab.log
           rm -f "$RUNNER_TEMP/upload.keystore"
           test -s ../build/LunarCleanup.aab
