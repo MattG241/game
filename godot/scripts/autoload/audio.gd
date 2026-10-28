@@ -44,11 +44,14 @@ func stream(name: String) -> AudioStream:
 		_streams[name] = null
 		return null
 	var s: AudioStreamWAV = load(path)
-	if s and LOOPS.has(name):
+	# Loops are set up by the importer (edit/loop_mode in the .import files). Setting
+	# loop_end by hand to the last frame left the Cleaning Beam's sound stuck on its
+	# final frame on some phones, and the game crashed soon after.
+	if s and LOOPS.has(name) and s.loop_mode == AudioStreamWAV.LOOP_DISABLED:
 		s = s.duplicate()
 		s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		s.loop_begin = 0
-		s.loop_end = s.data.size() / 2 if s.format == AudioStreamWAV.FORMAT_16_BITS else s.data.size()
+		s.loop_end = maxi(int(s.get_length() * s.mix_rate) - 64, 1)
 	_streams[name] = s
 	return s
 

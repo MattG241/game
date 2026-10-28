@@ -89,6 +89,7 @@ func _ready() -> void:
 	var veh_index := int(GameState.player.get("vehicle", -1))
 	if veh_index >= 0 and veh_index < vehicles.size():
 		call_deferred("enter_vehicle", vehicles[veh_index])
+	_update_beacon()
 	if GameState.stat("play_time") < 1.0:
 		call_deferred("_intro")
 
@@ -620,9 +621,14 @@ var _dust_target := Vector3.INF
 var _dust_t := 0.0
 
 
-## True during the final "clean every speck" mission.
+## True during the final "clean every speck" mission, once 60% of the Moon is clean.
 func hunting_dust() -> bool:
-	return str(GameState.current_mission().get("id", "")) == "m_clean_moon"
+	return str(GameState.current_mission().get("id", "")) == "m_clean_moon" \
+		and GameState.world_clean_fraction() >= HUNT_FROM
+
+
+## The dust finder only helps once most of the Moon is clean.
+const HUNT_FROM := 0.6
 
 
 ## Nearest spot with dust left (refreshed once a second while hunting).
@@ -630,11 +636,51 @@ func dust_target() -> Vector3:
 	return _dust_target
 
 
+# ------------------------------------------------------------- waypoint
+
+var _beacon: MeshInstance3D
+
+
+## The player's map waypoint (world position on the ground), or Vector3.INF.
+func waypoint() -> Vector3:
+	var w = GameState.flags.get("waypoint")
+	return AutomationSim.v3(w) if w is Array and w.size() == 3 else Vector3.INF
+
+
+func set_waypoint(p: Vector3) -> void:
+	var g := TerrainGen.surface(p)
+	GameState.flags["waypoint"] = [g.x, g.y, g.z]
+	_update_beacon()
+	GameState.notify.emit("Waypoint set - follow the blue arrow and beam", "info")
+
+
+func clear_waypoint() -> void:
+	GameState.flags.erase("waypoint")
+	_update_beacon()
+
+
+## A tall light beam standing on the waypoint, visible from far away.
+func _update_beacon() -> void:
+	var w := waypoint()
+	if not w.is_finite():
+		if _beacon:
+			_beacon.visible = false
+		return
+	if _beacon == null:
+		_beacon = Meshes.part(self, Meshes.cyl(0.9, 160.0, 12), Meshes.energy(Color(0.3, 0.85, 1.0), 0.7, 0.5, 2.0), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
+	_beacon.visible = true
+	_beacon.global_transform = Transform3D(TerrainGen.upright(w, Vector3.ZERO), w + w.normalized() * 80.0)
+
+
 func _update_dust_finder(delta: float) -> void:
 	_dust_t -= delta
 	if _dust_t > 0.0:
 		return
 	_dust_t = 1.0
+	var w := waypoint()
+	if w.is_finite() and AutomationSim.flat_dist(focus_node().global_position, w) < 6.0:
+		clear_waypoint()
+		GameState.notify.emit("Waypoint reached", "info")
 	_dust_target = GameState.dirt.nearest_dust(focus_node().global_position) if hunting_dust() else Vector3.INF
 
 

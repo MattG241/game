@@ -4,6 +4,7 @@ extends Control
 ## Shaded relief is generated from the terrain functions on a worker thread (and cached
 ## on disk); a second texture shows cleaning progress per chunk and locked regions.
 ## Markers (base, player, machines, vehicles, landmarks) are drawn over the globe.
+## Tap the globe to put a waypoint there (tap it again to remove it).
 
 const W := 512                      # relief texture (longitude x latitude)
 const H := 256
@@ -29,9 +30,12 @@ var _state_img: Image
 var _state_tex: ImageTexture
 var _state_t := 0.0
 var _rot := Basis.IDENTITY          # globe orientation
-var _dist := 2.6                    # camera distance (globe radius = 1)
+var _dist := 3.3                    # camera distance (globe radius = 1)
 var _touches := {}                  # index -> position
 var _pinch_d := 0.0
+var _tap_from := Vector2.INF        # where a possible tap started
+var _tap_moved := 0.0
+var _wp_button: Button
 var _overlay: Control
 
 
@@ -115,8 +119,10 @@ func _ready() -> void:
 	add_child(svc)
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true
-	_vp.transparent_bg = true
-	_vp.msaa_3d = Viewport.MSAA_2X
+	# No MSAA / transparency: in the Compatibility renderer on phones a multisampled,
+	# transparent sub-viewport showed nothing at all.
+	_vp.transparent_bg = false
+	_vp.msaa_3d = Viewport.MSAA_DISABLED
 	svc.add_child(_vp)
 	_cam = Camera3D.new()
 	_cam.fov = 40.0
@@ -151,6 +157,10 @@ func _ready() -> void:
 	bar.add_child(UIKit.button("+", func(): _zoom(0.8), Vector2(72, 64), 30))
 	bar.add_child(UIKit.button("-", func(): _zoom(1.25), Vector2(72, 64), 30))
 	bar.add_child(UIKit.button("ME", _center_on_focus, Vector2(72, 64), 18))
+	_wp_button = UIKit.button("CLEAR\nWP", func():
+		if world and world.has_method("clear_waypoint"):
+			world.clear_waypoint(), Vector2(72, 64), 14)
+	bar.add_child(_wp_button)
 	_center_on_focus()
 
 
@@ -185,11 +195,20 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_touches[event.index] = event.position
+			if _touches.size() == 1:
+				_tap_from = event.position
+				_tap_moved = 0.0
+			else:
+				_tap_from = Vector2.INF
 		else:
 			_touches.erase(event.index)
+			if _touches.is_empty() and _tap_from != Vector2.INF and _tap_moved < 14.0:
+				_tap(event.position)
+			_tap_from = Vector2.INF
 		_pinch_d = _pinch_distance()
 		accept_event()
 	elif event is InputEventScreenDrag:
+		_tap_moved += event.relative.length()
 		_touches[event.index] = event.position
 		if _touches.size() >= 2:
 			var pd := _pinch_distance()
@@ -200,7 +219,15 @@ func _gui_input(event: InputEvent) -> void:
 			_spin(event.relative)
 		accept_event()
 	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
-		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				_tap_from = event.position
+				_tap_moved = 0.0
+			elif _tap_from != Vector2.INF and _tap_moved < 14.0:
+				_tap(event.position)
+				_tap_from = Vector2.INF
+			accept_event()
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_zoom(0.9)
 			accept_event()
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -208,11 +235,45 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION \
 			and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		_tap_moved += event.relative.length()
 		_spin(event.relative)
 		accept_event()
 	elif event is InputEventMagnifyGesture:
 		_zoom(1.0 / maxf(event.factor, 0.01))
 		accept_event()
+
+
+## A tap on the globe: put the waypoint there, or remove it when tapping right on it.
+func _tap(pos: Vector2) -> void:
+	if world == null or not world.has_method("set_waypoint"):
+		return
+	var d := globe_dir_at(pos)
+	if d == Vector3.ZERO:
+		return
+	var w: Vector3 = world.waypoint()
+	if w.is_finite():
+		var ws := _screen(w)
+		if ws != Vector2.INF and ws.distance_to(pos) < 28.0:
+			world.clear_waypoint()
+			Audio.play("ui_back")
+			return
+	world.set_waypoint(d * TerrainGen.RADIUS)
+	Audio.play("ui_click")
+
+
+## Direction from the Moon's centre under a point of the map view, or ZERO when the
+## point is off the globe.
+func globe_dir_at(pos: Vector2) -> Vector3:
+	var o := _cam.project_ray_origin(pos)
+	var r := _cam.project_ray_normal(pos)
+	# |o + t r| = 1
+	var b := o.dot(r)
+	var c := o.dot(o) - 1.0
+	var disc := b * b - c
+	if disc < 0.0:
+		return Vector3.ZERO
+	var hit := o + r * (-b - sqrt(disc))
+	return (_rot.inverse() * hit).normalized()
 
 
 func _pinch_distance() -> float:
@@ -229,20 +290,21 @@ func _process(delta: float) -> void:
 		_relief = ImageTexture.create_from_image(_relief_img)
 	if _relief:
 		_mat.set_shader_parameter("relief", _relief)
-		_mat.set_shader_parameter("ready", 1.0)
+		_mat.set_shader_parameter("relief_ready", 1.0)
 	_globe.basis = _rot
 	_cam.position = Vector3(0, 0, _dist)
 	_state_t -= delta
 	if _state_t <= 0.0 and not _keys.is_empty():
 		_state_t = 1.0
 		_update_state()
+	_wp_button.visible = world != null and world.has_method("waypoint") and (world.waypoint() as Vector3).is_finite()
 	_overlay.queue_redraw()
 
 
 ## Cleaning progress per chunk, dust still left (final mission) and locked regions.
 func _update_state() -> void:
 	var dm := GameState.dirt
-	var hunting: bool = GameState.current_mission().get("id", "") == "m_clean_moon"
+	var hunting: bool = world != null and world.has_method("hunting_dust") and world.hunting_dust()
 	var n := 6 * TerrainGen.N * TerrainGen.N
 	var cols := PackedColorArray()
 	cols.resize(n)
@@ -291,8 +353,8 @@ func _draw_overlay() -> void:
 		o.draw_string(_font, size * 0.5 - Vector2(90, 0), "Charting the Moon...", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, UIKit.MUTED)
 	var pct := "MOON CLEANED  %.1f%%" % (GameState.world_clean_fraction() * 100.0)
 	_text(Vector2(12, 28), pct, 18, UIKit.GOOD)
-	_text(Vector2(12, size.y - 12), "Drag to spin  -  pinch or +/- to zoom", 14, Color(0.7, 0.85, 1.0))
-	var hunting: bool = GameState.current_mission().get("id", "") == "m_clean_moon"
+	_text(Vector2(12, size.y - 12), "Drag to spin  -  pinch or +/- to zoom  -  tap to set a waypoint", 14, Color(0.7, 0.85, 1.0))
+	var hunting: bool = world != null and world.has_method("hunting_dust") and world.hunting_dust()
 	# Region names
 	var names := {0: Vector2(0, 75), 1: Vector2(380, 0), 2: Vector2(0, -380), 3: Vector2(-380, 0), 4: Vector2(0, 380)}
 	for idx in names:
@@ -315,6 +377,10 @@ func _draw_overlay() -> void:
 		_marker(TerrainGen.map_to_dir(Landmarks.PROBE_POS.x, Landmarks.PROBE_POS.y), UIKit.GOOD, "PROBE")
 	_marker(TerrainGen.map_to_dir(Landmarks.RESEARCH_CENTER.x, Landmarks.RESEARCH_CENTER.y), Color(1.0, 0.6, 0.4), "SALVAGE")
 	_marker(Vector3.UP, UIKit.ACCENT, "BASE")
+	if world and world.has_method("waypoint"):
+		var wp: Vector3 = world.waypoint()
+		if wp.is_finite():
+			_marker(wp, Color(0.35, 0.85, 1.0), "WAYPOINT")
 	if hunting and world and world.has_method("dust_target"):
 		var t: Vector3 = world.dust_target()
 		if t.is_finite():

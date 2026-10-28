@@ -143,8 +143,11 @@ func _on_tool_changed(id: String) -> void:
 			_drones.append(d)
 	var col := Color.html(stats.get("color", "#ffffff"))
 	_beam.material_override = Meshes.energy(col.lightened(0.3), 1.4, 3.0, 10.0)
-	_particles.radial_accel_min = -6.0 if stats.get("suction", false) else 0.0
-	_particles.radial_accel_max = -3.0 if stats.get("suction", false) else 0.0
+	# Suction pulls the dust in. Not for the beam/swarm emitters: their particles
+	# started right before the native crashes on an SM-S938B.
+	var suck: bool = stats.get("suction", false) and not _rig.get("emitter", false)
+	_particles.radial_accel_min = -6.0 if suck else 0.0
+	_particles.radial_accel_max = -3.0 if suck else 0.0
 	_resize_ring()
 
 
@@ -453,6 +456,6 @@ func _update_effects(active: bool) -> void:
 	else:
 		Audio.loop("tool", snd, on, -4.0 if removing else -9.0, pitch)
 	if stats.get("shape", "") == "swarm":
-		Audio.loop("swarm", "drone_loop", true, -14.0, 1.2)
+		Audio.loop("swarm", "machine_loop", true, -16.0, 1.6)
 	else:
 		Audio.loop("swarm", "", false)

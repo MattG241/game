@@ -60,6 +60,7 @@ func _ready() -> void:
 	await _test_economy()
 	await _test_ads()
 	await _test_menus()
+	await _test_waypoint_and_finder()
 	await _test_vehicle()
 	await _test_automation()
 	await _test_round_moon_and_ending()
@@ -570,6 +571,34 @@ func _test_round_moon_and_ending() -> void:
 	GameState.missions_done.erase("m_clean_moon")
 	GameState.missions_done.erase("m_go_home")
 	GameState.flags.erase("went_home")
+
+
+func _test_waypoint_and_finder() -> void:
+	print("[map waypoint + dust finder]")
+	game.open_menu("map")
+	await frames(3)
+	var mv: MapView = game.menu._content.get_child(0)
+	mv._center_on_focus()
+	await frames(2)
+	var centre := mv.size * 0.5
+	var d := mv.globe_dir_at(centre)
+	check(d.angle_to(game.focus_node().global_position.normalized()) < 0.05, "tapping the middle of the map points at where you are")
+	check(mv.globe_dir_at(Vector2(2, 2)) == Vector3.ZERO, "tapping beside the globe does nothing")
+	mv._tap(centre + Vector2(60, 0))
+	var w: Vector3 = game.waypoint()
+	check(w.is_finite() and absf(TerrainGen.altitude(w)) < 0.1, "tapping the globe sets a waypoint on the ground")
+	game.menu.close()
+	await frames(3)
+	check(game.hud._finder_on and game.hud._finder_wp, "the HUD arrow points to the waypoint")
+	game.player.global_position = TerrainGen.surface(w, 0.3)
+	await frames(70)
+	check(not game.waypoint().is_finite(), "reaching the waypoint clears it")
+	var saved := GameState.missions_done.duplicate()
+	for m in GameData.missions:
+		if m["id"] != "m_clean_moon" and m["id"] != "m_go_home" and not GameState.missions_done.has(m["id"]):
+			GameState.missions_done.append(m["id"])
+	check(str(GameState.current_mission().get("id", "")) == "m_clean_moon" and not game.hunting_dust(), "no dust arrow in the final mission before 60% is clean")
+	GameState.missions_done = saved
 
 
 func _test_menus() -> void:

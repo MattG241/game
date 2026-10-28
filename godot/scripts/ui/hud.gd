@@ -41,6 +41,7 @@ var _recharge_cooldown := 0.0
 var _finder_on := false
 var _finder_angle := 0.0
 var _finder_dist := 0.0
+var _finder_wp := false      # pointing at the player's waypoint (else at dust)
 
 
 func _ready() -> void:
@@ -313,7 +314,10 @@ func _update_finder() -> void:
 	var was := _finder_on
 	_finder_on = false
 	if world and world.has_method("dust_target"):
-		var t: Vector3 = world.dust_target()
+		var t: Vector3 = world.waypoint()
+		_finder_wp = t.is_finite()
+		if not _finder_wp:
+			t = world.dust_target()
 		var cam := get_viewport().get_camera_3d()
 		if t.is_finite() and cam:
 			var fp: Vector3 = world.focus_node().global_position
@@ -330,16 +334,18 @@ func _draw() -> void:
 	if not _finder_on:
 		return
 	var c := Vector2(_obj_panel.position.x + _obj_panel.size.x * 0.5, _obj_panel.position.y + _obj_panel.size.y + 44)
+	var col := Color(0.35, 0.85, 1.0) if _finder_wp else Color(1.0, 0.45, 0.35)
 	draw_circle(c, 30, Color(0.04, 0.06, 0.1, 0.75))
-	draw_arc(c, 30, 0, TAU, 32, Color(1.0, 0.4, 0.3, 0.9), 2.0, true)
+	draw_arc(c, 30, 0, TAU, 32, col, 2.0, true)
 	var up := Vector2.UP.rotated(_finder_angle)
 	var side := Vector2(-up.y, up.x)
-	draw_colored_polygon(PackedVector2Array([c + up * 22, c - up * 12 + side * 13, c - up * 5, c - up * 12 - side * 13]), Color(1.0, 0.45, 0.35))
-	var txt := "DUST %d m" % int(_finder_dist) if _finder_dist >= 1.5 else "DUST HERE"
+	draw_colored_polygon(PackedVector2Array([c + up * 22, c - up * 12 + side * 13, c - up * 5, c - up * 12 - side * 13]), col)
+	var what := "WAYPOINT" if _finder_wp else "DUST"
+	var txt := "%s %d m" % [what, int(_finder_dist)] if _finder_dist >= 1.5 else what + " HERE"
 	var f := UIKit.font_bold()
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	draw_string_outline(f, c + Vector2(-w * 0.5, 52), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, Color(0, 0, 0, 0.85))
-	draw_string(f, c + Vector2(-w * 0.5, 52), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.6, 0.5))
+	draw_string(f, c + Vector2(-w * 0.5, 52), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col.lightened(0.2))
 
 
 func set_prompt(text: String) -> void:
