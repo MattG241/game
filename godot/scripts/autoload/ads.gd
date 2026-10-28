@@ -16,6 +16,7 @@ const CONFIG_PATH := "res://data/ads.json"
 var config := {}
 var available := false         # plugin present and running on Android
 var sdk_ready := false
+var _sdk_starting := false
 var simulate := false          # tests: pretend ads exist and complete instantly
 var interstitials_shown := 0
 var rewarded_shown := 0
@@ -98,14 +99,20 @@ func show_privacy_options() -> void:
 		UserMessagingPlatform.show_privacy_options_form(func(_e): pass)
 
 
+## Ads may only be loaded once the SDK reports it has finished initialising: the
+## plugin loads on Android's UI thread, where an early load throws and closes the app.
 func _start_sdk() -> void:
-	if sdk_ready:
+	if sdk_ready or _sdk_starting:
 		return
-	MobileAds.initialize()
-	sdk_ready = true
-	_load_rewarded()
-	if not IAP.ads_removed:
+	_sdk_starting = true
+	Diagnostics.event("ads sdk start")
+	var listener := OnInitializationCompleteListener.new()
+	listener.on_initialization_complete = func(_status):
+		sdk_ready = true
+		Diagnostics.event("ads sdk ready")
+		_load_rewarded()
 		_load_interstitial()
+	MobileAds.initialize(listener)
 
 
 # ------------------------------------------------------------------- loading
