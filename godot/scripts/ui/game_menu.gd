@@ -495,7 +495,18 @@ func show_modal(title: String, body: Control, buttons: Array) -> void:
 	var v := UIKit.vbox(14)
 	p.add_child(v)
 	v.add_child(UIKit.title(title, 40, UIKit.ACCENT))
-	v.add_child(body)
+	# Long text scrolls inside the dialog so its buttons always stay on screen.
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var limit := maxf(get_viewport_rect().size.y - 300.0, 160.0)
+	sc.custom_minimum_size = Vector2(0, limit)
+	sc.add_child(body)
+	v.add_child(sc)
+	# Shrink to the text once it has been laid out (short dialogs stay compact).
+	var fit := func():
+		if is_instance_valid(sc) and is_instance_valid(body):
+			sc.custom_minimum_size.y = minf(body.size.y, limit)
+	fit.call_deferred()
 	var h := UIKit.hbox(12)
 	h.alignment = BoxContainer.ALIGNMENT_END
 	v.add_child(h)

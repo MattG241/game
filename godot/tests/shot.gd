@@ -78,6 +78,8 @@ func _process(_d: float) -> void:
 			game.ending._t = float(_args["ending"])
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])
+	if game and _args.has("helpdialog") and _frames == _target - 10:
+		game.menu.show_dialog("HOW AUTOMATION WORKS", GameMenu.AUTOMATION_HELP)
 	if _frames >= _target:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(_args.get("out", "user://shot.png"))
