@@ -28,7 +28,6 @@ static func build(on_edit_layout: Callable = Callable()) -> Control:
 	root.add_child(_toggle("Shadows", "shadows"))
 	root.add_child(_toggle("Anti-aliasing (MSAA 2x)", "msaa", true))
 	root.add_child(_toggle("Performance overlay", "perf_overlay"))
-	root.add_child(_toggle("Curved horizon (applies after restart)", "curved_horizon"))
 	root.add_child(_section("CONTROLS"))
 	root.add_child(_slider("Look sensitivity", "sensitivity", 0.3, 2.5, 0.05))
 	root.add_child(_toggle("Invert look Y", "invert_y"))

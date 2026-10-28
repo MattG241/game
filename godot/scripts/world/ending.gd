@@ -11,6 +11,7 @@ const ACCEL := 3.2          # m/s^2 upwards
 var world: Node
 var _lander: Node3D
 var _start: Transform3D
+var _up := Vector3.UP       # the pad's "up" (away from the Moon's centre)
 var _cam: Camera3D
 var _flame: CPUParticles3D
 var _glow: OmniLight3D
@@ -26,6 +27,7 @@ func start(w: Node) -> void:
 	world = w
 	_lander = w.base.lander
 	_start = _lander.global_transform
+	_up = _start.origin.normalized()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	Diagnostics.event("ending start")
 	if w.current_vehicle:
@@ -75,8 +77,9 @@ func start(w: Node) -> void:
 	_cam.far = 4000.0
 	_cam.fov = 62.0
 	world.add_child(_cam)
-	_cam.global_position = _start.origin + Vector3(16, 2.2, 15)
-	_cam.look_at(_start.origin + Vector3(0, 4, 0))
+	var pad := TerrainGen.frame(_up)
+	_cam.global_position = _start.origin + pad * Vector3(16, 2.2, 15)
+	_cam.look_at(_start.origin + _up * 4.0, _up)
 	_cam.current = true
 	# Overlay: captions and fade
 	_ui = CanvasLayer.new()
@@ -118,30 +121,31 @@ func _process(delta: float) -> void:
 		var h := _t - LIFT_AT
 		var up := 0.5 * ACCEL * h * h
 		var xf := _start
-		xf.origin += Vector3(0, up, 0)
+		xf.origin += _up * up
 		# A gentle tilt towards Earth as it climbs
-		var earth_dir := LunarEnv.EARTH_DIR.normalized()
+		var earth_dir: Vector3 = world.env.earth_dir()
+		var flat := earth_dir - _up * earth_dir.dot(_up)
+		flat = flat.normalized() if flat.length() > 0.01 else TerrainGen.frame(_up).x
 		var tilt := clampf(h / 8.0, 0.0, 1.0) * 0.35
-		var axis := Vector3.UP.cross(earth_dir).normalized()
+		var axis := _up.cross(flat).normalized()
 		xf.basis = Basis(axis, tilt) * _start.basis
-		xf.origin += Vector3(earth_dir.x, 0, earth_dir.z).normalized() * up * 0.25
+		xf.origin += flat * up * 0.25
 		_lander.global_transform = xf
 		_glow.light_energy = 3.0
 		_shake(maxf(0.0, 0.25 - h * 0.03))
 		# Camera: watch from the pad, then follow up and look towards Earth.
-		var target := xf.origin + Vector3(0, 3, 0)
+		var target := xf.origin + _up * 3.0
 		if h > 3.0:
 			var k := clampf((h - 3.0) / 3.0, 0.0, 1.0)
 			# Above, behind and to the side: the lander climbs towards Earth with the
 			# curved Moon falling away below.
-			var flat := Vector3(earth_dir.x, 0, earth_dir.z).normalized()
-			var side := flat.cross(Vector3.UP)
-			var follow := target - flat * (24.0 + h * 1.5) + side * 9.0 + Vector3(0, 7.0 + h * 0.8, 0)
+			var side := flat.cross(_up)
+			var follow := target - flat * (24.0 + h * 1.5) + side * 9.0 + _up * (7.0 + h * 0.8)
 			_cam.global_position = _cam.global_position.lerp(follow, minf(1.0, delta * (0.6 + k * 2.0)))
 			var look := target.lerp(target + earth_dir * 400.0, k * 0.06)
-			_cam.look_at(look)
+			_cam.look_at(look, _up)
 		else:
-			_cam.look_at(target)
+			_cam.look_at(target, _up)
 	# Fade out, then the end screen
 	if _t > FADE_AT:
 		_fade.color.a = clampf((_t - FADE_AT) / 1.5, 0.0, 1.0)
@@ -209,7 +213,7 @@ func finish() -> void:
 	world.hud.visible = true
 	world.controls.visible = true
 	world.player.set_active(true)
-	world.player.global_position = _start.origin + Vector3(0, 0.5, -11)
+	world.player.global_position = TerrainGen.surface(LunarBase.at(Vector3(4, 0, 19)), 0.5)
 	world.player.camera.current = true
 	Audio.play_music(true)
 	world.ending = null

@@ -1,15 +1,21 @@
 class_name LunarEnv
 extends Node3D
 ## Sky, sun, ambient lighting and the Earth hanging over the horizon.
+## The Moon is round, but it's always a sunny day with Earth in the sky wherever you
+## are: the sun and Earth are placed relative to the camera's local "up", carried along
+## smoothly as you travel (no sudden swing near the poles).
 
-const EARTH_DIR := Vector3(-0.42, 0.36, -0.83)
+const EARTH_DIR := Vector3(-0.42, 0.36, -0.83)   # in the local frame (y = up)
 const EARTH_DIST := 1900.0
+const SUN_ROT := Vector3(-24.0, 52.0, 0.0)        # degrees, in the local frame
 
 var sun: DirectionalLight3D
 var env: Environment
 var earth: MeshInstance3D
 var _earth_mat: ShaderMaterial
 var camera_ref: Camera3D
+var _frame := Basis.IDENTITY     # local sky frame (Y = up at the camera)
+var _frame_set := false
 
 
 func _ready() -> void:
@@ -42,7 +48,7 @@ func _ready() -> void:
 	sun = DirectionalLight3D.new()
 	sun.light_color = Color(1.0, 0.97, 0.92)
 	sun.light_energy = 1.55
-	sun.rotation = Vector3(deg_to_rad(-24.0), deg_to_rad(52.0), 0.0)
+	sun.rotation = SUN_ROT * (PI / 180.0)
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
@@ -85,10 +91,32 @@ func apply_settings() -> void:
 	sun.shadow_enabled = bool(Settings.get_value("shadows", true))
 
 
+## Direction of Earth in the sky (world space) for the current view.
+func earth_dir() -> Vector3:
+	return _frame * EARTH_DIR.normalized()
+
+
+## Re-centres the sky on a point of the Moon (e.g. after a teleport or loading).
+func reset_frame(p: Vector3) -> void:
+	_frame = TerrainGen.frame(p.normalized())
+	_frame_set = true
+	_apply_frame()
+
+
+func _apply_frame() -> void:
+	sun.global_basis = _frame * Basis.from_euler(SUN_ROT * (PI / 180.0))
+
+
 func _process(delta: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam and cam.global_position.length() > 1.0:
+		var up := cam.global_position.normalized()
+		if not _frame_set:
+			reset_frame(up)
+		elif _frame.y.dot(up) < 0.99996:   # moved about 0.5 degrees round the Moon
+			_frame = (Basis(Quaternion(_frame.y.normalized(), up)) * _frame).orthonormalized()
+			_apply_frame()
+		earth.global_position = cam.global_position + earth_dir() * EARTH_DIST
+		earth.rotation.y += delta * 0.002
 	_earth_mat.set_shader_parameter("sun_dir", sun.global_transform.basis.z)
 	_earth_mat.set_shader_parameter("spin", Time.get_ticks_msec() * 0.0000015)
-	var cam := get_viewport().get_camera_3d()
-	if cam:
-		earth.global_position = cam.global_position + EARTH_DIR.normalized() * EARTH_DIST
-		earth.rotation.y += delta * 0.002

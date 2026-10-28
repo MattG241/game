@@ -9,35 +9,13 @@ static var _rock_meshes: Array = []
 
 
 static var _shaders := {}
-static var _bend_mats: Array[ShaderMaterial] = []
 
 
-## Materials whose shaders curve the horizon get the camera position each frame.
-static func register_bend(m: ShaderMaterial) -> ShaderMaterial:
-	_bend_mats.append(m)
-	return m
-
-
-static func apply_bend(origin: Vector3, k: float) -> void:
-	for m in _bend_mats:
-		m.set_shader_parameter("bend_origin", origin)
-		m.set_shader_parameter("bend_k", k)
-
-
-## Loads a world shader. With the curved horizon off (Settings, or automatically after
-## a crash before the first frame was drawn) the bend code is left out entirely, so a
-## phone GPU driver that can't handle it never has to compile it.
+## Loads (and caches) a world shader.
 static func world_shader(path: String) -> Shader:
-	if _shaders.has(path):
-		return _shaders[path]
-	var sh: Shader = load(path)
-	if not bool(Settings.get_value("curved_horizon", true)):
-		var flat := Shader.new()
-		flat.code = sh.code.replace('#include "res://shaders/bend.gdshaderinc"',
-			"vec3 bend_vertex(vec3 v, mat4 m) { return v; }")
-		sh = flat
-	_shaders[path] = sh
-	return sh
+	if not _shaders.has(path):
+		_shaders[path] = load(path)
+	return _shaders[path]
 
 
 static func hs(color: Color, metallic := 0.25, rough := 0.5, emit := Color(0, 0, 0), emit_strength := 0.0, panel := 1.6, grime := 0.3, stripes := 0.0) -> ShaderMaterial:
@@ -53,7 +31,6 @@ static func hs(color: Color, metallic := 0.25, rough := 0.5, emit := Color(0, 0,
 	m.set_shader_parameter("roughness", rough)
 	m.set_shader_parameter("emit_color", emit)
 	m.set_shader_parameter("emit_strength", emit_strength)
-	register_bend(m)
 	m.set_shader_parameter("panel_scale", panel)
 	m.set_shader_parameter("grime", grime)
 	m.set_shader_parameter("stripes", stripes)
@@ -69,7 +46,6 @@ static func glow(color: Color, strength := 2.0) -> ShaderMaterial:
 	m.shader = world_shader("res://shaders/glow.gdshader")
 	m.set_shader_parameter("color", color)
 	m.set_shader_parameter("strength", strength)
-	register_bend(m)
 	_mats[key] = m
 	return m
 
@@ -83,7 +59,6 @@ static func plain(color: Color, metallic := 0.0, rough := 0.6) -> ShaderMaterial
 	m.set_shader_parameter("albedo", color)
 	m.set_shader_parameter("metallic", metallic)
 	m.set_shader_parameter("roughness", rough)
-	register_bend(m)
 	_mats[key] = m
 	return m
 
@@ -97,7 +72,6 @@ static func visor() -> ShaderMaterial:
 	m.set_shader_parameter("metallic", 1.0)
 	m.set_shader_parameter("roughness", 0.08)
 	m.set_shader_parameter("emission", Color(0.25, 0.12, 0.02))
-	register_bend(m)
 	_mats["visor"] = m
 	return m
 
@@ -111,7 +85,7 @@ static func energy(color: Color, intensity := 1.0, speed := 1.0, bands := 6.0) -
 	m.set_shader_parameter("intensity", intensity)
 	m.set_shader_parameter("speed", speed)
 	m.set_shader_parameter("bands", bands)
-	return register_bend(m)
+	return m
 
 
 static func part(parent: Node3D, mesh: Mesh, mat: Material, pos := Vector3.ZERO, rot := Vector3.ZERO, scl := Vector3.ONE, shadows := true) -> MeshInstance3D:

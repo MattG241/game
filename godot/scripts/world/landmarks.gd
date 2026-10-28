@@ -23,12 +23,19 @@ func build(w: Node) -> void:
 	_build_industrial()
 	_build_probe()
 	_build_relics()
+	# Everything was laid out flat (map coordinates): stand it on the round Moon.
+	SphereLayout.wrap(self)
 	GameState.inventory_changed.connect(_refresh)
 	_refresh()
 
 
 func _y(x: float, z: float) -> float:
 	return TerrainGen.height(x, z)
+
+
+## World position of a point of the flat layout (y = height above the mean radius).
+func _w(flat: Vector3) -> Vector3:
+	return TerrainGen.map_point(flat.x, flat.z, flat.y)
 
 
 func _build_barriers() -> void:
@@ -74,7 +81,7 @@ func _build_barriers() -> void:
 		_gate_labels[idx] = Meshes.label(gate, "", Vector3(0, 5.6, 0.6), 70, Color(1, 1, 1))
 		_gate_labels[idx].billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 		var region_index: int = idx
-		world.add_interactable(g, 7.0, func(): return _gate_text(region_index), func(): world.open_menu("permits"), "gate_%d" % idx)
+		world.add_interactable(_w(g), 7.0, func(): return _gate_text(region_index), func(): world.open_menu("permits"), "gate_%d" % idx)
 
 
 func _gate_text(idx: int) -> String:
@@ -157,7 +164,7 @@ func _build_facility() -> void:
 		Meshes.part(crate, Meshes.sphere(0.12), Meshes.glow(Color(0.3, 1.0, 0.6), 4.0), Vector3(0, 0.9, 0), Vector3.ZERO, Vector3.ONE, false)
 		_salvage_nodes[id] = crate
 		var sid := id
-		world.add_interactable(pos, 2.6, func(): return "" if GameState.salvage_taken.has(sid) else "Recover salvage crate",
+		world.add_interactable(_w(pos), 2.6, func(): return "" if GameState.salvage_taken.has(sid) else "Recover salvage crate",
 			func(): _take_salvage(sid), sid)
 
 
@@ -204,7 +211,7 @@ func _build_probe() -> void:
 	Meshes.part(_probe, Meshes.cyl(0.03, 2.0, 6), Meshes.hs(Color(0.8, 0.8, 0.8), 0.9, 0.3), Vector3(0, 1.8, 0), Vector3(0.6, 0, 0.3))
 	# Tall locator beam visible from far away
 	var beam := Meshes.part(_probe, Meshes.cyl(0.8, 220.0, 12), Meshes.energy(Color(0.2, 1.0, 0.5), 0.6, 0.4, 2.0), Vector3(0, 110, 0), Vector3.ZERO, Vector3.ONE, false)
-	world.add_interactable(p, 3.5, func(): return "" if GameState.flags.get("probe_recovered", false) else "Recover the crashed probe",
+	world.add_interactable(_w(p), 3.5, func(): return "" if GameState.flags.get("probe_recovered", false) else "Recover the crashed probe",
 		func(): _recover_probe(), "probe")
 
 

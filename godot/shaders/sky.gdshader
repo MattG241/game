@@ -37,7 +37,5 @@ void sky() {
 		col += vec3(1.0, 0.97, 0.9) * smoothstep(0.9993, 0.9996, sd) * 6.0;
 		col += vec3(1.0, 0.9, 0.75) * pow(max(sd, 0.0), 300.0) * 0.6;
 	}
-	// Hide stars below the horizon (behind terrain anyway) to keep it clean.
-	col *= smoothstep(-0.15, 0.02, d.y);
 	COLOR = col;
 }

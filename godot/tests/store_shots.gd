@@ -35,7 +35,7 @@ func _yaw_to(from: Vector3, to: Vector3) -> float:
 
 
 func _ground(x: float, z: float, up := 0.2) -> Vector3:
-	return Vector3(x, TerrainGen.height(x, z) + up, z)
+	return TerrainGen.map_ground(x, z, up)
 
 
 ## Serpentine cleaned lanes, like a player sweeping an area.
@@ -47,7 +47,7 @@ func _lanes(center: Vector3, dir: Vector3, length: float, lanes: int, spacing: f
 		for i in steps:
 			var t := float(i) / steps
 			var p := center + dir * (t * length) + right * (off + sin(t * 12.0 + l) * wobble)
-			GameState.dirt.stamp(DirtMap.Shape.ROUND, p.x, p.z, radius, 0.0, 0.0, 1.0, 1e9)
+			GameState.dirt.stamp(DirtMap.Shape.ROUND, TerrainGen.map_ground(p.x, p.z), radius, 0.0, Vector3.ZERO, 1.0, 1e9)
 
 
 func _setup() -> void:
@@ -116,7 +116,7 @@ func _setup() -> void:
 			var back := Basis(Vector3.UP, 2.3) * Vector3(0, 0, 1)
 			for i in 40:
 				var p := pos + back * (i * 0.8 + 2.5)
-				GameState.dirt.stamp(DirtMap.Shape.RECT, p.x, p.z, 1.6, 0.6, 2.3, 1.0, 1e9)
+				GameState.dirt.stamp(DirtMap.Shape.RECT, TerrainGen.map_ground(p.x, p.z), 1.6, 0.6, back, 1.0, 1e9)
 			_lanes(pos + back * 4.0 + Vector3(-back.z, 0, back.x) * 5.0, back, 30.0, 1, 0.0, 1.6, 0.0)
 		"automation", "map":
 			GameState.credits = 186300.0
@@ -135,7 +135,7 @@ func _setup() -> void:
 					for r in [1.5, 3.0, 4.5, 5.8]:
 						for k in 24:
 							var a := k * TAU / 24.0
-							GameState.dirt.stamp(DirtMap.Shape.ROUND, p.x + cos(a) * r, p.z + sin(a) * r, 1.3, 0.0, 0.0, 1.0, 1e9)
+							GameState.dirt.stamp(DirtMap.Shape.ROUND, TerrainGen.map_ground(p.x + cos(a) * r, p.z + sin(a) * r), 1.3, 0.0, Vector3.ZERO, 1.0, 1e9)
 			for i in 30:
 				auto.sim.tick(1.0)
 			var pos := _ground(float(_args.get("ax", "20")), float(_args.get("az", "34")), 0.3)

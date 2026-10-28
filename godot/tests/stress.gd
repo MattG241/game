@@ -19,10 +19,15 @@ func _physics_process(dt: float) -> void:
 		game.menu.close()
 	if game == null: return
 	var t: float = f * dt
-	# Large figure-eight through every region at ~25 m/s
-	var p := Vector3(sin(t * 0.05) * 420.0, 0, sin(t * 0.1) * 300.0)
-	p.y = TerrainGen.height(p.x, p.z) + 1.0
+	# Large figure-eight through every region and over the far pole (map coordinates)
+	var p := TerrainGen.map_ground(sin(t * 0.05) * 930.0, sin(t * 0.1) * 600.0, 1.0)
 	game.player.global_position = p
+	# Every tool gets a turn, the swarm controller (four drones) most of all.
+	if f % 300 == 1:
+		var ids := ["swarm_controller", "cleaning_beam", "heavy_cleaner", "swarm_controller", "toothbrush"]
+		var id: String = ids[(f / 300) % ids.size()]
+		GameState.tools[id] = 0
+		GameState.equip(id)
 	game.player.yaw += 0.02
 	if (f / 120) % 2 == 0:
 		game.controls.held["clean"] = true

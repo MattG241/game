@@ -33,7 +33,9 @@ func _physics_process(_dt: float) -> void:
 	var pl: Player = game.player
 	var p := pl.global_position
 	var goal: Vector3 = goals[gi % goals.size()]
-	var to := Vector3(goal.x - p.x, 0, goal.z - p.z)
+	# goals are map coordinates; steer in the map plane
+	var pm := TerrainGen.dir_to_map(p.normalized())
+	var to := Vector3(goal.x - pm.x, 0, goal.z - pm.y)
 	if to.length() < 6.0 or f % 900 == 0:
 		gi += 1
 	# Steer the camera toward the goal and push the stick forward (like a thumb).
@@ -44,10 +46,10 @@ func _physics_process(_dt: float) -> void:
 		pl.jump()
 	if not p.is_finite():
 		bad += 1
-	elif p.y < TerrainGen.height(p.x, p.z) - 1.0:
+	elif TerrainGen.altitude(p) < -1.0:
 		falls += 1
 	var step := p - last
-	step.y = 0
+	step -= p.normalized() * step.dot(p.normalized())
 	if step.length() < 0.01:
 		stuck_frames += 1
 		max_stuck = maxi(max_stuck, stuck_frames)

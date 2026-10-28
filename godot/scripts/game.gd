@@ -34,6 +34,8 @@ func _ready() -> void:
 	add_to_group("world")
 	TerrainGen.setup()
 	GameState.dirt.covers.clear()
+	_make_gravity()
+	MapView.prepare()
 	env = LunarEnv.new()
 	add_child(env)
 	terrain = Terrain.new()
@@ -45,7 +47,7 @@ func _ready() -> void:
 	add_child(landmarks)
 	landmarks.build(self)
 	_register_covers()
-	add_interactable(base.lander.position + Vector3(0, 0, -9.0), 5.0, _lander_text, _lander_action, "lander")
+	add_interactable(LunarBase.at(Vector3(4, 0, 21)), 5.0, _lander_text, _lander_action, "lander")
 	# UI
 	ui = CanvasLayer.new()
 	ui.layer = 5
@@ -69,8 +71,8 @@ func _ready() -> void:
 	player.setup(controls, self)
 	player.load_state(GameState.player)
 	var gp := player.global_position
-	gp.y = maxf(gp.y, TerrainGen.height(gp.x, gp.z) + 0.2)
-	player.global_position = gp
+	if TerrainGen.altitude(gp) < 0.2:
+		player.global_position = TerrainGen.surface(gp, 0.2)
 	terrain.focus = player
 	terrain.prewarm(player.global_position)
 	# Automation
@@ -97,6 +99,26 @@ func _intro() -> void:
 	_pause(true)
 
 
+## Gravity pulls towards the Moon's centre everywhere (rigid bodies: vehicles, props).
+## The player's character body applies the same gravity itself.
+func _make_gravity() -> void:
+	var a := Area3D.new()
+	a.name = "MoonGravity"
+	a.gravity_space_override = Area3D.SPACE_OVERRIDE_REPLACE
+	a.gravity_point = true
+	a.gravity_point_center = Vector3.ZERO
+	a.gravity_point_unit_distance = 0.0
+	a.gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	a.collision_layer = 0
+	a.collision_mask = 0xFFFF
+	var cs := CollisionShape3D.new()
+	var sh := SphereShape3D.new()
+	sh.radius = TerrainGen.RADIUS * 10.0
+	cs.shape = sh
+	a.add_child(cs)
+	add_child(a)
+
+
 func focus_node() -> Node3D:
 	return current_vehicle if current_vehicle else player
 
@@ -120,9 +142,9 @@ func _find_target() -> void:
 	for id in _interactables:
 		var it: Dictionary = _interactables[id]
 		var p: Vector3 = it["pos"]
-		var d := Vector2(p.x - fp.x, p.z - fp.z).length()
+		var d := AutomationSim.flat_dist(fp, p)
 		var r: float = it["radius"] + (3.5 if current_vehicle else 0.0)
-		if d < r and d < best_d and absf(p.y - fp.y) < 8.0:
+		if d < r and d < best_d and absf(p.length() - fp.length()) < 8.0:
 			var t: String = it["text"].call()
 			if t != "":
 				best = id
@@ -435,8 +457,11 @@ func _spawn_vehicles() -> void:
 		v.setup(i)
 		var d: Dictionary = GameState.vehicles[i]
 		var p := AutomationSim.v3(d["pos"])
-		p.y = maxf(p.y, TerrainGen.height(p.x, p.z) + 1.2)
-		v.global_transform = Transform3D(Basis(Vector3.UP, float(d.get("yaw", 0.0))), p)
+		if p.length() < TerrainGen.RADIUS * 0.5:
+			p = LunarVehicle.bay_xform().origin
+		if TerrainGen.altitude(p) < 1.2:
+			p = TerrainGen.surface(p, 1.2)
+		v.global_transform = Transform3D(TerrainGen.heading_basis(p, float(d.get("yaw", 0.0))), p)
 		v.freeze = true
 		vehicles.append(v)
 
@@ -447,9 +472,8 @@ func recall_vehicle(i: int) -> void:
 	var v: LunarVehicle = vehicles[i]
 	if v == current_vehicle:
 		return
-	var p := LunarBase.BAY_POS + Vector3(0, 1.5, -6.0 + i * 7.0)
 	v.freeze = false
-	v.global_transform = Transform3D(Basis(Vector3.UP, PI * 0.5), p)
+	v.global_transform = LunarBase.at_xform(LunarBase.BAY_POS + Vector3(0, 1.5, -6.0 + i * 7.0), PI * 0.5)
 	v.linear_velocity = Vector3.ZERO
 	v.freeze = true
 	GameState.notify.emit("Vehicle returned to the Vehicle Bay", "info")
@@ -485,11 +509,10 @@ func exit_vehicle() -> void:
 		return
 	v.set_driving(false)
 	current_vehicle = null
-	var side := v.global_transform * Vector3(-(float(v.info["size"][0]) * 0.5 + 1.3), 0, 0)
-	side.y = TerrainGen.height(side.x, side.z) + 0.3
+	var side := TerrainGen.surface(v.global_transform * Vector3(-(float(v.info["size"][0]) * 0.5 + 1.3), 0, 0), 0.3)
 	player.global_position = side
 	player.velocity = Vector3.ZERO
-	player.yaw = v.global_rotation.y
+	player.global_basis = TerrainGen.upright(side, -v.global_basis.z)
 	player.set_active(true)
 	terrain.focus = player
 	GameState.player["vehicle"] = -1
@@ -500,7 +523,6 @@ func exit_vehicle() -> void:
 # --------------------------------------------------------------------- frame
 
 func _process(delta: float) -> void:
-	_update_bend()
 	if get_tree().paused:
 		return
 	# Cleaning is driven by the live button state every frame (not by press/release
@@ -526,7 +548,7 @@ func _process(delta: float) -> void:
 	# Battery recharge at base and charging stations
 	var fp := focus_node().global_position
 	var charge_radius := float(GameData.economy["base_recharge_radius"])
-	var charging := Vector2(fp.x, fp.z + 2.0).length() < charge_radius
+	var charging := fp.distance_to(AutomationSim.BASE_CENTER) < charge_radius
 	if not charging:
 		for m in GameState.machines:
 			if m["id"] == "charging_station" and AutomationSim.v3(m["pos"]).distance_to(fp) < 8.0:
@@ -544,10 +566,10 @@ func _process(delta: float) -> void:
 	if _landmark_t <= 0.0:
 		_landmark_t = 2.0
 		for lm in TerrainGen.LANDMARK_CRATERS:
-			var c := Vector3(lm[1], 0, lm[2])
-			if Vector2(c.x - fp.x, c.z - fp.z).length() < float(lm[3]) + 60.0:
+			var c := TerrainGen.map_point(lm[1], lm[2], 0.0)
+			if c.distance_to(fp) < float(lm[3]) + 60.0:
 				var step := maxf(float(lm[3]) / 14.0, 0.75)
-				GameState.landmark_progress[lm[0]] = GameState.dirt.area_clean_fraction(c.x, c.z, float(lm[3]) * 0.92, step)
+				GameState.landmark_progress[lm[0]] = GameState.dirt.area_clean_fraction(c, float(lm[3]) * 0.92, step)
 	if current_vehicle:
 		terrain.ensure_collision_near(current_vehicle.global_position)
 	_update_dust_finder(delta)
@@ -556,8 +578,8 @@ func _process(delta: float) -> void:
 ## Ground under buildings and pads gets no dust: it could never be seen or reached.
 func _register_covers() -> void:
 	var d := GameState.dirt
-	d.add_cover_circle(4.0, 30.0, 8.3)                 # lander pad
-	d.add_cover_box(-19.0, 17.0, 5.2, 12.2, 0.0)        # vehicle bay floor
+	d.add_cover_circle(LunarBase.at(Vector3(4.0, 0, 30.0)), 8.3)          # lander pad
+	d.add_cover_box(TerrainGen.map_xform(-19.0, 17.0, 0.0), 5.2, 12.2)   # vehicle bay floor
 	for root in [base, landmarks]:
 		for body in (root as Node).find_children("*", "StaticBody3D", true, false):
 			for cs in body.get_children():
@@ -567,9 +589,9 @@ func _register_covers() -> void:
 				var size: Vector3 = (cs.shape as BoxShape3D).size * xf.basis.get_scale()
 				var p := xf.origin
 				# Only boxes that sit on the ground (not raised platforms or roofs).
-				if p.y - size.y * 0.5 > TerrainGen.height(p.x, p.z) + 1.0:
+				if TerrainGen.altitude(p) - size.y * 0.5 > 1.0:
 					continue
-				d.add_cover_box(p.x, p.z, size.x * 0.5, size.z * 0.5, xf.basis.get_euler().y)
+				d.add_cover_box(xf.orthonormalized(), size.x * 0.5, size.z * 0.5)
 
 
 # ------------------------------------------------------------------ ending
@@ -616,41 +638,6 @@ func _update_dust_finder(delta: float) -> void:
 	_dust_target = GameState.dirt.nearest_dust(focus_node().global_position) if hunting_dust() else Vector3.INF
 
 
-# ------------------------------------------------------------- mini-planet
-
-## Visual radius of the "mini-planet" horizon curve (metres). Physics stays flat.
-const BEND_RADIUS := 800.0
-var _bend_labels: Array = []   # [Label3D, base global y]
-
-
-func _update_bend() -> void:
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return
-	var c := cam.global_position
-	var k := 1.0 / (2.0 * BEND_RADIUS)
-	Meshes.apply_bend(c, k)
-	for key in terrain.chunks:
-		var m: ShaderMaterial = terrain.chunks[key]["mat"]
-		m.set_shader_parameter("bend_origin", c)
-		m.set_shader_parameter("bend_k", k)
-	# Label3D text can't use the bend shader, so drop labels by hand.
-	if _bend_labels.is_empty():
-		for l in find_children("*", "Label3D", true, false):
-			_bend_labels.append([l, (l as Label3D).global_position.y])
-	for e in _bend_labels:
-		var l: Label3D = e[0]
-		if not is_instance_valid(l) or not l.is_visible_in_tree():
-			continue
-		var gp := l.global_position
-		var d2 := Vector2(gp.x - c.x, gp.z - c.z).length_squared()
-		l.global_position.y = float(e[1]) - d2 / (2.0 * BEND_RADIUS)
-
-
-func _exit_tree() -> void:
-	Meshes.apply_bend(Vector3.ZERO, 0.0)
-
-
 ## Copies live node state into GameState right before saving.
 func write_state() -> void:
 	if current_vehicle == null:
@@ -658,8 +645,8 @@ func write_state() -> void:
 		s["vehicle"] = -1
 		GameState.player = s
 	else:
-		var p := current_vehicle.global_position
-		GameState.player = {"pos": [p.x, p.y + 1.0, p.z], "yaw": current_vehicle.global_rotation.y, "pitch": -0.3, "vehicle": current_vehicle.index}
+		var p := TerrainGen.surface(current_vehicle.global_position, 1.0)
+		GameState.player = {"pos": [p.x, p.y, p.z], "yaw": TerrainGen.yaw_of(p, current_vehicle.global_basis), "pitch": -0.3, "vehicle": current_vehicle.index}
 	for v in vehicles:
 		(v as LunarVehicle).save_state()
 

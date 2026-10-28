@@ -71,8 +71,8 @@ static func _relative_xform(root: Node3D, n: Node3D) -> Transform3D:
 func _add_visual(m: Dictionary) -> void:
 	var built := MachineModels.build(m["id"])
 	var root: Node3D = built["root"]
-	root.position = AutomationSim.v3(m["pos"])
-	root.rotation.y = float(m["yaw"])
+	var mp := AutomationSim.v3(m["pos"])
+	root.transform = Transform3D(TerrainGen.heading_basis(mp, float(m["yaw"])), mp)
 	add_child(root)
 	# Collision matches the model's real footprint (solar arrays are much wider
 	# than the core), so vehicles and the player can't pass through any part.
@@ -87,8 +87,7 @@ func _add_visual(m: Dictionary) -> void:
 	body.add_child(cs)
 	root.add_child(body)
 	# The ground under a machine can't be reached any more: no dust there.
-	var c := root.position + Basis(Vector3.UP, root.rotation.y) * box.get_center()
-	GameState.dirt.add_cover_box(c.x, c.z, sh.size.x * 0.5, sh.size.z * 0.5, root.rotation.y)
+	GameState.dirt.add_cover_box(Transform3D(root.basis, root.transform * box.get_center()), sh.size.x * 0.5, sh.size.z * 0.5)
 	var info := GameData.machine(m["id"])
 	var lbl := Meshes.label(root, info["name"], Vector3(0, 5.6, 0), 40, Color(1, 0.9, 0.6), true)
 	lbl.visible = false
@@ -147,28 +146,27 @@ func _rebuild_belts() -> void:
 
 
 func _belt(a: Vector3, b: Vector3) -> void:
-	var dir := Vector3(b.x - a.x, 0, b.z - a.z)
-	var length := dir.length()
+	var length := a.distance_to(b)
 	if length < 0.5:
 		return
 	var segs := maxi(int(length / 6.0), 1)
 	var frame := Meshes.hs(Color(0.25, 0.26, 0.3), 0.6, 0.45, Color(0, 0, 0), 0.0, 2.0, 0.3)
 	for i in segs:
-		var p0 := a.lerp(b, float(i) / segs)
-		var p1 := a.lerp(b, float(i + 1) / segs)
-		p0.y = TerrainGen.height(p0.x, p0.z) + 0.9
-		p1.y = TerrainGen.height(p1.x, p1.z) + 0.9
+		var p0 := TerrainGen.surface(a.lerp(b, float(i) / segs), 0.9)
+		var p1 := TerrainGen.surface(a.lerp(b, float(i + 1) / segs), 0.9)
 		var seg := Node3D.new()
 		_belts.add_child(seg)
 		var mid := (p0 + p1) * 0.5
+		var up := mid.normalized()
 		var l := p0.distance_to(p1)
 		var bar := Meshes.part(seg, Meshes.box(Vector3(0.9, 0.18, 1.0)), frame)
-		bar.look_at_from_position(mid, p1, Vector3.UP)
+		bar.look_at_from_position(mid, p1, up)
 		bar.scale = Vector3(1, 1, l)
 		var strip := Meshes.part(seg, Meshes.box(Vector3(0.6, 0.02, 1.0)), _belt_mat, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
-		strip.look_at_from_position(mid + Vector3(0, 0.11, 0), p1 + Vector3(0, 0.11, 0), Vector3.UP)
+		strip.look_at_from_position(mid + up * 0.11, p1 + up * 0.11, up)
 		strip.scale = Vector3(1, 1, l)
-		var leg := Meshes.part(seg, Meshes.box(Vector3(0.15, 1.0, 0.15)), frame, Vector3(mid.x, TerrainGen.height(mid.x, mid.z) + 0.4, mid.z))
+		var leg := Meshes.part(seg, Meshes.box(Vector3(0.15, 1.0, 0.15)), frame)
+		leg.transform = Transform3D(TerrainGen.upright(mid, p1 - p0), TerrainGen.surface(mid, 0.4))
 
 
 func add_machine(id: String, pos: Vector3, yaw: float) -> void:
@@ -225,8 +223,8 @@ func _process(delta: float) -> void:
 				var prev := an.global_position
 				an.global_position = prev.lerp(target, minf(delta * 8.0, 1.0)) if prev.distance_to(target) < 10.0 else target
 				var mv := an.global_position - prev
-				if mv.length() > 0.01:
-					an.rotation.y = atan2(-mv.x, -mv.z)
+				var face := mv if mv.length() > 0.01 else -an.global_basis.z
+				an.global_basis = TerrainGen.upright(an.global_position, face)
 				if an.has_node("Props"):
 					(an.get_node("Props") as Node3D).rotation.y += delta * 40.0
 		if dist > 140.0:
@@ -292,10 +290,8 @@ func _update_ghost() -> void:
 		return
 	var p: Node3D = world.player
 	var fwd := -p.global_basis.z
-	var pos: Vector3 = p.global_position + fwd * 8.0
-	pos.y = TerrainGen.height(pos.x, pos.z)
-	ghost.global_position = pos
-	ghost.rotation.y = ghost_yaw
+	var pos := TerrainGen.surface(p.global_position + fwd * 8.0)
+	ghost.global_transform = Transform3D(TerrainGen.heading_basis(pos, ghost_yaw), pos)
 	_update_link_preview(pos)
 	var reason := sim.can_place(placing, pos)
 	var price := float(GameData.machine(placing)["price"])
@@ -322,7 +318,7 @@ func _update_link_preview(pos: Vector3) -> void:
 	else:
 		ghost_link_text = "Links to %d machine%s - add Storage + a Depot to sell" % [links.size(), "" if links.size() == 1 else "s"]
 	# Rebuild the lines only when something changed (position snapped to 0.5 m).
-	var key := "%d|%d|%d|%d" % [roundi(pos.x * 2.0), roundi(pos.z * 2.0), links.size(), int(r)]
+	var key := "%d|%d|%d|%d|%d" % [roundi(pos.x * 2.0), roundi(pos.y * 2.0), roundi(pos.z * 2.0), links.size(), int(r)]
 	if key == _preview_key and _preview:
 		return
 	_preview_key = key
@@ -335,15 +331,14 @@ func _update_link_preview(pos: Vector3) -> void:
 	if r > 0.0:
 		im.surface_begin(Mesh.PRIMITIVE_LINES)
 		var n := 48
+		var fb := TerrainGen.frame(pos.normalized())
 		for i in n:
 			for k in 2:
 				var a := TAU * float(i + k) / n
-				var p := pos + Vector3(cos(a) * r, 0, sin(a) * r)
-				im.surface_add_vertex(Vector3(p.x, TerrainGen.height(p.x, p.z) + 0.3, p.z))
+				im.surface_add_vertex(TerrainGen.surface(pos + (fb.x * cos(a) + fb.z * sin(a)) * r, 0.3))
 		for t in links:
-			var tp: Vector3 = t
-			im.surface_add_vertex(pos + Vector3(0, 1.2, 0))
-			im.surface_add_vertex(Vector3(tp.x, TerrainGen.height(tp.x, tp.z) + 1.2, tp.z))
+			im.surface_add_vertex(TerrainGen.surface(pos, 1.2))
+			im.surface_add_vertex(TerrainGen.surface(t, 1.2))
 		im.surface_end()
 	_preview.mesh = im
 

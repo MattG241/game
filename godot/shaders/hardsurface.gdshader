@@ -11,8 +11,6 @@ uniform vec3 emit_color : source_color = vec3(0.0);
 uniform float emit_strength = 0.0;
 uniform float stripes = 0.0;
 
-#include "res://shaders/bend.gdshaderinc"
-
 varying vec3 obj_pos;
 varying vec3 obj_n;
 
@@ -23,7 +21,6 @@ float h21(vec2 p) {
 void vertex() {
 	obj_pos = VERTEX;
 	obj_n = abs(NORMAL);
-	VERTEX = bend_vertex(VERTEX, MODEL_MATRIX);
 }
 
 void fragment() {

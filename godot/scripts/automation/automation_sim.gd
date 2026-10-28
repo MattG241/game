@@ -17,7 +17,8 @@ extends RefCounted
 ## - Drones and rovers need a Charging Station within 45 m of their home.
 
 const BASE_UID := 0
-const BASE_POS := Vector3(11, 0, -3)
+static var BASE_POS := LunarBase.at(LunarBase.EXCHANGE_POS)
+static var BASE_CENTER := LunarBase.at(Vector3(0, 0, -2))
 const BASE_LINK := 14.0
 const NEAR_DISTANCE := 150.0
 
@@ -87,14 +88,12 @@ func stored(m: Dictionary) -> float:
 # ------------------------------------------------------------------ building
 
 func can_place(id: String, pos: Vector3) -> String:
-	var reg := TerrainGen.region_at(pos.x, pos.z)
+	var reg := TerrainGen.region_of(pos)
 	if not GameState.region_unlocked(reg):
 		return "Region locked"
-	if Vector2(pos.x, pos.z + 2.0).length() < 31.0:
+	if pos.distance_to(BASE_CENTER) < 31.0:
 		return "Too close to the base"
-	if Vector2(pos.x, pos.z).length() > TerrainGen.WRAP_RADIUS - 40.0:
-		return "Too far out"
-	if TerrainGen.normal(pos.x, pos.z).y < 0.82:
+	if TerrainGen.flatness(pos) < 0.82:
 		return "Ground too steep"
 	for m in machines():
 		if v3(m["pos"]).distance_to(pos) < 4.0:
@@ -108,7 +107,7 @@ func add_machine(id: String, pos: Vector3, yaw: float) -> Dictionary:
 		"ship_t": 0.0, "phase": 0.0}
 	GameState.next_uid += 1
 	if id == "drone_bay" or id == "rover_garage":
-		m["agent"] = {"p": arr(pos + Vector3(0, 1, 0)), "s": "idle", "t": [pos.x, pos.z], "load": 0.0, "val": 0.0, "bat": 100.0, "wait": 0.0, "n": 0, "clean_t": 0.0}
+		m["agent"] = {"p": arr(TerrainGen.surface(pos, 1.0)), "s": "idle", "t": arr(pos), "load": 0.0, "val": 0.0, "bat": 100.0, "wait": 0.0, "n": 0, "clean_t": 0.0}
 	machines().append(m)
 	rebuild()
 	return m
@@ -275,17 +274,18 @@ func _collector(m: Dictionary, dt: float) -> void:
 		m["status"] = "Buffer full - link it to the base, a Storage Container or a Depot"
 		return
 	var p := v3(m["pos"])
-	var rinfo := GameData.region(TerrainGen.region_at(p.x, p.z))
-	var thick := TerrainGen.thickness(p.x, p.z, float(rinfo["thickness"]))
+	var rinfo := GameData.region(TerrainGen.region_of(p))
+	var thick := TerrainGen.thickness(p, float(rinfo["thickness"]))
 	var R := float(i.get("radius", 6.0))
 	# A sweeping spiral spot cleans the surface around the collector.
 	m["phase"] = float(m.get("phase", 0.0)) + dt
 	var ph: float = m["phase"]
 	var rho := 0.8 + (R - 1.2) * (0.5 + 0.5 * sin(ph * 0.11))
-	var spot := Vector3(p.x + cos(ph * 0.9) * rho, 0, p.z + sin(ph * 0.9) * rho)
+	var fb := TerrainGen.frame(p.normalized())
+	var spot := p + (fb.x * cos(ph * 0.9) + fb.z * sin(ph * 0.9)) * rho
 	var dpm := float(GameData.economy["dust_per_m2"]) * thick
 	var budget := (buffer_capacity(m) - float(m.get("d", 0.0))) / dpm
-	var area := dirt.stamp(DirtMap.Shape.ROUND, spot.x, spot.z, 1.2, 0.0, 0.0, 1.6 * efficiency * dt, budget)
+	var area := dirt.stamp(DirtMap.Shape.ROUND, spot, 1.2, 0.0, Vector3.ZERO, 1.6 * efficiency * dt, budget)
 	var units := area * dpm
 	var deep := float(i.get("deep_rate", 1.0)) * (1.0 + GameState.research_bonus("deep")) * efficiency * dt
 	if units < deep:
@@ -309,13 +309,17 @@ func update_agent(m: Dictionary, dt: float) -> void:
 	var capacity := float(i.get("capacity", 100.0))
 	var rng := float(i.get("range", 35.0))
 	var p := v3(a["p"])
+	if (a["t"] as Array).size() != 3:
+		# Saved before the Moon was round.
+		a["t"] = arr(home)
+		a["s"] = "idle"
 	if efficiency <= 0.0:
 		m["status"] = "No power"
 		return
 	if not has_charger(home):
 		m["status"] = "Needs a Charging Station within 45 m"
 		a["s"] = "idle"
-		a["p"] = arr(home + Vector3(0, 1, 0))
+		a["p"] = arr(TerrainGen.surface(home, 1.0))
 		return
 	match a["s"]:
 		"idle":
@@ -333,29 +337,30 @@ func update_agent(m: Dictionary, dt: float) -> void:
 					m["status"] = "Area clean - move it somewhere dusty"
 					a["wait"] = 8.0
 				else:
-					a["t"] = [t.x, t.z]
+					a["t"] = arr(t)
 					a["s"] = "out"
 					m["status"] = "Flying out" if is_drone else "Driving out"
 			else:
 				m["status"] = "Charging"
 		"out":
-			var t := Vector3(a["t"][0], 0, a["t"][1])
+			var t := v3(a["t"])
 			p = _move(p, t, speed * dt, is_drone)
 			a["bat"] = float(a["bat"]) - dt * 1.5
-			if Vector2(p.x - t.x, p.z - t.z).length() < 0.6:
+			if flat_dist(p, t) < 0.6:
 				a["s"] = "clean"
 				a["clean_t"] = 0.0
 		"clean":
 			a["clean_t"] = float(a["clean_t"]) + dt
 			var ct: float = a["clean_t"]
-			var t := Vector3(a["t"][0], 0, a["t"][1])
+			var t := v3(a["t"])
 			var orbit := 1.0 + fmod(ct * 0.35, 2.5)
-			var goal := t + Vector3(cos(ct * 1.3) * orbit, 0, sin(ct * 1.3) * orbit)
+			var tb := TerrainGen.frame(t.normalized())
+			var goal := t + (tb.x * cos(ct * 1.3) + tb.z * sin(ct * 1.3)) * orbit
 			p = _move(p, goal, speed * 0.4 * dt, is_drone)
-			var rinfo := GameData.region(TerrainGen.region_at(p.x, p.z))
-			var dpm := float(GameData.economy["dust_per_m2"]) * TerrainGen.thickness(p.x, p.z, float(rinfo["thickness"]))
+			var rinfo := GameData.region(TerrainGen.region_of(p))
+			var dpm := float(GameData.economy["dust_per_m2"]) * TerrainGen.thickness(p, float(rinfo["thickness"]))
 			var budget := (capacity - float(a["load"])) / dpm
-			var area := dirt.stamp(DirtMap.Shape.ROUND, p.x, p.z, radius, 0.0, 0.0, strength * efficiency * dt, budget)
+			var area := dirt.stamp(DirtMap.Shape.ROUND, p, radius, 0.0, Vector3.ZERO, strength * efficiency * dt, budget)
 			var units := area * dpm
 			a["load"] = float(a["load"]) + units
 			a["val"] = float(a["val"]) + units * float(rinfo["dust_mult"])
@@ -369,38 +374,44 @@ func update_agent(m: Dictionary, dt: float) -> void:
 			p = _move(p, home, speed * dt, is_drone)
 			a["bat"] = float(a["bat"]) - dt * 1.5
 			m["status"] = "Returning"
-			if Vector2(p.x - home.x, p.z - home.z).length() < 0.8:
+			if flat_dist(p, home) < 0.8:
 				a["s"] = "idle"
 				a["wait"] = 1.0
 	a["p"] = arr(p)
 
 
+## Distance between two points along the ground (ignoring height).
+static func flat_dist(a: Vector3, b: Vector3) -> float:
+	var d := b - a
+	var up := a.normalized()
+	return (d - up * d.dot(up)).length()
+
+
 func _move(p: Vector3, target: Vector3, step: float, flying: bool) -> Vector3:
-	var flat := Vector2(target.x - p.x, target.z - p.z)
+	var up := p.normalized()
+	var flat := target - p
+	flat -= up * flat.dot(up)
 	var d := flat.length()
 	var np := p
 	if d > 0.001:
-		var k := minf(step / d, 1.0)
-		np.x += flat.x * k
-		np.z += flat.y * k
-	var g := TerrainGen.height(np.x, np.z)
-	np.y = g + (2.6 if flying else 0.0)
-	return np
+		np += flat * minf(step / d, 1.0)
+	return TerrainGen.surface(np, 2.6 if flying else 0.0)
 
 
 func _pick_target(m: Dictionary, home: Vector3, rng: float) -> Vector3:
 	var a: Dictionary = m["agent"]
+	var hb := TerrainGen.frame(home.normalized())
 	for attempt in 10:
 		a["n"] = int(a["n"]) + 1
 		var n: int = a["n"]
 		var ang := TerrainGen.hashf(int(m["uid"]) * 7 + n, n * 3, 5151) * TAU
 		var dist := 4.0 + TerrainGen.hashf(n, int(m["uid"]), 5353) * (rng - 4.0)
-		var t := home + Vector3(cos(ang) * dist, 0, sin(ang) * dist)
-		if not GameState.region_unlocked(TerrainGen.region_at(t.x, t.z)):
+		var t := TerrainGen.surface(home + (hb.x * cos(ang) + hb.z * sin(ang)) * dist)
+		if not GameState.region_unlocked(TerrainGen.region_of(t)):
 			continue
-		if Vector2(t.x, t.z + 2.0).length() < 30.0:
+		if t.distance_to(BASE_CENTER) < 30.0:
 			continue
-		if dirt.sample(t.x, t.z) > 0.35:
+		if dirt.sample(t) > 0.35:
 			return t
 	return Vector3.INF
 

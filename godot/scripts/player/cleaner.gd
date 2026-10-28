@@ -53,7 +53,6 @@ func _ready() -> void:
 	_ring.mesh = pm
 	_ring_mat = ShaderMaterial.new()
 	_ring_mat.shader = Meshes.world_shader("res://shaders/brush_ring.gdshader")
-	Meshes.register_bend(_ring_mat)
 	_ring.material_override = _ring_mat
 	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_ring)
@@ -103,6 +102,7 @@ func _make_particles() -> CPUParticles3D:
 
 
 func _on_tool_changed(id: String) -> void:
+	Diagnostics.event("tool " + id)
 	stats = GameState.tool_stats(id)
 	if id == tool_id and _head != null:
 		_resize_ring()
@@ -132,7 +132,7 @@ func _on_tool_changed(id: String) -> void:
 		for i in int(stats.get("drones", 4)):
 			var d := ToolModels.mini_drone(Color.html(stats["color"]), 0.8)
 			add_child(d)
-			d.global_position = player.global_position + Vector3(0, 3, 0) if player else Vector3.ZERO
+			d.global_position = TerrainGen.surface(player.global_position, 3.0) if player else Vector3.ZERO
 			_drones.append(d)
 	var col := Color.html(stats.get("color", "#ffffff"))
 	_beam.material_override = Meshes.energy(col.lightened(0.3), 1.4, 3.0, 10.0)
@@ -190,10 +190,10 @@ func _process(delta: float) -> void:
 				GameState.notify.emit("Suit battery empty - tool at 20%. Recharge at base or a Charging Station.", "error")
 	var removed_area := 0.0
 	var thickness := 1.0
-	var region := TerrainGen.region_at(aim_point.x, aim_point.z)
+	var region := TerrainGen.region_of(aim_point)
 	var rinfo := GameData.region(region)
 	if active:
-		thickness = TerrainGen.thickness(aim_point.x, aim_point.z, float(rinfo["thickness"]))
+		thickness = TerrainGen.thickness(aim_point, float(rinfo["thickness"]))
 		removed_area += _stamp_stroke(shape, strength, dt, thickness)
 	if shape == "swarm":
 		removed_area += _update_swarm(delta, strength * 0.6)
@@ -233,7 +233,8 @@ func _update_aim() -> void:
 	var q := PhysicsRayQueryParameters3D.create(from, from + fwd * (reach + 1.8), 1)
 	q.collide_with_areas = false
 	var hit := space.intersect_ray(q)
-	var flat := Vector3(fwd.x, 0, fwd.z)
+	var up := player.global_position.normalized()
+	var flat := fwd - up * fwd.dot(up)
 	if flat.length_squared() < 0.0001:
 		flat = -player.global_basis.z
 	flat = flat.normalized()
@@ -244,10 +245,9 @@ func _update_aim() -> void:
 	elif Settings.get_value("aim_assist", true):
 		# Aim assist: clean the ground in front of the player when not looking at it.
 		var d := minf(reach * 0.7, 2.2) if stats.get("shape", "") != "beam" else reach * 0.6
-		var p := player.global_position + flat * d
-		p.y = TerrainGen.height(p.x, p.z)
+		var p := TerrainGen.surface(player.global_position + flat * d)
 		aim_point = p
-		aim_normal = TerrainGen.normal(p.x, p.z)
+		aim_normal = TerrainGen.normal_dir(p.normalized())
 		aim_valid = true
 	else:
 		aim_valid = false
@@ -264,7 +264,7 @@ func _stamp_stroke(shape: String, strength: float, dt: float, thickness: float) 
 	var spacing := maxf(size * 0.5, 0.06)
 	var dist := _last_stamp.distance_to(target)
 	var steps := clampi(int(ceil(dist / spacing)), 1, 10)
-	var yaw := _yaw()
+	var fwd := _forward()
 	var total := 0.0
 	var dust_per_m2 := float(GameData.economy["dust_per_m2"]) * thickness
 	for i in steps:
@@ -273,11 +273,11 @@ func _stamp_stroke(shape: String, strength: float, dt: float, thickness: float) 
 		if budget <= 0.0:
 			break
 		if shape == "round":
-			total += dirt.stamp(DirtMap.Shape.ROUND, p.x, p.z, stats["radius"], 0.0, 0.0, strength * dt, budget)
+			total += dirt.stamp(DirtMap.Shape.ROUND, p, stats["radius"], 0.0, Vector3.ZERO, strength * dt, budget)
 		else:
 			var hw: float = stats["half_width"]
 			var hl: float = stats["half_length"]
-			total += dirt.stamp(DirtMap.Shape.RECT, p.x, p.z, hw, hl, yaw, strength * dt, budget)
+			total += dirt.stamp(DirtMap.Shape.RECT, p, hw, hl, fwd, strength * dt, budget)
 	_last_stamp = target
 	return total
 
@@ -286,36 +286,39 @@ func _scrub_offset() -> Vector3:
 	var s: float = stats.get("scrub", 0.0)
 	if s <= 0.0 or not cleaning:
 		return Vector3.ZERO
+	var up := aim_point.normalized()
 	var right := camera.global_basis.x
-	right.y = 0
-	right = right.normalized()
-	var fwd := Vector3(-right.z, 0, right.x)
+	right = (right - up * right.dot(up)).normalized()
+	var fwd := up.cross(right)
 	return right * sin(_time * 15.0) * s + fwd * cos(_time * 7.5) * s * 0.4
 
 
-func _yaw() -> float:
+## Where the camera looks, along the ground at the aim point.
+func _forward() -> Vector3:
+	var up := aim_point.normalized()
 	var f := -camera.global_basis.z
-	return atan2(f.x, f.z)
+	f -= up * f.dot(up)
+	return f.normalized() if f.length_squared() > 1e-6 else -player.global_basis.z
 
 
 func _update_swarm(delta: float, strength: float) -> float:
 	var total := 0.0
 	var n := _drones.size()
 	var base := player.global_position
+	var pb := TerrainGen.upright(base, -player.global_basis.z)
 	var dust_per_m2 := float(GameData.economy["dust_per_m2"])
 	for i in n:
 		var d: Node3D = _drones[i]
 		var a := _time * 0.6 + i * TAU / n
 		var rad := 4.0 + 1.5 * sin(_time * 0.9 + i)
-		var target := base + Vector3(cos(a) * rad, 0, sin(a) * rad)
-		target.y = TerrainGen.height(target.x, target.z) + 1.4
+		var target := TerrainGen.surface(base + pb * Vector3(cos(a) * rad, 0, sin(a) * rad), 1.4)
 		d.global_position = d.global_position.lerp(target, minf(delta * 3.0, 1.0))
-		d.rotation.y = -a
+		d.global_basis = pb * Basis(Vector3.UP, -a)
 		var props: Node3D = d.get_node("Props")
 		props.rotation.y += delta * 40.0
 		var budget := GameState.tank_space() / dust_per_m2 - total
 		if budget > 0.0:
-			total += dirt.stamp(DirtMap.Shape.ROUND, d.global_position.x, d.global_position.z, stats["radius"], 0.0, 0.0, strength * delta, budget)
+			total += dirt.stamp(DirtMap.Shape.ROUND, d.global_position, stats["radius"], 0.0, Vector3.ZERO, strength * delta, budget)
 	return total
 
 
@@ -343,7 +346,7 @@ func _update_rig(delta: float, active: bool) -> void:
 		var fwd := -cam_t.basis.z
 		fwd = (fwd - aim_normal * fwd.dot(aim_normal)).normalized()
 		if fwd.length_squared() < 0.01:
-			fwd = Vector3.FORWARD
+			fwd = -player.global_basis.z
 		var right := fwd.cross(aim_normal).normalized()
 		var basis := Basis(right, aim_normal, -fwd)
 		_head.global_transform = Transform3D(basis, head_pos)
@@ -358,11 +361,13 @@ func _update_rig(delta: float, active: bool) -> void:
 			(_rig["roller"] as Node3D).rotation.x += delta * (18.0 if active else 0.0)
 	# Footprint ring
 	var shape: String = stats.get("shape", "round")
+	var aim_up := aim_point.normalized()
+	var ring_b := TerrainGen.upright(aim_point, _forward())
 	if shape == "swarm" or shape == "beam" or shape == "wide":
-		_ring.global_transform = Transform3D(Basis(Vector3.UP, _yaw()), aim_point + Vector3(0, 0.04, 0))
+		_ring.global_transform = Transform3D(ring_b, aim_point + aim_up * 0.04)
 		_ring.scale = Vector3(stats["half_width"], 1, stats["half_length"])
 	else:
-		_ring.global_transform = Transform3D(Basis.IDENTITY, aim_point + Vector3(0, 0.04, 0))
+		_ring.global_transform = Transform3D(ring_b, aim_point + aim_up * 0.04)
 		_ring.scale = Vector3(stats["radius"], 1, stats["radius"])
 	_ring_mat.set_shader_parameter("active", 1.0 if active else 0.0)
 	var col := Color(0.3, 1.0, 0.7) if aim_valid else Color(1.0, 0.3, 0.3)
@@ -375,9 +380,11 @@ func _update_effects(active: bool) -> void:
 	var emit := removing and active
 	_particles.emitting = emit
 	if emit:
-		_particles.global_position = aim_point + Vector3(0, 0.05, 0)
+		var up := aim_point.normalized()
+		_particles.global_transform = Transform3D(TerrainGen.upright(aim_point, _forward()), aim_point + up * 0.05)
+		_particles.gravity = -up * 1.62
 		if stats.get("suction", false) and not _rig.get("emitter", false):
-			_particles.global_position = aim_point + Vector3(0, 0.25, 0)
+			_particles.global_position = aim_point + up * 0.25
 	var snd: String = stats.get("sound", "brush_small")
 	var powered: bool = float(stats.get("power", 0.0)) > 0.0
 	var on := active and (removing or powered)

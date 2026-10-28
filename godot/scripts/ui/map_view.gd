@@ -1,149 +1,354 @@
 class_name MapView
 extends Control
-## Top-down map: shaded relief generated from the terrain functions on a worker thread,
-## region overlays, cleaned-area overlay, base, machines, vehicles, landmarks and player.
+## The Moon as a 3D globe you can spin (drag) and zoom (pinch / mouse wheel / buttons).
+## Shaded relief is generated from the terrain functions on a worker thread (and cached
+## on disk); a second texture shows cleaning progress per chunk and locked regions.
+## Markers (base, player, machines, vehicles, landmarks) are drawn over the globe.
 
-const RES := 192
-const EXTENT := 640.0
+const W := 512                      # relief texture (longitude x latitude)
+const H := 256
+const SW := 256                     # state overlay texture
+const SH := 128
+const CACHE := "user://globe_relief_v1.png"
+const ZOOM_MIN := 1.12
+const ZOOM_MAX := 4.2
 
-static var _cached: ImageTexture
+static var _relief: ImageTexture
+static var _relief_img: Image
+static var _keys := PackedInt32Array()   # chunk index of each state pixel
+static var _regions := PackedByteArray() # region of each state pixel
 static var _task := -1
-static var _img: Image
 
 var world: Node
 var _font: Font
+var _vp: SubViewport
+var _cam: Camera3D
+var _globe: MeshInstance3D
+var _mat: ShaderMaterial
+var _state_img: Image
+var _state_tex: ImageTexture
+var _state_t := 0.0
+var _rot := Basis.IDENTITY          # globe orientation
+var _dist := 2.6                    # camera distance (globe radius = 1)
+var _touches := {}                  # index -> position
+var _pinch_d := 0.0
+var _overlay: Control
+
+
+static func prepare() -> void:
+	if _relief != null or _task != -1:
+		return
+	var tints := PackedColorArray()
+	for r in GameData.regions:
+		tints.append(Color.html(r["tint"]))
+	var cached: Image = null
+	if FileAccess.file_exists(CACHE):
+		cached = Image.load_from_file(CACHE)
+		if cached != null and (cached.get_width() != W or cached.get_height() != H):
+			cached = null
+	_task = WorkerThreadPool.add_task(_generate.bind(tints, cached), false, "globe")
+
+
+## Pixel centre of an equirectangular image -> direction (y = up).
+static func pixel_dir(x: int, y: int, w: int, h: int) -> Vector3:
+	var lon := (x + 0.5) / w * TAU - PI
+	var lat := PI * 0.5 - (y + 0.5) / h * PI
+	return Vector3(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon))
+
+
+static func _generate(tints: PackedColorArray, cached: Image) -> void:
+	TerrainGen.setup()
+	var keys := PackedInt32Array()
+	keys.resize(SW * SH)
+	var regs := PackedByteArray()
+	regs.resize(SW * SH)
+	for y in SH:
+		for x in SW:
+			var d := pixel_dir(x, y, SW, SH)
+			keys[y * SW + x] = TerrainGen.key_index(TerrainGen.key_of(d))
+			regs[y * SW + x] = TerrainGen.region_dir(d)
+	_keys = keys
+	_regions = regs
+	if cached != null:
+		_relief_img = cached
+		return
+	var hs := PackedFloat32Array()
+	hs.resize(W * H)
+	var interior := PackedFloat32Array()
+	interior.resize(W * H)
+	for y in H:
+		for x in W:
+			var s := TerrainGen.sample_dir(pixel_dir(x, y, W, H))
+			hs[y * W + x] = s.x
+			interior[y * W + x] = s.y
+	var img := Image.create(W, H, false, Image.FORMAT_RGB8)
+	var px := TerrainGen.RADIUS * TAU / W
+	for y in H:
+		var lat := PI * 0.5 - (y + 0.5) / H * PI
+		var ex := maxf(px * cos(lat), px * 0.25)     # metres per pixel east-west here
+		for x in W:
+			var i := y * W + x
+			var hx: float = hs[y * W + (x + 1) % W]
+			var hy: float = hs[mini(y + 1, H - 1) * W + x]
+			var shade := clampf(0.62 + (hs[i] - hx) / ex * 1.6 + (hs[i] - hy) / px * 1.0 + hs[i] * 0.006, 0.18, 1.0)
+			var d := pixel_dir(x, y, W, H)
+			var c: Color = tints[TerrainGen.region_dir(d)] * shade
+			c = c.darkened(interior[i] * 0.25)
+			# Landing Zone border
+			var s := acos(clampf(d.y, -1.0, 1.0)) * TerrainGen.RADIUS
+			if absf(s - TerrainGen.ZONE_RADIUS) < 1.6:
+				c = c.lerp(Color(1.0, 0.6, 0.2), 0.7)
+			img.set_pixel(x, y, c)
+	_relief_img = img
+	img.save_png(CACHE)
 
 
 func _ready() -> void:
 	_font = UIKit.font_bold()
-	custom_minimum_size = Vector2(520, 520)
-	if _cached == null and _task == -1:
-		# Region tints are read here on the main thread; the worker only gets a copy.
-		var tints := PackedColorArray()
-		for r in GameData.regions:
-			tints.append(Color.html(r["tint"]))
-		_task = WorkerThreadPool.add_task(_generate.bind(tints), false, "map")
+	clip_contents = true
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	prepare()
+	var svc := SubViewportContainer.new()
+	svc.stretch = true
+	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(svc)
+	_vp = SubViewport.new()
+	_vp.own_world_3d = true
+	_vp.transparent_bg = true
+	_vp.msaa_3d = Viewport.MSAA_2X
+	svc.add_child(_vp)
+	_cam = Camera3D.new()
+	_cam.fov = 40.0
+	_cam.near = 0.01
+	_cam.far = 20.0
+	_vp.add_child(_cam)
+	_globe = MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 1.0
+	sm.height = 2.0
+	sm.radial_segments = 96
+	sm.rings = 48
+	_globe.mesh = sm
+	_mat = ShaderMaterial.new()
+	_mat.shader = load("res://shaders/globe.gdshader")
+	_globe.material_override = _mat
+	_vp.add_child(_globe)
+	_state_img = Image.create(SW, SH, false, Image.FORMAT_RGBA8)
+	_state_tex = ImageTexture.create_from_image(_state_img)
+	_mat.set_shader_parameter("state", _state_tex)
+	_overlay = Control.new()
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.draw.connect(_draw_overlay)
+	add_child(_overlay)
+	# Zoom / recentre buttons for one-handed use.
+	var bar := UIKit.vbox(8)
+	bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	bar.position = Vector2(-86, 12)
+	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	add_child(bar)
+	bar.add_child(UIKit.button("+", func(): _zoom(0.8), Vector2(72, 64), 30))
+	bar.add_child(UIKit.button("-", func(): _zoom(1.25), Vector2(72, 64), 30))
+	bar.add_child(UIKit.button("ME", _center_on_focus, Vector2(72, 64), 18))
+	_center_on_focus()
 
 
-static func _generate(tints: PackedColorArray) -> void:
-	TerrainGen.setup()
-	var img := Image.create(RES, RES, false, Image.FORMAT_RGB8)
-	for y in RES:
-		for x in RES:
-			var wx := (float(x) / RES * 2.0 - 1.0) * EXTENT
-			var wz := (float(y) / RES * 2.0 - 1.0) * EXTENT
-			var s := TerrainGen.sample(wx, wz)
-			var e := 2.0 * EXTENT / RES
-			var hx := TerrainGen.height(wx + e, wz)
-			var shade := clampf(0.55 + (s.x - hx) * 0.08 + s.x * 0.004, 0.15, 1.0)
-			var reg := TerrainGen.region_at(wx, wz)
-			var c: Color = tints[reg] * shade
-			c = c.darkened(s.y * 0.25)
-			img.set_pixel(x, y, c)
-	_img = img
+## Turns the globe so the player (or their vehicle) faces the camera, base side up.
+func _center_on_focus() -> void:
+	var d := Vector3.UP * TerrainGen.RADIUS
+	if world and world.has_method("focus_node"):
+		d = world.focus_node().global_position
+	_rot = _facing(d.normalized())
 
 
-func _process(_delta: float) -> void:
-	if _cached == null and _task != -1 and WorkerThreadPool.is_task_completed(_task):
+static func _facing(f: Vector3) -> Basis:
+	var y := Vector3.UP - f * f.y
+	if y.length() < 0.05:
+		y = Vector3.FORWARD - f * f.dot(Vector3.FORWARD)
+	y = y.normalized()
+	var x := y.cross(f).normalized()
+	return Basis(x, y, f).transposed()
+
+
+func _zoom(k: float) -> void:
+	_dist = clampf(_dist * k, ZOOM_MIN, ZOOM_MAX)
+
+
+func _spin(rel: Vector2) -> void:
+	# Drag speed follows how much of the globe fills the view.
+	var k := 0.0055 * (_dist - 0.95) / 1.6
+	_rot = (Basis(Vector3.UP, rel.x * k) * Basis(Vector3.RIGHT, rel.y * k) * _rot).orthonormalized()
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touches[event.index] = event.position
+		else:
+			_touches.erase(event.index)
+		_pinch_d = _pinch_distance()
+		accept_event()
+	elif event is InputEventScreenDrag:
+		_touches[event.index] = event.position
+		if _touches.size() >= 2:
+			var pd := _pinch_distance()
+			if _pinch_d > 1.0 and pd > 1.0:
+				_zoom(_pinch_d / pd)
+			_pinch_d = pd
+		else:
+			_spin(event.relative)
+		accept_event()
+	elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
+		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom(0.9)
+			accept_event()
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom(1.1)
+			accept_event()
+	elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION \
+			and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		_spin(event.relative)
+		accept_event()
+	elif event is InputEventMagnifyGesture:
+		_zoom(1.0 / maxf(event.factor, 0.01))
+		accept_event()
+
+
+func _pinch_distance() -> float:
+	if _touches.size() < 2:
+		return 0.0
+	var v: Array = _touches.values()
+	return (v[0] as Vector2).distance_to(v[1])
+
+
+func _process(delta: float) -> void:
+	if _relief == null and _task != -1 and WorkerThreadPool.is_task_completed(_task):
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
-		_cached = ImageTexture.create_from_image(_img)
-	queue_redraw()
+		_relief = ImageTexture.create_from_image(_relief_img)
+	if _relief:
+		_mat.set_shader_parameter("relief", _relief)
+		_mat.set_shader_parameter("ready", 1.0)
+	_globe.basis = _rot
+	_cam.position = Vector3(0, 0, _dist)
+	_state_t -= delta
+	if _state_t <= 0.0 and not _keys.is_empty():
+		_state_t = 1.0
+		_update_state()
+	_overlay.queue_redraw()
 
 
-func _to_map(p: Vector3, rect: Rect2) -> Vector2:
-	return rect.position + Vector2((p.x / EXTENT + 1.0) * 0.5, (p.z / EXTENT + 1.0) * 0.5) * rect.size
-
-
-func _draw() -> void:
-	var side := minf(size.x, size.y)
-	var rect := Rect2(Vector2((size.x - side) * 0.5, 0), Vector2(side, side))
-	draw_rect(rect, Color(0.02, 0.025, 0.04))
-	if _cached:
-		draw_texture_rect(_cached, rect, false)
-	else:
-		draw_string(_font, rect.get_center() - Vector2(80, 0), "Charting the Moon...", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, UIKit.MUTED)
-	# Locked regions dim
-	var center := _to_map(Vector3.ZERO, rect)
-	var k := rect.size.x / (2.0 * EXTENT)
-	for idx in range(1, 5):
-		if not GameState.region_unlocked(idx):
-			var a0: float = [0.0, -PI * 0.5, PI, PI * 0.5][idx - 1] - PI * 0.25
-			var pts := PackedVector2Array()
-			pts.append(center + Vector2.from_angle(a0) * TerrainGen.ZONE_RADIUS * k)
-			for i in 9:
-				pts.append(center + Vector2.from_angle(a0 + i * PI * 0.5 / 8.0) * 640.0 * k)
-			pts.append(center + Vector2.from_angle(a0 + PI * 0.5) * TerrainGen.ZONE_RADIUS * k)
-			for i in 9:
-				pts.append(center + Vector2.from_angle(a0 + PI * 0.5 - i * PI * 0.5 / 8.0) * TerrainGen.ZONE_RADIUS * k)
-			draw_colored_polygon(pts, Color(0, 0, 0, 0.55))
-	draw_arc(center, TerrainGen.ZONE_RADIUS * k, 0, TAU, 64, Color(1, 0.6, 0.2, 0.6), 2.0, true)
-	# Dust finder: every 32 m patch of the Moon - green = spotless, amber = started,
-	# red tint = untouched dust (shown once the final mission is active).
+## Cleaning progress per chunk, dust still left (final mission) and locked regions.
+func _update_state() -> void:
 	var dm := GameState.dirt
 	var hunting: bool = GameState.current_mission().get("id", "") == "m_clean_moon"
-	var cell := Vector2(TerrainGen.CHUNK * k, TerrainGen.CHUNK * k)
+	var n := 6 * TerrainGen.N * TerrainGen.N
+	var cols := PackedColorArray()
+	cols.resize(n)
 	for key in dm.playable():
-		var o := TerrainGen.chunk_origin(key)
-		var p0 := _to_map(Vector3(o.x, 0, o.y), rect)
-		if dm.clean.has(key):
-			draw_rect(Rect2(p0, cell), Color(0.2, 1.0, 0.5, 0.45))
-		else:
-			var c: DirtMap.DirtChunk = dm.chunks.get(key)
-			if c != null and c.modified:
-				draw_rect(Rect2(p0, cell), Color(1.0, 0.75, 0.2, 0.2 + 0.4 * dm.chunk_fraction(key)))
-			elif hunting:
-				draw_rect(Rect2(p0, cell), Color(1.0, 0.25, 0.2, 0.25))
-	# The edge of the map continues round the far side of the Moon.
-	draw_arc(center, TerrainGen.WRAP_RADIUS * k, 0, TAU, 96, Color(0.6, 0.8, 1.0, 0.5), 1.5, true)
+		var st := dm.chunk_state(key)
+		var c := Color(0, 0, 0, 0)
+		if st >= 1.0:
+			c = Color(0.2, 1.0, 0.5, 0.55)
+		elif st > 0.0:
+			c = Color(1.0, 0.75, 0.2, 0.25 + 0.4 * st)
+		elif hunting:
+			c = Color(1.0, 0.25, 0.2, 0.3)
+		cols[TerrainGen.key_index(key)] = c
+	var locked := PackedByteArray()
+	locked.resize(5)
+	for r in 5:
+		locked[r] = 0 if GameState.region_unlocked(r) else 1
+	var data := PackedByteArray()
+	data.resize(SW * SH * 4)
+	for i in SW * SH:
+		var c: Color = cols[_keys[i]]
+		if locked[_regions[i]] == 1 and c.a < 0.5:
+			c = Color(0, 0, 0, 0.55)
+		data[i * 4] = int(c.r * 255.0)
+		data[i * 4 + 1] = int(c.g * 255.0)
+		data[i * 4 + 2] = int(c.b * 255.0)
+		data[i * 4 + 3] = int(c.a * 255.0)
+	_state_img.set_data(SW, SH, false, Image.FORMAT_RGBA8, data)
+	_state_tex.update(_state_img)
+
+
+# ------------------------------------------------------------------ overlay
+
+## Screen position of a world point on the globe surface, or Vector2.INF when it is on
+## the far side.
+func _screen(p: Vector3, lift := 0.0) -> Vector2:
+	var g := _rot * (p.normalized() * (1.0 + lift))
+	if g.dot(_cam.position - g) <= 0.0:
+		return Vector2.INF
+	return _cam.unproject_position(g)
+
+
+func _draw_overlay() -> void:
+	var o := _overlay
+	if _relief == null:
+		o.draw_string(_font, size * 0.5 - Vector2(90, 0), "Charting the Moon...", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, UIKit.MUTED)
 	var pct := "MOON CLEANED  %.1f%%" % (GameState.world_clean_fraction() * 100.0)
-	draw_string_outline(_font, rect.position + Vector2(10, 24), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.85))
-	draw_string(_font, rect.position + Vector2(10, 24), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UIKit.GOOD)
-	draw_string_outline(_font, rect.position + Vector2(10, rect.size.y - 10), "Edge of map: keep going to come round the far side", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85))
-	draw_string(_font, rect.position + Vector2(10, rect.size.y - 10), "Edge of map: keep going to come round the far side", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.7, 0.85, 1.0))
+	_text(Vector2(12, 28), pct, 18, UIKit.GOOD)
+	_text(Vector2(12, size.y - 12), "Drag to spin  -  pinch or +/- to zoom", 14, Color(0.7, 0.85, 1.0))
+	var hunting: bool = GameState.current_mission().get("id", "") == "m_clean_moon"
+	# Region names
+	var names := {0: Vector2(0, 75), 1: Vector2(380, 0), 2: Vector2(0, -380), 3: Vector2(-380, 0), 4: Vector2(0, 380)}
+	for idx in names:
+		var m: Vector2 = names[idx]
+		var sp := _screen(TerrainGen.map_to_dir(m.x, m.y))
+		if sp == Vector2.INF:
+			continue
+		var txt: String = GameData.region(idx)["name"]
+		var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		_text(sp - Vector2(w * 0.5, 0), txt, 16, Color(1, 1, 1, 0.9) if GameState.region_unlocked(idx) else Color(1, 0.5, 0.4))
+	# Landmarks
+	if _dist < 2.2:
+		for lm in TerrainGen.LANDMARK_CRATERS:
+			var sp := _screen(TerrainGen.map_to_dir(lm[1], lm[2]))
+			if sp != Vector2.INF:
+				var nm := String(lm[0]).replace("_", " ").to_upper()
+				var w := _font.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+				_text(sp - Vector2(w * 0.5, -4), nm, 12, Color(0.75, 0.88, 1.0, 0.85))
+	if not GameState.flags.get("probe_recovered", false):
+		_marker(TerrainGen.map_to_dir(Landmarks.PROBE_POS.x, Landmarks.PROBE_POS.y), UIKit.GOOD, "PROBE")
+	_marker(TerrainGen.map_to_dir(Landmarks.RESEARCH_CENTER.x, Landmarks.RESEARCH_CENTER.y), Color(1.0, 0.6, 0.4), "SALVAGE")
+	_marker(Vector3.UP, UIKit.ACCENT, "BASE")
 	if hunting and world and world.has_method("dust_target"):
 		var t: Vector3 = world.dust_target()
 		if t.is_finite():
-			_marker(_to_map(t, rect), Color(1.0, 0.35, 0.3), "DUST")
-	# Region names
-	var names := {1: Vector3(380, 0, 0), 2: Vector3(0, 0, -380), 3: Vector3(-380, 0, 0), 4: Vector3(0, 0, 380), 0: Vector3(0, 0, 90)}
-	for idx in names:
-		var info := GameData.region(idx)
-		var pos := _to_map(names[idx], rect)
-		var txt: String = info["name"]
-		var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-		draw_string_outline(_font, pos - Vector2(w * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
-		draw_string(_font, pos - Vector2(w * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1, 1, 1, 0.9) if GameState.region_unlocked(idx) else Color(1, 0.5, 0.4))
-	# Base
-	_marker(_to_map(Vector3(0, 0, -2), rect), UIKit.ACCENT, "BASE")
-	# Landmarks
-	for lm in TerrainGen.LANDMARK_CRATERS:
-		var p := _to_map(Vector3(lm[1], 0, lm[2]), rect)
-		draw_arc(p, lm[3] * k, 0, TAU, 32, Color(0.7, 0.85, 1.0, 0.6), 1.5, true)
-	if not GameState.flags.get("probe_recovered", false):
-		_marker(_to_map(Vector3(Landmarks.PROBE_POS.x, 0, Landmarks.PROBE_POS.y), rect), UIKit.GOOD, "PROBE")
-	_marker(_to_map(Vector3(Landmarks.RESEARCH_CENTER.x, 0, Landmarks.RESEARCH_CENTER.y), rect), Color(1.0, 0.6, 0.4), "SALVAGE")
-	# Machines
+			_marker(t, Color(1.0, 0.35, 0.3), "DUST")
 	for m in GameState.machines:
-		var p := _to_map(AutomationSim.v3(m["pos"]), rect)
-		draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), Color.html(GameData.machine(m["id"]).get("color", "#ffffff")))
-	# Vehicles
+		var sp := _screen(AutomationSim.v3(m["pos"]))
+		if sp != Vector2.INF:
+			o.draw_rect(Rect2(sp - Vector2(3, 3), Vector2(6, 6)), Color.html(GameData.machine(m["id"]).get("color", "#ffffff")))
 	for v in GameState.vehicles:
-		var p := _to_map(AutomationSim.v3(v["pos"]), rect)
-		draw_circle(p, 5, Color(0.7, 0.55, 1.0))
-	# Player
-	if world:
-		var fp: Vector3 = world.focus_node().global_position
-		var pp := _to_map(fp, rect)
-		var yaw: float = world.player.yaw if world.current_vehicle == null else world.current_vehicle.global_rotation.y
-		var fwd := Vector2(-sin(yaw), -cos(yaw))
-		var right := Vector2(-fwd.y, fwd.x)
-		draw_colored_polygon(PackedVector2Array([pp + fwd * 12, pp - fwd * 7 + right * 7, pp - fwd * 4, pp - fwd * 7 - right * 7]), Color.WHITE)
-	draw_rect(rect, Color(0.3, 0.4, 0.55), false, 2.0)
+		var sp := _screen(AutomationSim.v3(v["pos"]))
+		if sp != Vector2.INF:
+			o.draw_circle(sp, 5, Color(0.7, 0.55, 1.0))
+	# Player arrow
+	if world and world.has_method("focus_node"):
+		var f: Node3D = world.focus_node()
+		var fp := f.global_position
+		var sp := _screen(fp, 0.004)
+		if sp != Vector2.INF:
+			var ahead := _screen(fp - f.global_basis.z * 25.0, 0.004)
+			var fwd := (ahead - sp).normalized() if ahead != Vector2.INF and ahead.distance_to(sp) > 0.5 else Vector2.UP
+			var right := Vector2(-fwd.y, fwd.x)
+			o.draw_colored_polygon(PackedVector2Array([sp + fwd * 13, sp - fwd * 7 + right * 8, sp - fwd * 4, sp - fwd * 7 - right * 8]), Color.WHITE)
+			o.draw_polyline(PackedVector2Array([sp + fwd * 13, sp - fwd * 7 + right * 8, sp - fwd * 4, sp - fwd * 7 - right * 8, sp + fwd * 13]), Color(0, 0, 0, 0.8), 1.5, true)
 
 
-func _marker(p: Vector2, c: Color, txt: String) -> void:
-	draw_circle(p, 6, c)
-	draw_arc(p, 9, 0, TAU, 16, Color(0, 0, 0, 0.7), 2.0, true)
-	draw_string_outline(_font, p + Vector2(10, 6), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.8))
-	draw_string(_font, p + Vector2(10, 6), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, c)
+func _marker(d: Vector3, c: Color, txt: String) -> void:
+	var p := _screen(d)
+	if p == Vector2.INF:
+		return
+	_overlay.draw_circle(p, 6, c)
+	_overlay.draw_arc(p, 9, 0, TAU, 16, Color(0, 0, 0, 0.7), 2.0, true)
+	_text(p + Vector2(10, 6), txt, 14, c)
+
+
+func _text(p: Vector2, txt: String, fs: int, c: Color) -> void:
+	_overlay.draw_string_outline(_font, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.85))
+	_overlay.draw_string(_font, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, c)

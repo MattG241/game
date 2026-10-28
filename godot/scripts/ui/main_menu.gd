@@ -17,7 +17,7 @@ func _ready() -> void:
 	GameState.dirt.clear()
 	add_child(LunarEnv.new())
 	_focus = Node3D.new()
-	_focus.position = Vector3(40, 0, -30)
+	_focus.position = TerrainGen.map_point(40, -30, 0)
 	add_child(_focus)
 	_terrain = Terrain.new()
 	add_child(_terrain)
@@ -36,10 +36,12 @@ func _ready() -> void:
 	var side := Vector3(-e.z, 0, e.x)
 	var p := Vector3(tc[1], 0, tc[2]) - e * 13.0 + side * 9.0
 	p.y = TerrainGen.height(p.x, p.z)
+	var props := Node3D.new()
+	add_child(props)
 	var brush := Node3D.new()
 	brush.position = p
 	brush.rotation = Vector3(0.18, 0.6, 0.12)
-	add_child(brush)
+	props.add_child(brush)
 	Meshes.part(brush, Meshes.cyl(0.18, 6.0, 12), Meshes.hs(Color(0.3, 0.76, 0.97), 0.1, 0.35), Vector3(0, 3.0, 0))
 	Meshes.part(brush, Meshes.box(Vector3(0.6, 1.6, 0.4)), Meshes.hs(Color(0.3, 0.76, 0.97), 0.1, 0.35), Vector3(0, 6.6, 0.1))
 	Meshes.part(brush, Meshes.box(Vector3(0.5, 1.4, 0.5)), Meshes.hs(Color(0.97, 0.97, 0.95), 0.0, 0.8, Color(0, 0, 0), 0.0, 8.0, 0.1), Vector3(0, 6.6, 0.5))
@@ -47,11 +49,12 @@ func _ready() -> void:
 	astro.position = p + Vector3(1.6, 0, 0.8)
 	astro.position.y = TerrainGen.height(astro.position.x, astro.position.z)
 	astro.rotation.y = 2.2
-	add_child(astro)
+	props.add_child(astro)
+	SphereLayout.wrap(props)
 	for i in 60:
 		var a := float(i) / 60.0
 		var q := p.lerp(Vector3(tc[1], 0, tc[2]) - e * 26.0 + side * 2.0, a) + side * sin(a * 9.0) * 1.2
-		GameState.dirt.stamp(DirtMap.Shape.ROUND, q.x, q.z, 0.9, 0.0, 0.0, 1.0, 1e9)
+		GameState.dirt.stamp(DirtMap.Shape.ROUND, TerrainGen.map_point(q.x, q.z, 0.0), 0.9, 0.0, Vector3.ZERO, 1.0, 1e9)
 	_terrain.refresh_all_textures()
 	_build_ui()
 
@@ -124,8 +127,6 @@ func _show_main() -> void:
 	_panel.add_child(UIKit.button("EXIT", func(): get_tree().quit(), Vector2(420, 58), 24))
 	if Diagnostics.previous_crashed:
 		var txt := "The game closed unexpectedly last time. Settings > Copy crash log, then paste it to the developer."
-		if Diagnostics.safe_graphics_enabled:
-			txt += " Safe graphics are now on (curved horizon off) - you can switch it back in Settings."
 		var warn := UIKit.label(txt, 17, UIKit.ACCENT)
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_panel.add_child(warn)
@@ -240,7 +241,9 @@ func _process(delta: float) -> void:
 	var e := Vector3(LunarEnv.EARTH_DIR.x, 0, LunarEnv.EARTH_DIR.z).normalized()
 	var side := Vector3(-e.z, 0, e.x)
 	var pos := center - e * (30.0 - sin(_t * 0.07) * 6.0) + side * (8.0 + sin(_t * 0.05) * 10.0)
-	pos.y = TerrainGen.height(pos.x, pos.z) + 3.2
-	_cam.global_position = pos
-	_cam.look_at(pos + e * 40.0 + Vector3(0, 9.5, 0), Vector3.UP)
-	_focus.global_position = pos
+	var h := TerrainGen.height(pos.x, pos.z) + 3.2
+	var wp := TerrainGen.map_point(pos.x, pos.z, h)
+	var tp := pos + e * 40.0
+	_cam.global_position = wp
+	_cam.look_at(TerrainGen.map_point(tp.x, tp.z, h + 9.5), wp.normalized())
+	_focus.global_position = wp

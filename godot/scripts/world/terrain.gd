@@ -1,13 +1,13 @@
 class_name Terrain
 extends Node3D
-## Streams terrain chunks around a focus node. Mesh data, collision heights, rock
-## placements and initial dust masks are computed on worker threads; the main thread
-## only uploads finished results (time-sliced) and refreshes dirty mask textures.
+## Streams terrain chunks around a focus node on the round Moon. Mesh data, collision
+## faces, rock placements and initial dust masks are computed on worker threads; the
+## main thread only uploads finished results (time-sliced) and refreshes mask textures.
 
 signal chunk_count_changed(n: int)
 
 const LOD0_DIST := 84.0
-const COLLISION_DIST := 44.0
+const COLLISION_DIST := 48.0
 const MAX_TASKS := 4
 const MAX_FINALIZE_PER_FRAME := 2
 const MAX_TEX_UPDATES_PER_FRAME := 6
@@ -17,18 +17,20 @@ var focus: Node3D
 var view_distance := 190.0
 var detail_level := 1
 
-var chunks := {}      # Vector2i -> Dictionary {node, mesh, mat, tex, lod, body, rocks}
-var _tasks := {}      # Vector2i -> {id, result, lod}
+var chunks := {}      # Vector3i -> Dictionary {node, mat, tex, lod, body}
+var _tasks := {}      # Vector3i -> {id, res, lod}
 var _scan_timer := 0.0
-var _desired := {}    # Vector2i -> lod
+var _desired := {}    # Vector3i -> lod
 var _mat_template: ShaderMaterial
 var _rock_mat: Material
 var _tints := PackedColorArray()
+var _all: Array[Vector3i] = []
 
 
 func _ready() -> void:
 	TerrainGen.setup()
 	dirt = GameState.dirt
+	_all = TerrainGen.all_chunks()
 	for r in GameData.regions:
 		_tints.append(Color.html(r["tint"]))
 	_mat_template = ShaderMaterial.new()
@@ -72,17 +74,21 @@ func active_chunks() -> int:
 	return chunks.size()
 
 
+static func chunk_origin(key: Vector3i) -> Vector3:
+	return TerrainGen.chunk_center_dir(key) * TerrainGen.RADIUS
+
+
 ## Synchronously builds the chunks around a point (used on spawn so nothing falls through).
 func prewarm(pos: Vector3) -> void:
-	var c := TerrainGen.chunk_key(pos.x, pos.z)
-	for dz in range(-1, 2):
-		for dx in range(-1, 2):
-			var key := c + Vector2i(dx, dz)
-			if chunks.has(key):
-				continue
-			var res := {}
-			_build_task(key, 0, not dirt.has_chunk(key), res)
-			_finalize(key, 0, res)
+	var c := TerrainGen.key_of(pos.normalized())
+	var keys: Array[Vector3i] = [c]
+	keys.append_array(TerrainGen.neighbours(c))
+	for key in keys:
+		if chunks.has(key):
+			continue
+		var res := {}
+		_build_task(key, 0, not dirt.has_chunk(key), res)
+		_finalize(key, 0, res)
 	_update_collision(pos)
 
 
@@ -102,10 +108,12 @@ func _process(delta: float) -> void:
 
 func _scan(fp: Vector3) -> void:
 	_desired.clear()
-	_want_around(fp)
-	# Near the wrap line, also build the far side so crossing over is seamless.
-	if Vector2(fp.x, fp.z).length() > TerrainGen.WRAP_RADIUS - LOD0_DIST:
-		_want_around(TerrainGen.wrap_point(fp))
+	var reach := view_distance + TerrainGen.CHUNK * 0.75
+	for key in _all:
+		var d := chunk_origin(key).distance_to(fp)
+		if d > reach:
+			continue
+		_desired[key] = 0 if d < LOD0_DIST else 1
 	# Unload chunks no longer wanted
 	for key in chunks.keys():
 		if not _desired.has(key):
@@ -113,27 +121,11 @@ func _scan(fp: Vector3) -> void:
 	chunk_count_changed.emit(chunks.size())
 
 
-func _want_around(fp: Vector3) -> void:
-	var r := int(ceil(view_distance / TerrainGen.CHUNK)) + 1
-	var c := TerrainGen.chunk_key(fp.x, fp.z)
-	for dz in range(-r, r + 1):
-		for dx in range(-r, r + 1):
-			var key := c + Vector2i(dx, dz)
-			var center := Vector2((key.x + 0.5) * TerrainGen.CHUNK, (key.y + 0.5) * TerrainGen.CHUNK)
-			if center.length() > TerrainGen.WORLD_RADIUS + 120.0:
-				continue
-			var d := center.distance_to(Vector2(fp.x, fp.z))
-			if d > view_distance + TerrainGen.CHUNK * 0.75:
-				continue
-			var lod := 0 if d < LOD0_DIST else 1
-			_desired[key] = mini(lod, int(_desired.get(key, lod)))
-
-
 func _dispatch() -> void:
 	if _tasks.size() >= MAX_TASKS:
 		return
 	var fp := focus.global_position
-	var best_key := Vector2i.ZERO
+	var best_key := Vector3i.ZERO
 	var best_d := INF
 	var best_lod := 0
 	var found := false
@@ -144,8 +136,7 @@ func _dispatch() -> void:
 			continue
 		if chunks.has(key) and chunks[key]["lod"] == lod:
 			continue
-		var center := Vector2((key.x + 0.5) * TerrainGen.CHUNK, (key.y + 0.5) * TerrainGen.CHUNK)
-		var d := center.distance_squared_to(Vector2(fp.x, fp.z))
+		var d := chunk_origin(key).distance_squared_to(fp)
 		if d < best_d:
 			best_d = d
 			best_key = key
@@ -155,8 +146,6 @@ func _dispatch() -> void:
 		return
 	var res := {}
 	var need_dirt := not dirt.has_chunk(best_key)
-	# Chunks from older saves get dust under rocks / on cliffs removed once.
-	res["sanitize"] = best_lod == 0 and dirt.needs_sanitize(best_key)
 	var id := WorkerThreadPool.add_task(_build_task.bind(best_key, best_lod, need_dirt, res), false, "terrain")
 	_tasks[best_key] = {"id": id, "res": res, "lod": best_lod}
 	if _tasks.size() < MAX_TASKS:
@@ -198,7 +187,7 @@ func refresh_all_textures() -> void:
 	dirt.visual_dirty.clear()
 
 
-func _unload(key: Vector2i) -> void:
+func _unload(key: Vector3i) -> void:
 	var c: Dictionary = chunks[key]
 	var body: StaticBody3D = c["body"]
 	if body.get_parent() == null:
@@ -211,8 +200,7 @@ func _unload(key: Vector2i) -> void:
 func _update_collision(fp: Vector3) -> void:
 	for key in chunks:
 		var c: Dictionary = chunks[key]
-		var center := Vector2((key.x + 0.5) * TerrainGen.CHUNK, (key.y + 0.5) * TerrainGen.CHUNK)
-		var want: bool = center.distance_to(Vector2(fp.x, fp.z)) < COLLISION_DIST and c["lod"] == 0
+		var want: bool = chunk_origin(key).distance_to(fp) < COLLISION_DIST and c["lod"] == 0
 		var body: StaticBody3D = c["body"]
 		if want and body.get_parent() == null:
 			c["node"].add_child(body)
@@ -225,70 +213,96 @@ func ensure_collision_near(pos: Vector3) -> void:
 	_update_collision(pos)
 
 
+## True when the ground under a world position has solid collision loaded.
+func has_collision_at(pos: Vector3) -> bool:
+	var c: Dictionary = chunks.get(TerrainGen.key_of(pos.normalized()), {})
+	return not c.is_empty() and (c["body"] as StaticBody3D).get_parent() != null
+
+
 # ------------------------------------------------------------- worker thread
 
-func _build_task(key: Vector2i, lod: int, need_dirt: bool, res: Dictionary) -> void:
+func _build_task(key: Vector3i, lod: int, need_dirt: bool, res: Dictionary) -> void:
 	var quads := TerrainGen.QUADS if lod == 0 else TerrainGen.QUADS_FAR
-	var step := TerrainGen.CHUNK / quads
-	var ox := key.x * TerrainGen.CHUNK
-	var oz := key.y * TerrainGen.CHUNK
+	var origin := chunk_origin(key)
 	var n := quads + 1
 	var g := n + 2   # with 1-sample border for normals
-	var hs := PackedFloat32Array()
-	hs.resize(g * g)
+	var pts := PackedVector3Array()
+	pts.resize(g * g)
 	var interior := PackedFloat32Array()
 	interior.resize(g * g)
+	var dirs := PackedVector3Array()
+	dirs.resize(g * g)
 	for j in g:
 		for i in g:
-			var s := TerrainGen.sample(ox + (i - 1) * step, oz + (j - 1) * step)
-			hs[j * g + i] = s.x
+			var d := TerrainGen.chunk_dir(key, float(i - 1) / quads, float(j - 1) / quads)
+			var s := TerrainGen.sample_dir(d)
+			pts[j * g + i] = d * (TerrainGen.RADIUS + s.x) - origin
 			interior[j * g + i] = s.y
+			dirs[j * g + i] = d
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
 	var cols := PackedColorArray()
 	var idx := PackedInt32Array()
 	verts.resize(n * n)
 	norms.resize(n * n)
 	uvs.resize(n * n)
+	uv2s.resize(n * n)
 	cols.resize(n * n)
+	var span := 2.0 / TerrainGen.N
+	var face_m := TerrainGen.RADIUS * PI * 0.25   # metres per unit of face param
 	for j in n:
 		for i in n:
 			var gi := (j + 1) * g + (i + 1)
-			var h := hs[gi]
-			var nx := hs[gi - 1] - hs[gi + 1]
-			var nz := hs[gi - g] - hs[gi + g]
+			var up := dirs[gi]
+			var nrm := (pts[gi + g] - pts[gi - g]).cross(pts[gi + 1] - pts[gi - 1]).normalized()
+			if nrm.dot(up) < 0.0:
+				nrm = -nrm
 			var vi := j * n + i
-			verts[vi] = Vector3(i * step, h, j * step)
-			norms[vi] = Vector3(nx, 2.0 * step, nz).normalized()
+			verts[vi] = pts[gi]
+			norms[vi] = nrm
 			uvs[vi] = Vector2(float(i) / quads, float(j) / quads)
-			var wx := ox + i * step
-			var wz := oz + j * step
-			cols[vi] = _tint(wx, wz, interior[gi])
+			# Face-continuous surface coordinates in metres (detail textures).
+			uv2s[vi] = Vector2(-1.0 + (key.y + float(i) / quads) * span, -1.0 + (key.z + float(j) / quads) * span) * face_m
+			cols[vi] = _tint(up, interior[gi])
+	# Front faces are clockwise seen from outside: pick the winding per face.
+	var a0 := verts[0]
+	var flip := (verts[1] - a0).cross(verts[n] - a0).dot(dirs[g + 1]) > 0.0
 	for j in quads:
 		for i in quads:
 			var a := j * n + i
 			var b := a + 1
 			var c := a + n
 			var d := c + 1
-			idx.append_array([a, b, c, b, d, c])
-	# Skirts hide cracks between neighbouring LODs.
+			if flip:
+				idx.append_array([a, c, b, b, c, d])
+			else:
+				idx.append_array([a, b, c, b, d, c])
+	var faces := PackedVector3Array()
+	if lod == 0:
+		faces.resize(idx.size())
+		for k in idx.size():
+			faces[k] = verts[idx[k]]
+	# Skirts (pushed towards the centre) hide cracks between neighbouring LODs.
 	var skirt := 2.5 if lod == 0 else 5.0
 	var edges := Array()
 	for e in 4:
 		edges.append(Array())
 	for i in n:
-		edges[0].append(i)                  # north row (j = 0)
-		edges[1].append((n - 1) * n + i)    # south row
-		edges[2].append(i * n)              # west column
-		edges[3].append(i * n + n - 1)      # east column
+		edges[0].append(i)
+		edges[1].append((n - 1) * n + i)
+		edges[2].append(i * n)
+		edges[3].append(i * n + n - 1)
 	for e in 4:
 		var line: Array = edges[e]
 		var base := verts.size()
 		for vi in line:
-			verts.append(verts[vi] - Vector3(0, skirt, 0))
+			var gi: int = (int(vi) / n + 1) * g + (int(vi) % n + 1)
+			verts.append(verts[vi] - dirs[gi] * skirt)
 			norms.append(norms[vi])
 			uvs.append(uvs[vi])
+			uv2s.append(uv2s[vi])
 			cols.append(cols[vi])
 		for k in line.size() - 1:
 			var a: int = line[k]
@@ -302,25 +316,21 @@ func _build_task(key: Vector2i, lod: int, need_dirt: bool, res: Dictionary) -> v
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = norms
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_INDEX] = idx
 	res["arrays"] = arrays
 	if lod == 0:
-		var coll := PackedFloat32Array()
-		coll.resize(n * n)
-		for j in n:
-			for i in n:
-				coll[j * n + i] = hs[(j + 1) * g + (i + 1)]
-		res["collision"] = coll
+		res["collision"] = faces
 	if need_dirt:
 		res["dirt"] = TerrainGen.initial_dirt(key)
 	elif res.get("sanitize", false):
 		res["blocked"] = TerrainGen.unreachable_mask(key)
-	res["rocks"] = _rock_placements(key, lod)
+	res["rocks"] = _rock_placements(key, lod, origin)
 
 
-func _tint(x: float, z: float, interior: float) -> Color:
-	var w := TerrainGen.region_weights(x, z)
+func _tint(d: Vector3, interior: float) -> Color:
+	var w := TerrainGen.region_weights_dir(d)
 	var tints := _tints
 	var base: Color = tints[0]
 	var total := w.x + w.y + w.z + w.w
@@ -328,40 +338,37 @@ func _tint(x: float, z: float, interior: float) -> Color:
 	c += tints[1] * w.x + tints[2] * w.y + tints[3] * w.z + tints[4] * w.w
 	if total > 1.0:
 		c = (c - base * maxf(1.0 - total, 0.0)) / total
-	# Both sides of the wrap line must look alike: fade region colours out there.
-	c = c.lerp(base, TerrainGen.seam_k(x, z))
 	c.a = interior
 	return c
 
 
-func _rock_placements(key: Vector2i, lod: int) -> Array:
+func _rock_placements(key: Vector3i, lod: int, origin: Vector3) -> Array:
 	if not TerrainGen.chunk_has_rocks(key):
 		return Array()
-	var ox := key.x * TerrainGen.CHUNK
-	var oz := key.y * TerrainGen.CHUNK
-	var c := Vector2(ox + TerrainGen.CHUNK * 0.5, oz + TerrainGen.CHUNK * 0.5)
-	var big_count := TerrainGen.rocks_for_region(TerrainGen.region_at(c.x, c.y))
+	var big_count := TerrainGen.big_rocks_in(key)
 	var count: int = big_count
 	if lod == 0:
 		count += TerrainGen.SMALL_ROCKS if detail_level >= 1 else 10
 	var out := Array()
+	var kx := key.x * 97 + key.y
 	for i in count:
 		var rk := TerrainGen.rock(key, i, big_count)
 		if rk.w < 0.0:
 			continue
-		var hx := TerrainGen.hashf(key.x * 31 + i, key.y * 17 - i, 991)
-		var hz := TerrainGen.hashf(key.x * 13 - i, key.y * 29 + i, 553)
+		var hx := TerrainGen.hashf(kx * 31 + i, key.z * 17 - i, 991)
+		var hz := TerrainGen.hashf(kx * 13 - i, key.z * 29 + i, 553)
 		var s := rk.z
-		var y := TerrainGen.height(rk.x, rk.y) - s * 0.25
-		var rot := Basis(Vector3.UP, hx * TAU) * Basis(Vector3.RIGHT, (hz - 0.5) * 0.6)
+		var d := TerrainGen.chunk_dir(key, rk.x, rk.y)
+		var p := d * (TerrainGen.RADIUS + TerrainGen.height_dir(d) - s * 0.25)
+		var rot := TerrainGen.frame(d) * Basis(Vector3.UP, hx * TAU) * Basis(Vector3.RIGHT, (hz - 0.5) * 0.6)
 		var sc := Vector3(s * (0.8 + hz * 0.5), s * (0.6 + hx * 0.5), s * (0.8 + rk.w * 0.4))
-		out.append([Transform3D(rot.scaled(sc), Vector3(rk.x - ox, y, rk.y - oz)), s])
+		out.append([Transform3D(rot * Basis.from_scale(sc), p - origin), s])
 	return out
 
 
 # ----------------------------------------------------------------- finalize
 
-func _finalize(key: Vector2i, lod: int, res: Dictionary) -> void:
+func _finalize(key: Vector3i, lod: int, res: Dictionary) -> void:
 	if not res.has("arrays"):
 		return
 	if res.has("dirt"):
@@ -370,8 +377,8 @@ func _finalize(key: Vector2i, lod: int, res: Dictionary) -> void:
 		dirt.sanitize(key, res["blocked"])
 	var old: Dictionary = chunks.get(key, {})
 	var node := Node3D.new()
-	node.name = "Chunk_%d_%d" % [key.x, key.y]
-	node.position = Vector3(key.x * TerrainGen.CHUNK, 0, key.y * TerrainGen.CHUNK)
+	node.name = "Chunk_%d_%d_%d" % [key.x, key.y, key.z]
+	node.position = chunk_origin(key)
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, res["arrays"])
 	var mi := MeshInstance3D.new()
@@ -391,21 +398,18 @@ func _finalize(key: Vector2i, lod: int, res: Dictionary) -> void:
 	body.collision_layer = 1
 	body.collision_mask = 0
 	if res.has("collision"):
-		var shape := HeightMapShape3D.new()
-		var n := TerrainGen.QUADS + 1
-		shape.map_width = n
-		shape.map_depth = n
-		shape.map_data = res["collision"]
+		var shape := ConcavePolygonShape3D.new()
+		shape.backface_collision = true
+		shape.set_faces(res["collision"])
 		var cs := CollisionShape3D.new()
 		cs.shape = shape
-		cs.position = Vector3(TerrainGen.CHUNK * 0.5, 0, TerrainGen.CHUNK * 0.5)
 		body.add_child(cs)
 	# Rocks
 	var rocks: Array = res["rocks"]
 	if not rocks.is_empty():
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = Meshes.rock_mesh(absi(key.x * 7 + key.y * 3))
+		mm.mesh = Meshes.rock_mesh(absi(key.x * 7 + key.y * 3 + key.z))
 		mm.instance_count = rocks.size()
 		for i in rocks.size():
 			mm.set_instance_transform(i, rocks[i][0])
@@ -428,10 +432,8 @@ func _finalize(key: Vector2i, lod: int, res: Dictionary) -> void:
 		if ob.get_parent() == null:
 			ob.free()
 	chunks[key] = {"node": node, "mat": mat, "tex": tex, "lod": lod, "body": body}
-	if focus:
-		var center := Vector2((key.x + 0.5) * TerrainGen.CHUNK, (key.y + 0.5) * TerrainGen.CHUNK)
-		if center.distance_to(Vector2(focus.global_position.x, focus.global_position.z)) < COLLISION_DIST and lod == 0:
-			node.add_child(body)
+	if focus and lod == 0 and chunk_origin(key).distance_to(focus.global_position) < COLLISION_DIST:
+		node.add_child(body)
 
 
 func _exit_tree() -> void:

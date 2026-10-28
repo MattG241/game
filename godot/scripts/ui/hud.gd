@@ -317,11 +317,10 @@ func _update_finder() -> void:
 		var cam := get_viewport().get_camera_3d()
 		if t.is_finite() and cam:
 			var fp: Vector3 = world.focus_node().global_position
-			var to := Vector2(t.x - fp.x, t.z - fp.z)
-			_finder_dist = to.length()
-			var fwd := -cam.global_basis.z
-			# Angle of the target relative to where the camera looks (0 = straight ahead).
-			_finder_angle = Vector2(fwd.x, fwd.z).angle_to(to)
+			_finder_dist = fp.distance_to(t)
+			# Target in the ground frame where the camera looks (-Z = straight ahead).
+			var local := TerrainGen.upright(fp, -cam.global_basis.z).inverse() * (t - fp)
+			_finder_angle = Vector2(0, -1).angle_to(Vector2(local.x, local.z))
 			_finder_on = true
 	if _finder_on or was:
 		queue_redraw()
@@ -380,7 +379,7 @@ func _process(delta: float) -> void:
 		_obj_hint.text = m.get("hint", "") + prog
 	if world:
 		var fp: Vector3 = world.focus_node().global_position
-		var reg := GameData.region(TerrainGen.region_at(fp.x, fp.z))
+		var reg := GameData.region(TerrainGen.region_of(fp))
 		_region_label.text = "%s  x%s" % [reg["name"].to_upper(), str(reg["dust_mult"])]
 		var c: Cleaner = world.player.cleaner
 		var rate_txt := ""

@@ -1,6 +1,6 @@
 class_name Player
 extends CharacterBody3D
-## First-person astronaut: low-gravity movement, touch/keyboard look, footsteps,
+## First-person astronaut on the round Moon: low-gravity movement towards the centre, touch/keyboard look, footsteps,
 ## hover pack, region permits and interaction targeting.
 
 var controls: TouchControls
@@ -9,7 +9,6 @@ var head: Node3D
 var cleaner: Cleaner
 var world: Node
 
-var yaw := 0.0
 var pitch := -0.3
 var sprint_toggle := false
 var input_enabled := true
@@ -87,14 +86,41 @@ func _unhandled_input(event: InputEvent) -> void:
 func _look(delta: Vector2) -> void:
 	var sens := float(Settings.get_value("sensitivity", 1.0)) * 0.0042
 	var inv := -1.0 if Settings.get_value("invert_y", false) else 1.0
-	yaw -= delta.x * sens
+	_turn(-delta.x * sens)
 	pitch = clampf(pitch - delta.y * sens * inv, -1.45, 1.25)
 
 
+## Heading relative to the local map frame (0 = facing the map's -Z). Setting it turns
+## the body on the spot.
+var yaw: float:
+	get:
+		return TerrainGen.yaw_of(global_position, global_basis)
+	set(v):
+		global_basis = TerrainGen.heading_basis(global_position, v)
+
+
+func _turn(a: float) -> void:
+	if a != 0.0:
+		global_basis = Basis(global_basis.y.normalized(), a) * global_basis
+
+
+## Keeps the body standing up on the round Moon: turns it (shortest way) so its Y axis
+## points away from the centre. Carrying the heading along like this means walking over
+## the poles never spins the view.
+func _stand_up() -> Vector3:
+	var up := global_position.normalized()
+	var b := global_basis.orthonormalized()
+	if b.y.dot(up) < 0.99999:
+		b = Basis(Quaternion(b.y, up)) * b
+	global_basis = b.orthonormalized()
+	up_direction = up
+	return up
+
+
 func _physics_process(delta: float) -> void:
+	var up := _stand_up()
 	if controls and input_enabled:
 		_look(controls.consume_look())
-	rotation.y = yaw
 	head.rotation.x = pitch
 	var mv := GameState.move_stats()
 	var input := Vector2.ZERO
@@ -110,51 +136,40 @@ func _physics_process(delta: float) -> void:
 	var speed: float = mv["sprint"] if sprint else mv["walk"]
 	if cleaner and cleaner.cleaning:
 		speed *= 0.8
-	var dir := (global_basis * Vector3(input.x, 0, input.y))
-	dir.y = 0
+	var dir := global_basis * Vector3(input.x, 0, input.y)
+	dir -= up * dir.dot(up)
 	var target := dir * speed
 	var on_floor := is_on_floor()
 	var accel := 14.0 if on_floor else 3.5
-	velocity.x = move_toward(velocity.x, target.x, accel * speed * delta)
-	velocity.z = move_toward(velocity.z, target.z, accel * speed * delta)
+	var v_up := velocity.dot(up)
+	var v_h := (velocity - up * v_up).move_toward(target, accel * speed * delta)
 	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-	velocity.y -= g * delta
+	v_up -= g * delta
 	var jump_held := (controls and controls.is_held("jump")) or Input.is_key_pressed(KEY_SPACE)
-	if not on_floor and jump_held and mv["jetpack"] and velocity.y < 1.5:
-		velocity.y += 6.0 * delta
+	if not on_floor and jump_held and mv["jetpack"] and v_up < 1.5:
+		v_up += 6.0 * delta
+	velocity = v_h + up * v_up
 	var prev := global_position
 	move_and_slide()
-	# Region permits: bounce back from locked regions and the world edge.
+	# Region permits: stop at the border of a locked region.
 	var p := global_position
-	var reg := TerrainGen.region_at(p.x, p.z)
-	var r := Vector2(p.x, p.z).length()
-	var over := r > TerrainGen.WRAP_RADIUS
-	var far_reg := TerrainGen.region_at(-p.x, -p.z)
-	if over and GameState.region_unlocked(reg) and GameState.region_unlocked(far_reg):
-		wrap_around()
-	elif not GameState.region_unlocked(reg) or over:
+	var reg := TerrainGen.region_of(p)
+	if not GameState.region_unlocked(reg):
 		# Stop at the border smoothly (stay where we were last frame). Only if that spot
 		# was also off-limits (e.g. a save inside a now-locked area) jump to the last
 		# allowed spot, so the player can never be trapped bouncing in place.
-		var prev_ok := GameState.region_unlocked(TerrainGen.region_at(prev.x, prev.z)) \
-			and Vector2(prev.x, prev.z).length() <= TerrainGen.WRAP_RADIUS
-		if prev_ok:
-			global_position = Vector3(prev.x, maxf(prev.y, TerrainGen.height(prev.x, prev.z)), prev.z)
+		if GameState.region_unlocked(TerrainGen.region_of(prev)):
+			global_position = prev if TerrainGen.altitude(prev) > -0.05 else TerrainGen.surface(prev)
 		else:
-			var back := _last_ok if _last_ok != Vector3.INF else Vector3(0, 1, 14)
-			back.y = maxf(back.y, TerrainGen.height(back.x, back.z) + 0.1)
-			global_position = back
-		velocity.x = 0.0
-		velocity.z = 0.0
+			var back := _last_ok if _last_ok != Vector3.INF else LunarBase.spawn_point()
+			global_position = back if TerrainGen.altitude(back) > 0.0 else TerrainGen.surface(back, 0.1)
+		var nu := global_position.normalized()
+		velocity = nu * minf(velocity.dot(nu), 0.0)
 		_blocked_msg_t -= delta
 		if _blocked_msg_t <= 0.0:
 			_blocked_msg_t = 3.0
-			if over:
-				var fi := GameData.region(far_reg)
-				GameState.notify.emit("Round the Moon is %s - it needs a permit (%s CR)" % [fi["name"], GameState.fmt(fi["permit"])], "error")
-			else:
-				var info := GameData.region(reg)
-				GameState.notify.emit("%s requires a permit (%s CR) - see Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
+			var info := GameData.region(reg)
+			GameState.notify.emit("%s requires a permit (%s CR) - see Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
 	else:
 		_blocked_msg_t = 0.0
 		if is_on_floor():
@@ -162,43 +177,25 @@ func _physics_process(delta: float) -> void:
 			if _ok_t > 0.25:
 				_ok_t = 0.0
 				# A point 1.5 m back along the way we came, so we land clear of the border.
-				_last_ok = global_position - Vector3(velocity.x, 0, velocity.z).limit_length(1.0) * 1.5
+				_last_ok = global_position - v_h.limit_length(1.0) * 1.5
 	# Safety net: never fall through the world.
-	var ground := TerrainGen.height(global_position.x, global_position.z)
-	if global_position.y < ground - 2.0:
-		global_position.y = ground + 0.5
-		velocity.y = 0.0
+	if TerrainGen.altitude(global_position) < -2.0:
+		global_position = TerrainGen.surface(global_position, 0.5)
+		velocity = Vector3.ZERO
 	_footsteps(delta, on_floor)
 	_head_bob(delta, on_floor, input.length())
 
 
-## Walked past the far edge: come back in on the opposite side of the Moon, still
-## heading the same way round (a half turn about the Moon's axis).
-func wrap_around() -> void:
-	var dest := TerrainGen.wrap_point(global_position)
-	dest.y = maxf(dest.y, TerrainGen.height(dest.x, dest.z) + 0.05)
-	global_position = dest
-	velocity = Vector3(-velocity.x, velocity.y, -velocity.z)
-	yaw += PI
-	rotation.y = yaw
-	_last_ok = dest
-	var world := get_tree().get_first_node_in_group("world")
-	if world:
-		world.terrain.ensure_collision_near(dest)
-	Diagnostics.event("wrapped around the moon")
-	if not GameState.flags.get("wrapped", false):
-		GameState.flags["wrapped"] = true
-		GameState.notify.emit("You went all the way round the Moon!", "achievement")
-
-
 func jump() -> void:
 	if is_on_floor():
-		velocity.y = GameState.move_stats()["jump"]
+		var up := up_direction
+		velocity += up * (float(GameState.move_stats()["jump"]) - velocity.dot(up))
 		Audio.play("jump", -6.0)
 
 
 func _footsteps(delta: float, on_floor: bool) -> void:
-	var moved := Vector2(global_position.x - _last_pos.x, global_position.z - _last_pos.z).length()
+	var dv := global_position - _last_pos
+	var moved := (dv - up_direction * dv.dot(up_direction)).length()
 	_last_pos = global_position
 	if on_floor and not _was_on_floor:
 		Audio.play("land", -5.0)
@@ -227,8 +224,10 @@ func save_state() -> Dictionary:
 
 
 func load_state(d: Dictionary) -> void:
-	var p: Array = d.get("pos", [0, 1, 14])
-	global_position = Vector3(p[0], p[1], p[2])
+	var p: Array = d.get("pos", [])
+	global_position = Vector3(p[0], p[1], p[2]) if p.size() == 3 else LunarBase.spawn_point()
+	if global_position.length() < TerrainGen.RADIUS * 0.5:
+		global_position = LunarBase.spawn_point()
 	yaw = float(d.get("yaw", 0.0))
 	pitch = float(d.get("pitch", -0.3))
 	_last_pos = global_position

@@ -109,11 +109,11 @@ func _process(delta: float) -> void:
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
 		var p: Vector3 = world.focus_node().global_position
-		var reg := TerrainGen.region_at(p.x, p.z)
+		var reg := TerrainGen.region_of(p)
 		where = "%s (%d,%d,%d) r%d %s" % ["vehicle" if world.current_vehicle else "foot", p.x, p.y, p.z, reg, world.mode]
 		where += " chunks %d dirt %d" % [world.terrain.active_chunks(), GameState.dirt.chunks.size()]
 		if world.current_vehicle:
-			where += " speed %.1f up %.2f" % [world.current_vehicle.linear_velocity.length(), world.current_vehicle.global_basis.y.y]
+			where += " speed %.1f up %.2f" % [world.current_vehicle.linear_velocity.length(), world.current_vehicle.global_basis.y.dot(p.normalized())]
 	_append("%s | %s | fps %d | mem %d MB | vram %d MB | %s" % [Time.get_time_string_from_system(), where,
 		Engine.get_frames_per_second(), int(OS.get_static_memory_usage() / 1048576.0),
 		int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0), _last_event])

@@ -433,10 +433,10 @@ func _tab_inventory() -> void:
 func _tab_map() -> void:
 	var mv := MapView.new()
 	mv.world = world
-	mv.custom_minimum_size = Vector2(0, 560)
+	mv.custom_minimum_size = Vector2(0, 620)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_child(mv)
-	_note("Green patches are spotless, amber ones are started. In the final mission red shows dust still left and DUST marks the nearest. The Moon is round: walk off the edge and you come back on the far side. Orange marker: base. Squares: machines. Purple dots: vehicles. Dark sectors are locked regions.")
+	_note("Drag the Moon to spin it, pinch (or +/-) to zoom, ME to find yourself. Green patches are spotless, amber ones are started. In the final mission red shows dust still left and DUST marks the nearest. Orange marker: base. White arrow: you. Squares: machines. Purple dots: vehicles. Dark areas are locked regions.")
 
 
 func _tab_settings() -> void:

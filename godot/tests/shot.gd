@@ -44,8 +44,12 @@ func _process(_d: float) -> void:
 		if _args.has("pitch"):
 			pl.pitch = float(_args["pitch"])
 		if _args.has("pos"):
+			# Map coordinates x,z[,height above the ground]
 			var p: PackedStringArray = _args["pos"].split(",")
-			pl.global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+			pl.global_position = TerrainGen.map_ground(float(p[0]), float(p[1]), float(p[2]) if p.size() > 2 else 0.2)
+			game.terrain.prewarm(pl.global_position)
+			if _args.has("yaw"):
+				pl.yaw = float(_args["yaw"])
 		if _args.has("unlock"):
 			for i in GameState.regions.size():
 				GameState.regions[i] = true
@@ -67,8 +71,8 @@ func _process(_d: float) -> void:
 	if game and _args.has("place") and _frames == 10:
 		GameState.credits = 1e6
 		if _args.has("prebuild"):
-			game.automation.add_machine("solar_array", Vector3(40, TerrainGen.height(40, 4), 4), 0.0)
-			game.automation.add_machine("charging_station", Vector3(46, TerrainGen.height(46, 10), 10), 0.0)
+			game.automation.add_machine("solar_array", TerrainGen.map_ground(40, 4), 0.0)
+			game.automation.add_machine("charging_station", TerrainGen.map_ground(46, 10), 0.0)
 		game.begin_placement(_args["place"])
 	if game and _args.has("ending"):
 		if _frames == 10:

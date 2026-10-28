@@ -9,19 +9,18 @@ uniform vec3 dust_color : source_color = vec3(0.66, 0.63, 0.58);
 uniform vec3 clean_color : source_color = vec3(0.15, 0.155, 0.17);
 uniform float far_fade = 240.0;
 
-#include "res://shaders/bend.gdshaderinc"
-
 varying vec3 world_pos;
 varying vec3 world_n;
+varying vec2 surf_uv;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-	VERTEX = bend_vertex(VERTEX, MODEL_MATRIX);
+	surf_uv = UV2;   // metres along the cube face (continuous across chunks)
 }
 
 void fragment() {
-	vec2 wuv = world_pos.xz;
+	vec2 wuv = surf_uv;
 	float n_big = texture(detail_noise, wuv * 0.013).r;
 	float n_mid = texture(detail_noise, wuv * 0.11).r;
 	float n_fine = texture(detail_noise, wuv * 0.9).r;
@@ -32,7 +31,8 @@ void fragment() {
 	float dust = smoothstep(0.12, 0.42, mask + edge_jitter);
 	float partial = smoothstep(0.42, 0.95, mask);
 
-	float slope = clamp(1.0 - world_n.y, 0.0, 1.0);
+	// The Moon's centre is the world origin: "up" is away from it.
+	float slope = clamp(1.0 - dot(world_n, normalize(world_pos)), 0.0, 1.0);
 	vec3 tint = COLOR.rgb;
 	float interior = COLOR.a;
 

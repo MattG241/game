@@ -39,16 +39,17 @@ func _physics_process(_dt: float) -> void:
 	if not p.is_finite() or not v.linear_velocity.is_finite() or sp > 80.0:
 		bad += 1
 		if bad < 5: print("BROKEN frame ", f, " pos ", p, " vel ", v.linear_velocity)
-	if p.is_finite() and p.y < TerrainGen.height(p.x, p.z) - 1.0:
+	if p.is_finite() and TerrainGen.altitude(p) < -1.0:
 		falls += 1
-		if falls < 5: print("BELOW GROUND frame ", f, " pos ", p, " ground ", TerrainGen.height(p.x, p.z))
+		if falls < 5: print("BELOW GROUND frame ", f, " pos ", p, " altitude ", TerrainGen.altitude(p))
 	if f % 500 == 0 and sp < 0.5:
 		var cs := []
 		for w in v._wheels: cs.append(w.is_in_contact())
-		var hit := get_viewport().get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(p + Vector3(0, 3, 0), p - Vector3(0, 3, 0), 1))
-		print("  STUCK contacts ", cs, " up.y ", snappedf(v.global_basis.y.y, 0.01), " fwd ", -v.global_basis.z, " slope_n ", TerrainGen.normal(p.x, p.z), " ground_hit ", hit.get("collider"), " cam_in_ground ", v.cam.global_position.y < TerrainGen.height(v.cam.global_position.x, v.cam.global_position.z) + 0.2)
+		var up := p.normalized()
+		var hit := get_viewport().get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(p + up * 3.0, p - up * 3.0, 1))
+		print("  STUCK contacts ", cs, " upright ", snappedf(v.global_basis.y.dot(up), 0.01), " flatness ", snappedf(TerrainGen.flatness(p), 0.01), " ground_hit ", hit.get("collider"), " cam_in_ground ", TerrainGen.altitude(v.cam.global_position) < 0.2)
 	if f % 500 == 0:
-		print("frame ", f, " pos ", p, " speed ", snappedf(sp, 0.1), " chunks ", game.terrain.active_chunks())
+		print("frame ", f, " map ", TerrainGen.dir_to_map(p.normalized()).round(), " speed ", snappedf(sp, 0.1), " chunks ", game.terrain.active_chunks())
 	if f >= target:
 		print("DRIVE DONE bad=", bad, " below_ground=", falls, " max_speed=", snappedf(max_speed, 0.1))
 		get_tree().quit()

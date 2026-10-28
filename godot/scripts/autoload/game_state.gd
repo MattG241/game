@@ -12,7 +12,7 @@ signal vehicles_changed
 signal machines_changed
 signal sold(amount: float, credits: float)
 
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2   # 2: the Moon became a real sphere
 
 var dirt := DirtMap.new()
 
@@ -84,7 +84,8 @@ func new_game() -> void:
 	salvage_taken = []
 	landmark_progress = {}
 	stats = {}
-	player = {"pos": [0.0, 1.0, 14.0], "yaw": 0.0, "pitch": -0.3, "vehicle": -1}
+	var sp := LunarBase.spawn_point()
+	player = {"pos": [sp.x, sp.y, sp.z], "yaw": 0.0, "pitch": -0.3, "vehicle": -1}
 	battery = battery_capacity()
 	started_at = int(Time.get_unix_time_from_system())
 
@@ -103,7 +104,7 @@ func to_dict() -> Dictionary:
 		"flags": flags, "salvage_taken": salvage_taken,
 		"landmark_progress": landmark_progress, "stats": stats,
 		"player": player, "started_at": started_at,
-		"clean_chunks": dirt.clean.keys().map(func(k): return [k.x, k.y]),
+		"clean_chunks": dirt.clean.keys().map(func(k): return [k.x, k.y, k.z]),
 	}
 
 
@@ -144,8 +145,8 @@ func from_dict(d: Dictionary) -> void:
 	player = d.get("player", player)
 	started_at = int(d.get("started_at", 0))
 	for k in d.get("clean_chunks", []):
-		if k is Array and k.size() == 2:
-			dirt.clean[Vector2i(int(k[0]), int(k[1]))] = true
+		if k is Array and k.size() == 3:
+			dirt.clean[Vector3i(int(k[0]), int(k[1]), int(k[2]))] = true
 	battery = clampf(float(d.get("battery", battery_capacity())), 0.0, battery_capacity())
 	_emit_all()
 
@@ -155,8 +156,43 @@ func migrate(d: Dictionary) -> Dictionary:
 	var v := int(d.get("version", 1))
 	if v < 1:
 		v = 1
+	if v < 2:
+		_migrate_to_sphere(d)
 	d["version"] = SAVE_VERSION
 	return d
+
+
+## Version 1 saves were made on the flat Moon: positions were (x, height, z). The round
+## Moon keeps the same layout as a map around the base (see TerrainGen.map_to_dir), so
+## everything is moved to the same spot on the sphere, standing on the ground. Headings
+## stay as they were (yaw is measured in the same local map directions). Cleaned ground
+## is carried over by DirtMap when it reads the old dust file.
+static func _migrate_to_sphere(d: Dictionary) -> void:
+	TerrainGen.setup()
+	var on_ground := func(a, lift: float) -> Array:
+		if not (a is Array) or a.size() < 3:
+			var sp := LunarBase.spawn_point()
+			return [sp.x, sp.y, sp.z]
+		var p := TerrainGen.surface(TerrainGen.map_to_dir(float(a[0]), float(a[2])), lift)
+		return [p.x, p.y, p.z]
+	var pl: Dictionary = d.get("player", {})
+	if not pl.is_empty():
+		pl["pos"] = on_ground.call(pl.get("pos"), 0.3)
+	for veh in d.get("vehicles", []):
+		if veh is Dictionary:
+			veh["pos"] = on_ground.call(veh.get("pos"), 1.2)
+	for m in d.get("machines", []):
+		if not (m is Dictionary):
+			continue
+		m["pos"] = on_ground.call(m.get("pos"), 0.0)
+		if m.has("agent"):
+			var a: Dictionary = m["agent"]
+			var hp := TerrainGen.surface(AutomationSim.v3(m["pos"]), 1.0)
+			a["p"] = [hp.x, hp.y, hp.z]
+			a["t"] = m["pos"].duplicate()
+			a["s"] = "idle"
+	# Clean-chunk keys were flat-grid keys; the sphere's are recounted as chunks load.
+	d.erase("clean_chunks")
 
 
 func _emit_all() -> void:

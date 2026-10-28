@@ -75,7 +75,7 @@ func build(w: Node) -> void:
 	Meshes.label(ex, "DUST\nEXCHANGE", Vector3(0, 7.2, -0.6), 120, Color(1.0, 0.8, 0.2), true)
 	_static_box(EXCHANGE_POS + Vector3(0, 2.5, -0.6), Vector3(4.6, 5.0, 4.6))
 	_light(EXCHANGE_POS + Vector3(0, 4, 3), Color(1.0, 0.75, 0.4), 14.0, 2.5)
-	world.add_interactable(EXCHANGE_POS + Vector3(0, 0, 2.5), 4.5, func(): return _sell_text(), func(): world.sell_all(), "exchange")
+	world.add_interactable(at(EXCHANGE_POS + Vector3(0, 0, 2.5)), 4.5, func(): return _sell_text(), func(): world.sell_all(), "exchange")
 
 	# Equipment terminal kiosk
 	var sh := Node3D.new()
@@ -91,7 +91,7 @@ func build(w: Node) -> void:
 		var tb := Meshes.part(sh, Meshes.cyl(0.05, 2.2, 8), Meshes.hs([Color(0.3, 0.75, 1.0), Color(1.0, 0.45, 0.25), Color(1.0, 0.8, 0.2)][i], 0.1, 0.4), Vector3(-1.6 + i * 1.6, 1.4, 0.9), Vector3(0.25, 0, 0))
 	_static_box(SHOP_POS + Vector3(0, 1.8, -1.2), Vector3(4.4, 3.6, 1.4))
 	_light(SHOP_POS + Vector3(0, 3.0, 2.0), Color(0.4, 0.85, 1.0), 12.0, 2.0)
-	world.add_interactable(SHOP_POS + Vector3(0, 0, 1.4), 4.2, func(): return "Open Equipment Shop", func(): world.open_menu("shop"), "shop")
+	world.add_interactable(at(SHOP_POS + Vector3(0, 0, 1.4)), 4.2, func(): return "Open Equipment Shop", func(): world.open_menu("shop"), "shop")
 
 	# Research lab
 	var lab := Node3D.new()
@@ -104,7 +104,7 @@ func build(w: Node) -> void:
 	Meshes.part(lab, Meshes.box(Vector3(2.0, 1.0, 0.06)), Meshes.glow(Color(0.6, 0.5, 1.0), 2.0), Vector3(0, 1.6, 3.72), Vector3.ZERO, Vector3.ONE, false)
 	Meshes.label(lab, "RESEARCH", Vector3(0, 6.0, 0), 100, Color(0.75, 0.65, 1.0), true)
 	_static_box(LAB_POS + Vector3(0, 2.0, 0), Vector3(7, 4, 7))
-	world.add_interactable(LAB_POS + Vector3(0, 0, 4.8), 4.0, func(): return "Research Lab", func(): world.open_menu("research"), "lab")
+	world.add_interactable(at(LAB_POS + Vector3(0, 0, 4.8)), 4.0, func(): return "Research Lab", func(): world.open_menu("research"), "lab")
 
 	# Vehicle bay
 	var bay := Node3D.new()
@@ -118,7 +118,7 @@ func build(w: Node) -> void:
 			Meshes.part(bay, Meshes.cyl(0.15, 3.0, 8), dark, Vector3(x, 1.5, z))
 			Meshes.part(bay, Meshes.sphere(0.25), Meshes.glow(Color(1.0, 0.6, 0.1), 3.0), Vector3(x, 3.1, z))
 	Meshes.label(bay, "VEHICLE BAY", Vector3(0, 3.8, -9.0), 100, Color(1.0, 0.7, 0.3), true)
-	world.add_interactable(BAY_POS + Vector3(5.5, 0, -9.0), 3.5, func(): return "Vehicle Dealer", func(): world.open_menu("vehicles"), "bay")
+	world.add_interactable(at(BAY_POS + Vector3(5.5, 0, -9.0)), 3.5, func(): return "Vehicle Dealer", func(): world.open_menu("vehicles"), "bay")
 
 	# Lander (how you arrived)
 	lander = Node3D.new()
@@ -176,7 +176,7 @@ func build(w: Node) -> void:
 	_npc.rotation.y = PI * 0.15
 	add_child(_npc)
 	Meshes.label(self, "Supervisor Gleam", NPC_POS + Vector3(0, 2.3, 0), 48, Color(0.6, 0.9, 1.0), true)
-	world.add_interactable(NPC_POS, 3.0, func(): return "Talk to Supervisor", func(): world.supervisor_talk(), "npc")
+	world.add_interactable(at(NPC_POS), 3.0, func(): return "Talk to Supervisor", func(): world.supervisor_talk(), "npc")
 
 	# Tutorial crater sign
 	var tc := TerrainGen.landmark("tutorial_crater")
@@ -184,6 +184,26 @@ func build(w: Node) -> void:
 	sign_pos.y = TerrainGen.height(sign_pos.x, sign_pos.z)
 	Meshes.part(self, Meshes.cyl(0.08, 2.2, 6), dark, sign_pos + Vector3(0, 1.1, 0))
 	Meshes.label(self, "TUTORIAL CRATER\nclean me!", sign_pos + Vector3(0, 2.6, 0), 56, Color(1.0, 0.8, 0.3), true)
+	# Everything above was laid out flat (map coordinates): stand it on the round Moon.
+	SphereLayout.wrap(self)
+
+
+## World position of a point of the flat base layout (x, z = map coordinates, y = height
+## above the Moon's mean radius; the base pad is at height 0).
+static func at(flat: Vector3) -> Vector3:
+	return TerrainGen.map_point(flat.x, flat.z, flat.y)
+
+
+## Transform for a flat-layout point turned yaw radians (yaw as on the old flat map).
+static func at_xform(flat: Vector3, yaw: float) -> Transform3D:
+	var t := TerrainGen.map_xform(flat.x, flat.z, flat.y)
+	t.basis = t.basis * Basis(Vector3.UP, yaw)
+	return t
+
+
+## Where a new astronaut stands: just in front of the habitat.
+static func spawn_point() -> Vector3:
+	return at(Vector3(0, 1.0, 14))
 
 
 func _sell_text() -> String:
