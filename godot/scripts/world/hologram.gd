@@ -22,6 +22,7 @@ var _tank_hinted := false
 var _queued := ""
 var _queued_t := 0.0
 var _talk_idx := 0
+var quiet := false        # tests: hold back new lines
 
 const CHEERS := ["Lovely work!", "Now that's clean.", "Sparkling!", "I could eat my lunch off that.",
 	"The Moon thanks you.", "Spotless, cleaner!", "Head office will hear about this.", "Shiny!"]
@@ -76,9 +77,12 @@ func _ready() -> void:
 
 
 ## Pops up and says something for a few seconds (replacing what it was saying).
-func say(text: String, seconds := 4.0, point_at := Vector3.INF) -> void:
-	if visible and _fade > 0.5 and _show_t > 1.5 and point_at == Vector3.INF and _point_to == Vector3.INF:
-		# Already talking: say this next instead of cutting in.
+func say(text: String, seconds := 4.0, point_at := Vector3.INF, force := false) -> void:
+	if quiet:
+		return
+	var busy := visible and _show_t > 0.0 and (_point_to.is_finite() or (_fade > 0.5 and _show_t > 1.5))
+	if busy and not force and point_at == Vector3.INF:
+		# Already talking or pointing the way: say this next instead of cutting in.
 		_queued = text
 		_queued_t = seconds
 		return
@@ -102,8 +106,8 @@ func talk(tips: Array) -> void:
 	var text := tip
 	if not m.is_empty():
 		text = "Contract: %s.\n%s" % [m["title"], tip]
-	say(text, 9.0)
 	_queued = ""
+	say(text, 9.0, Vector3.INF, true)
 
 
 func showing() -> bool:
@@ -124,6 +128,7 @@ func _process(delta: float) -> void:
 		_text.text = "GLEAM: " + _queued
 		_show_t = _queued_t
 		_queued = ""
+		_point_to = Vector3.INF
 	_fade = move_toward(_fade, 1.0 if _show_t > 0.0 else 0.0, delta * (4.0 if _show_t > 0.0 else 2.5))
 	if _fade <= 0.0 and _show_t <= 0.0:
 		visible = false

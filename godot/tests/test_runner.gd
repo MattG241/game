@@ -719,8 +719,9 @@ func _test_hexagons() -> void:
 	var listen := func(t: String, _k: String): said.append(t)
 	GameState.notify.connect(listen)
 	var burst := 0
+	# Far-side hexagons, so the ground near base stays dusty for later tests.
 	for c in HexGrid.count():
-		if not GameState.hexes_done.has(c) and burst < 4:
+		if not GameState.hexes_done.has(c) and burst < 4 and HexGrid.centers[c].dot(Vector3.UP) < -0.5:
 			game.complete_hex(c)
 			burst += 1
 	for i in 900:
@@ -978,13 +979,21 @@ func _test_sky_nuggets_hologram() -> void:
 	var holo: Hologram = game.hologram
 	holo._show_t = 0.0
 	holo._fade = 0.0
+	holo._queued = ""
+	holo._hint_in = 1e6          # no timed hint in the middle of this test
 	holo.visible = false
 	holo.say("Test pointing", 5.0, pl.global_position + pl.global_basis.x * 40.0)
 	await frames(30)
-	check(holo.showing() and holo._fade > 0.9 and holo._arrow.visible, "Gleam's hologram points the way")
+	check(holo.showing() and holo._fade > 0.9 and holo._arrow.visible, "Gleam's hologram points the way", "%s %.2f %s" % [holo._text.text, holo._fade, holo._arrow.visible])
+	holo.cheer("Test cheer")
+	await frames(2)
+	check(holo._arrow.visible and holo._queued != "", "a cheer waits until Gleam has finished pointing")
 	holo._show_t = 0.0
+	holo._queued = ""
+	holo.quiet = true            # nothing else may pop up while we watch it fade
 	await frames(60)
-	check(not holo.visible, "and fades out")
+	check(not holo.visible, "and fades out", "%s / %s" % [holo._text.text, holo._show_t])
+	holo.quiet = false
 	GameState.tank_dust = GameState.tank_capacity()
 	holo._tank_hinted = false
 	await frames(3)
