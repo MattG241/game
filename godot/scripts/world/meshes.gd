@@ -196,21 +196,37 @@ static func rock_mesh(variant: int) -> ArrayMesh:
 
 
 static func _build_rock(v: int) -> ArrayMesh:
+	# A lumpy boulder with a few flat fractured faces, sitting on a flattened base.
 	var base := SphereMesh.new()
 	base.radius = 1.0
 	base.height = 1.6
-	base.radial_segments = 10
-	base.rings = 6
+	base.radial_segments = 22
+	base.rings = 12
 	var arrays := base.get_mesh_arrays()
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var noise := FastNoiseLite.new()
 	noise.seed = 77 + v * 13
-	noise.frequency = 1.3
+	noise.frequency = 1.1
+	noise.fractal_octaves = 3
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 501 + v
+	var cuts := []
+	for c in 4:
+		var n := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.2, 1), rng.randf_range(-1, 1)).normalized()
+		cuts.append([n, rng.randf_range(0.55, 0.8)])
 	for i in verts.size():
 		var p := verts[i]
-		var k := 1.0 + noise.get_noise_3dv(p) * 0.35
-		p *= k
+		p *= 1.0 + noise.get_noise_3dv(p) * 0.32 + noise.get_noise_3dv(p * 3.1) * 0.07
+		for c in cuts:
+			var cn: Vector3 = c[0]
+			var over := p.dot(cn) - float(c[1])
+			if over > 0.0:
+				p -= cn * over * 0.85
 		p.y = maxf(p.y, -0.3)
+		# Flared, half-buried base: covers the dust-free ground right under the rock.
+		var flare := 1.0 + 0.35 * clampf(-p.y / 0.3, 0.0, 1.0)
+		p.x *= flare
+		p.z *= flare
 		verts[i] = p
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -223,7 +239,12 @@ static func _build_rock(v: int) -> ArrayMesh:
 
 
 static func rock_material() -> ShaderMaterial:
-	return hs(Color(0.42, 0.41, 0.40), 0.0, 0.92, Color(0, 0, 0), 0.0, 3.0, 0.55)
+	# Grey lunar rock with the regolith detail and dust settled on its upper faces.
+	var m := ShaderMaterial.new()
+	m.shader = world_shader("res://shaders/rock.gdshader")
+	m.set_shader_parameter("regolith", load("res://assets/textures/regolith_detail.png"))
+	m.set_shader_parameter("regolith_n", load("res://assets/textures/regolith_normal.png"))
+	return m
 
 
 # --------------------------------------------------------------- astronaut

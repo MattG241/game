@@ -13,6 +13,8 @@ uniform float stripes = 0.0;
 
 varying vec3 obj_pos;
 varying vec3 obj_n;
+varying vec3 w_pos;
+varying vec3 w_n;
 
 float h21(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -21,6 +23,8 @@ float h21(vec2 p) {
 void vertex() {
 	obj_pos = VERTEX;
 	obj_n = abs(NORMAL);
+	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	w_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
 void fragment() {
@@ -38,11 +42,21 @@ void fragment() {
 		float st = step(0.5, fract((p.x + p.z) * stripes));
 		col = mix(col, vec3(0.06), st * 0.85);
 	}
+	// Worn paint just inside each panel edge, then the dark seam itself.
+	float wear = smoothstep(0.4, 0.47, max(g.x, g.y)) * (1.0 - seam) * step(0.55, h21(cell * 1.7 + 3.1));
+	col = mix(col, col * 0.7 + vec3(0.18), wear * 0.35);
 	col *= 1.0 - seam * 0.45;
 	col = mix(col, col * 0.55 + vec3(0.03), dirt * 0.5);
 	col += riv * 0.06;
+	// Lunar dust settles on whatever faces the sky.
+	float up = dot(normalize(w_n), normalize(w_pos));
+	float settle = smoothstep(0.55, 0.95, up) * (0.25 + 0.5 * h21(floor(w_pos.xz * 9.0))) * grime;
+	col = mix(col, vec3(0.5, 0.485, 0.46), settle * 0.45);
 	ALBEDO = col;
-	METALLIC = metallic;
-	ROUGHNESS = clamp(roughness + dirt * 0.3 + seam * 0.2, 0.0, 1.0);
+	METALLIC = metallic * (1.0 - settle * 0.6);
+	ROUGHNESS = clamp(roughness + dirt * 0.3 + seam * 0.2 + settle * 0.3, 0.0, 1.0);
+	// A soft rim of light so shapes read against the black sky.
+	RIM = 0.25;
+	RIM_TINT = 0.6;
 	EMISSION = emit_color * emit_strength;
 }

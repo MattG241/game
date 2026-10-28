@@ -52,7 +52,7 @@ func _ready() -> void:
 	var suit := Meshes.hs(Color(0.93, 0.93, 0.9), 0.05, 0.75, Color(0, 0, 0), 0.0, 5.0, 0.2)
 	_arm = Meshes.part(self, Meshes.cyl(0.5, 1.0, 12), suit, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
 	_glove = Meshes.part(self, Meshes.sphere(0.05, 12), Meshes.hs(Color(0.95, 0.5, 0.12), 0.1, 0.6), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
-	_shaft = Meshes.part(self, Meshes.cyl(0.5, 1.0, 10), null, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, true)
+	_shaft = Meshes.part(self, Meshes.cyl(0.5, 1.0, 10), null, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)   # thin: its shadow only aliases into a dashed line
 	_grip = Meshes.part(self, Meshes.cyl(0.5, 1.0, 10), null, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
 	_ring = MeshInstance3D.new()
 	var pm := PlaneMesh.new()

@@ -44,18 +44,9 @@ func _ready() -> void:
 	n.fractal_octaves = 4
 	nt.noise = n
 	nt.generate_mipmaps = true
-	var nn := NoiseTexture2D.new()
-	nn.width = 256
-	nn.height = 256
-	nn.seamless = true
-	nn.as_normal_map = true
-	nn.bump_strength = 6.0
-	var n2 := FastNoiseLite.new()
-	n2.frequency = 0.045
-	n2.fractal_octaves = 3
-	nn.noise = n2
 	_mat_template.set_shader_parameter("detail_noise", nt)
-	_mat_template.set_shader_parameter("detail_normal", nn)
+	_mat_template.set_shader_parameter("regolith", load("res://assets/textures/regolith_detail.png"))
+	_mat_template.set_shader_parameter("regolith_n", load("res://assets/textures/regolith_normal.png"))
 	_rock_mat = Meshes.rock_material()
 	apply_settings()
 	Settings.changed.connect(apply_settings)
@@ -65,8 +56,10 @@ func apply_settings() -> void:
 	view_distance = float(Settings.get_value("view_distance", 190.0))
 	detail_level = int(Settings.get_value("detail", 1))
 	_mat_template.set_shader_parameter("far_fade", view_distance)
+	_mat_template.set_shader_parameter("fine_detail", 1.0 if detail_level >= 1 else 0.0)
 	for k in chunks:
 		(chunks[k]["mat"] as ShaderMaterial).set_shader_parameter("far_fade", view_distance)
+		(chunks[k]["mat"] as ShaderMaterial).set_shader_parameter("fine_detail", 1.0 if detail_level >= 1 else 0.0)
 	_scan_timer = 0.0
 
 
@@ -364,7 +357,7 @@ func _rock_placements(key: Vector3i, lod: int, origin: Vector3) -> Array:
 		var d := TerrainGen.chunk_dir(key, rk.x, rk.y)
 		var p := d * (TerrainGen.RADIUS + TerrainGen.height_dir(d) - s * 0.25)
 		var rot := TerrainGen.frame(d) * Basis(Vector3.UP, hx * TAU) * Basis(Vector3.RIGHT, (hz - 0.5) * 0.6)
-		var sc := Vector3(s * (0.8 + hz * 0.5), s * (0.6 + hx * 0.5), s * (0.8 + rk.w * 0.4))
+		var sc := Vector3(s * (0.92 + hz * 0.4), s * (0.6 + hx * 0.5), s * (0.92 + rk.w * 0.3))
 		out.append([Transform3D(rot * Basis.from_scale(sc), p - origin), s])
 	return out
 
