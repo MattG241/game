@@ -1,6 +1,6 @@
 class_name Player
 extends CharacterBody3D
-## First-person astronaut on the round Moon: low-gravity movement towards the centre, touch/keyboard look, footsteps,
+## Astronaut on the round Moon (first person, or third person over the shoulder): low-gravity movement towards the centre, touch/keyboard look, footsteps,
 ## hover pack, region permits and interaction targeting.
 
 var controls: TouchControls
@@ -24,6 +24,15 @@ var _jet_t := 0.0                 # seconds of Jump Jets used since leaving the 
 const JET_TIME := 1.0
 const HOVER_DRAIN := 0.012        # share of the battery used per second of hovering
 var _ok_t := 0.0
+# Third-person view: a camera over the shoulder and your whole astronaut on screen.
+var third_person := false
+var tp_cam: Camera3D
+var body_model: Node3D
+var _body_suit := ""
+var _moving := 0.0
+const TP_BACK := 3.4              # metres behind the eyes
+const TP_UP := 0.45
+const TP_SIDE := 0.55             # over the right shoulder
 
 
 func _ready() -> void:
@@ -48,7 +57,85 @@ func _ready() -> void:
 	camera.far = 2600.0
 	head.add_child(camera)
 	camera.current = true
+	tp_cam = Camera3D.new()
+	tp_cam.fov = 72.0
+	tp_cam.near = 0.05
+	tp_cam.far = 2600.0
+	tp_cam.top_level = true
+	add_child(tp_cam)
+	_build_body()
 	_last_pos = global_position
+	Settings.changed.connect(func():
+		if Cosmetics.equipped_id("suit") != _body_suit:
+			_build_body()
+			body_model.visible = third_person
+		var tp := bool(Settings.get_value("third_person", false))
+		if tp != third_person and cleaner:
+			set_third_person(tp, false))
+
+
+## Your astronaut, in your suit colours (seen in third person).
+func _build_body() -> void:
+	var was := body_model != null and body_model.visible
+	if body_model:
+		body_model.queue_free()
+	var sk := Cosmetics.equipped("suit")
+	_body_suit = sk.get("id", "")
+	body_model = Meshes.astronaut(Color.html(sk.get("accent", "#f28020")), Color.html(sk.get("suit", "#eeeee6")))
+	add_child(body_model)
+	body_model.visible = was
+	(body_model.get_node("ArmR") as Node3D).rotation.x = 0.95     # holding the tool out in front
+
+
+## Switches between first-person and the over-the-shoulder view.
+func set_third_person(on: bool, save := true) -> void:
+	third_person = on
+	body_model.visible = on
+	if cleaner:
+		cleaner.third_person = on
+	if input_enabled:
+		active_camera().current = true
+		_update_tp_cam()
+	if save:
+		Settings.set_value("third_person", on)
+
+
+func active_camera() -> Camera3D:
+	return tp_cam if third_person else camera
+
+
+## Where the astronaut's right hand is (the tool is held there in third person).
+func hand_point() -> Vector3:
+	return (body_model.get_node("ArmR") as Node3D).global_transform * Vector3(0, -0.62, 0)
+
+
+func _process(delta: float) -> void:
+	if not third_person or not input_enabled:
+		return
+	# Walk cycle: legs and the free arm swing while moving.
+	var t := _bob_t * 2.0
+	var k := _moving
+	(body_model.get_node("LegL") as Node3D).rotation.x = sin(t) * 0.55 * k
+	(body_model.get_node("LegR") as Node3D).rotation.x = -sin(t) * 0.55 * k
+	(body_model.get_node("ArmL") as Node3D).rotation.x = -sin(t) * 0.45 * k
+	_update_tp_cam()
+
+
+## Camera behind and above the eyes, looking the same way, pulled in where a wall or
+## the ground would come between it and you.
+func _update_tp_cam() -> void:
+	var hb := head.global_basis.orthonormalized()
+	var eye := head.global_position
+	var up := global_position.normalized()
+	var want := eye + hb.z * TP_BACK + up * TP_UP + hb.x * TP_SIDE
+	var q := PhysicsRayQueryParameters3D.create(eye, want, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var pos := want
+	if not hit.is_empty():
+		pos = (hit["position"] as Vector3) - (want - eye).normalized() * 0.3
+	if TerrainGen.altitude(pos) < 0.35:
+		pos = TerrainGen.surface(pos.normalized(), 0.35)
+	tp_cam.global_transform = Transform3D(hb, pos)
 
 
 func setup(c: TouchControls, w: Node) -> void:
@@ -58,6 +145,7 @@ func setup(c: TouchControls, w: Node) -> void:
 	cleaner.player = self
 	cleaner.camera = camera
 	w.add_child(cleaner)
+	set_third_person(bool(Settings.get_value("third_person", false)), false)
 
 
 func set_active(on: bool) -> void:
@@ -71,7 +159,7 @@ func set_active(on: bool) -> void:
 		cleaner.set_visible_rig(on)
 		cleaner.enabled = on
 	if on:
-		camera.current = true
+		active_camera().current = true
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -234,6 +322,7 @@ func _head_bob(delta: float, on_floor: bool, amount: float) -> void:
 		_bob_t += delta * (7.0 if sprint_toggle else 5.0) * amount
 	_land_kick = move_toward(_land_kick, 0.0, delta * 0.4)
 	head.position.y = 1.62 + sin(_bob_t * 2.0) * 0.025 * amount - _land_kick
+	_moving = move_toward(_moving, amount if on_floor else 0.0, delta * 4.0)
 
 
 func save_state() -> Dictionary:

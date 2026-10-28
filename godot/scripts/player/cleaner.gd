@@ -19,6 +19,7 @@ var removing := false          # actually removing dirt this frame
 var rate := 0.0                # smoothed dust/sec for HUD
 
 var _rig := {}
+var third_person := false   # the hand is the astronaut's, not in front of the camera
 var _head: Node3D
 var _shaft: MeshInstance3D
 var _grip: MeshInstance3D
@@ -425,9 +426,14 @@ func _update_rig(delta: float, active: bool) -> void:
 	if active:
 		hand_local += Vector3(0.0, -0.03, -0.05)
 	var hand := cam_t * hand_local + scrub * 0.25
-	var shoulder := cam_t * Vector3(0.42, -0.62, 0.15)
-	Meshes.span(_arm, shoulder, hand, 0.13)
-	_glove.global_position = hand
+	_arm.visible = not third_person
+	_glove.visible = not third_person
+	if third_person:
+		hand = player.hand_point() + scrub * 0.25
+	else:
+		var shoulder := cam_t * Vector3(0.42, -0.62, 0.15)
+		Meshes.span(_arm, shoulder, hand, 0.13)
+		_glove.global_position = hand
 	var emitter: bool = _rig.get("emitter", false)
 	if emitter:
 		_hand_item.global_transform = Transform3D(cam_t.basis, hand + cam_t.basis * Vector3(0, 0.02, -0.08))

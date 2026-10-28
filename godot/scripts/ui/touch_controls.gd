@@ -19,6 +19,7 @@ var defs := {
 	"exit": {"icon": "exit", "text": "EXIT", "anchor": "br", "offset": Vector2(-80, -125), "r": 50, "modes": ["vehicle", "fly"]},
 	"switch": {"icon": "swap", "text": "TOOL", "anchor": "br", "offset": Vector2(-385, -265), "r": 50, "modes": ["foot", "place"]},
 	"menu": {"icon": "menu", "text": "", "anchor": "tr", "offset": Vector2(-52, 52), "r": 36, "modes": ["foot", "vehicle", "fly", "place"]},
+	"view": {"icon": "eye", "text": "", "anchor": "tr", "offset": Vector2(-52, 140), "r": 34, "modes": ["foot"]},
 	"map": {"icon": "map", "text": "", "anchor": "tr", "offset": Vector2(-140, 52), "r": 36, "modes": ["foot", "vehicle", "fly"]},
 	"missions": {"icon": "flag", "text": "", "anchor": "tr", "offset": Vector2(-228, 52), "r": 36, "modes": ["foot", "vehicle", "fly"]},
 	"build": {"icon": "build", "text": "", "anchor": "tr", "offset": Vector2(-316, 52), "r": 36, "modes": ["foot"]},
@@ -358,6 +359,10 @@ func _draw_icon(icon: String, c: Vector2, s: float, col: Color) -> void:
 			draw_colored_polygon(PackedVector2Array([a1 + Vector2(-s * 0.25, -s * 0.1), a1 + Vector2(s * 0.2, -s * 0.15), a1 + Vector2(0, s * 0.25)]), col)
 			var a2 := c + Vector2.from_angle(PI * 0.9) * s * 0.65
 			draw_colored_polygon(PackedVector2Array([a2 + Vector2(s * 0.25, s * 0.1), a2 + Vector2(-s * 0.2, s * 0.15), a2 + Vector2(0, -s * 0.25)]), col)
+		"eye":
+			draw_arc(c + Vector2(0, s * 0.55), s * 0.95, PI * 1.2, PI * 1.8, 16, col, w * 1.1, true)
+			draw_arc(c - Vector2(0, s * 0.55), s * 0.95, PI * 0.2, PI * 0.8, 16, col, w * 1.1, true)
+			draw_circle(c, s * 0.28, col)
 		"menu":
 			for i in 3:
 				draw_line(c + Vector2(-s * 0.6, (i - 1) * s * 0.45), c + Vector2(s * 0.6, (i - 1) * s * 0.45), col, w * 1.1, true)

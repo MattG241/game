@@ -31,6 +31,7 @@ static func build(on_edit_layout: Callable = Callable()) -> Control:
 	root.add_child(_section("CONTROLS"))
 	root.add_child(_slider("Look sensitivity", "sensitivity", 0.3, 2.5, 0.05))
 	root.add_child(_toggle("Invert look Y", "invert_y"))
+	root.add_child(_toggle("Third-person view on foot (also the eye button)", "third_person"))
 	root.add_child(_toggle("Aim assist for cleaning", "aim_assist"))
 	root.add_child(_toggle("CLEAN button toggles (tap on / tap off)", "clean_toggle"))
 	root.add_child(_slider("Control opacity", "controls_opacity", 0.25, 1.0, 0.05))

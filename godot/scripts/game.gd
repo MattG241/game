@@ -250,6 +250,9 @@ func _on_pressed(id: String) -> void:
 				"switch":
 					GameState.cycle_tool()
 					Audio.play("ui_click")
+				"view":
+					player.set_third_person(not player.third_person)
+					Audio.play("ui_click")
 				"menu":
 					open_menu("pause")
 				"map":

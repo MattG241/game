@@ -953,6 +953,31 @@ func _test_sky_nuggets_hologram() -> void:
 	print("[sky, gold nuggets, hologram]")
 	if game.current_vehicle:
 		game.exit_vehicle()
+	# Third-person view
+	var pp: Player = game.player
+	var was_tp := pp.third_person
+	game._on_pressed("view")
+	await frames(3)
+	var cam_d := pp.tp_cam.global_position.distance_to(pp.head.global_position)
+	check(pp.third_person and pp.tp_cam.current and pp.body_model.visible, "the eye button switches to third person: your astronaut on screen")
+	check(cam_d > 0.5 and cam_d < 4.5 and TerrainGen.altitude(pp.tp_cam.global_position) > 0.3, "the camera sits behind you, above the ground", "%.2f m" % cam_d)
+	check(bool(Settings.get_value("third_person", false)), "and the choice is remembered")
+	check(not pp.cleaner._arm.visible and pp.cleaner._shaft.visible, "you hold the tool in your astronaut's hand")
+	pp.global_position = TerrainGen.map_ground(-140.0, 60.0, 0.3)
+	pp.pitch = -0.9
+	game.terrain.prewarm(pp.global_position)
+	await frames(10)
+	GameState.tank_dust = 0.0
+	var m2_tp := GameState.stat("m2_cleaned")
+	game.controls.held["clean"] = true
+	await frames(45)
+	game.controls.held.erase("clean")
+	await frames(1)
+	check(GameState.stat("m2_cleaned") > m2_tp, "cleaning works in third person")
+	game._on_pressed("view")
+	await frames(2)
+	check(not pp.third_person and pp.camera.current and not pp.body_model.visible and pp.cleaner._arm.visible, "and back to first person")
+	pp.set_third_person(was_tp)
 	var env: LunarEnv = game.env
 	check(env.sky_mat.get_shader_parameter("milky") is Texture2D, "the sky has the painted Milky Way")
 	check(env.planets.size() == LunarEnv.PLANETS.size(), "far planets hang among the stars")

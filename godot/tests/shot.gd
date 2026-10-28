@@ -122,6 +122,8 @@ func _process(_d: float) -> void:
 		for id in _args["skin"].split(","):
 			Cosmetics.unlock(id)
 			Cosmetics.equip(id)
+	if game and _args.has("third") and _frames == 9:
+		game.player.set_third_person(true, false)
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])
 	if game and _args.has("machines") and _frames == 12:
