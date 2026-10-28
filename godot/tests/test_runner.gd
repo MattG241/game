@@ -640,6 +640,17 @@ func _test_hexagons() -> void:
 			break
 	check(GameState.hexes_done.has(here) and GameState.credits > cr, "clearing a hexagon completes it with a bonus", "%d hexes" % GameState.hexes_done.size())
 	check(game.current_hex_fraction() == 1.0, "HUD shows the hexagon as done")
+	var t0 := Time.get_ticks_msec()
+	var pts := HexLines.border(5)
+	var ms := Time.get_ticks_msec() - t0
+	var on_edge := 0
+	for p in pts:
+		var d := p.normalized()
+		if HexGrid.cell_of(d) == 5:
+			on_edge += 1
+	check(pts.size() == HexLines.STEPS and on_edge > pts.size() * 0.9 and absf(TerrainGen.altitude(pts[0]) - HexLines.LIFT) < 0.05, "hexagon border lines follow the edge, on the ground", "%d ms" % ms)
+	await frames(70)
+	check(game.hex_lines.mesh != null and game.hex_lines.mesh.get_surface_count() > 0, "unfinished hexagons nearby get a faint outline")
 
 
 func _test_menus() -> void:

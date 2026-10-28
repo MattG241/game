@@ -28,6 +28,7 @@ var _charge_msg_t := 0.0
 var _supervisor_idx := 0
 var _mouse_clean := false
 var ending: Ending
+var hex_lines: HexLines
 
 
 func _ready() -> void:
@@ -76,6 +77,9 @@ func _ready() -> void:
 		player.global_position = TerrainGen.surface(gp, 0.2)
 	terrain.focus = player
 	terrain.prewarm(player.global_position)
+	hex_lines = HexLines.new()
+	hex_lines.world = self
+	add_child(hex_lines)
 	# Automation
 	automation = Automation.new()
 	add_child(automation)
