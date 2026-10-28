@@ -630,9 +630,14 @@ func _test_finale() -> void:
 	check(game.ending != null and not game.hud.visible, "the lift-off cinematic starts")
 	await frames(5)
 	check(SaveManager.is_complete(SaveManager.current_slot), "flying home completes the save")
-	game.ending._t = Ending.T_COUNT + 2.5
-	await frames(3)
-	check(game.ending._count.text != "", "a countdown runs before lift-off", game.ending._count.text)
+	# Pin the film's clock every frame: a long frame on a slow CI machine must not
+	# jump it past the countdown before we look.
+	for i in 60:
+		game.ending._t = Ending.T_COUNT + 2.5
+		await get_tree().process_frame
+		if game.ending._count.text != "":
+			break
+	check(game.ending._count.text != "", "a countdown runs before lift-off", "t=%.2f done=%s cam=%s paused=%s" % [game.ending._t, game.ending._done, game.ending._cam != null, get_tree().paused])
 	game.ending._t = Ending.T_LIFT + 4.0
 	for i in 30:
 		await get_tree().process_frame
