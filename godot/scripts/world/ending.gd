@@ -50,6 +50,7 @@ var _fw_t := 0.0
 var _earth_scale := 1.0
 var _done := false
 var _shot := -1
+var _earth_e := Vector3.UP     # Earth's direction, fixed for the whole film
 
 
 func start(w: Node) -> void:
@@ -71,6 +72,14 @@ func start(w: Node) -> void:
 	w.controls.enabled = false
 	Audio.stop_all_loops()
 	Audio.play_track("ending_theme", -2.0)
+	# The sky normally follows the camera round the Moon; for the film Earth and the
+	# sun stay put so every shot agrees on where home is.
+	_earth_e = world.env.earth_dir()
+	world.env.set_process(false)
+	# Brighter, warmer light for the film
+	world.env.sun.light_energy = 2.3
+	world.env.env.ambient_light_energy = 0.75
+	world.env.env.glow_intensity = 0.9
 	_build_effects()
 	_build_globe()
 	_cam = Camera3D.new()
@@ -193,9 +202,9 @@ func _build_globe() -> void:
 	_globe.mesh = sm
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = ImageTexture.create_from_image(tex_img)
-	m.roughness = 1.0
-	m.emission_enabled = true
-	m.emission = Color(0.05, 0.12, 0.08)
+	# The relief already has its shading: show it as it is, whichever side the sun is.
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.1, 1.1, 1.1)
 	_globe.material_override = m
 	_globe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_globe.visible = false
@@ -286,7 +295,7 @@ func _process(delta: float) -> void:
 
 
 func _fly_lander(t: float, h: float) -> void:
-	var earth: Vector3 = world.env.earth_dir()
+	var earth: Vector3 = _earth_e
 	var flat := earth - _up * earth.dot(_up)
 	flat = flat.normalized() if flat.length() > 0.01 else TerrainGen.frame(_up).x
 	var xf := _start
@@ -297,7 +306,11 @@ func _fly_lander(t: float, h: float) -> void:
 	var tilt := smoothstep(5.0, 200.0, h) * 0.5
 	xf.basis = Basis(_up.cross(flat).normalized(), tilt) * _start.basis
 	_lander.global_transform = xf
-	world.terrain.visible = h < 260.0
+	var near := h < 260.0
+	world.terrain.visible = near
+	for n in [world.base, world.landmarks, world.automation, world.hex_lines]:
+		if n:
+			(n as Node3D).visible = near
 	if _globe:
 		_globe.visible = h >= 200.0
 
@@ -319,32 +332,43 @@ func _place_camera(t: float, h: float) -> void:
 		var k := (t - T_COUNT) / (T_LIFT - T_COUNT)
 		pos = base + b * Vector3(9.0 + k * 3.0, 1.6, 12.0 - k * 2.0)
 		look = base + _up * (3.0 + k * 2.0)
-	elif t < T_CLIMB:
+	elif t < T_LIFT + 3.5:
 		# Low on the ground, looking up into the flames
 		pos = base + b * Vector3(14.0, 0.9, 11.0)
 		look = lp + _up * 2.0
+	elif t < T_CLIMB:
+		# Chase from above: looking down past the lander at the base falling away
+		var k := (t - T_LIFT - 3.5) / (T_CLIMB - T_LIFT - 3.5)
+		pos = lp + _up * (7.0 + 6.0 * k) + b.x * 15.0 + b.z * 9.0
+		look = lp - _up * (0.5 + 3.0 * k)
 	elif t < T_HOME:
-		# Pull back and away until the whole Moon is below
+		# Pull back and away: the lander high in the frame, the Moon growing into a
+		# whole globe below it
 		var k := smoothstep(T_CLIMB, T_HOME, t)
-		var side := b.x
-		pos = lp + side * (25.0 + 620.0 * k) + _up * (8.0 + 160.0 * k) - (lp - base).normalized() * (30.0 + 380.0 * k)
-		look = lp.lerp(Vector3.ZERO, k * 0.55)
+		var d := 40.0 + 950.0 * k
+		pos = lp + b.x * d + _up * (10.0 + d * 0.12)
+		look = lp.lerp(Vector3.ZERO, 0.22 + 0.28 * k)
 	else:
-		# Behind the lander, heading for Earth
-		var earth: Vector3 = world.env.earth_dir()
+		# Right behind the lander, Earth filling the view ahead
+		var earth: Vector3 = _earth_e
 		var k := smoothstep(T_HOME, T_TITLES, t)
-		pos = lp - earth * (60.0 - 20.0 * k) + _up * (14.0 - 8.0 * k)
-		look = lp + earth * 600.0
+		var side := earth.cross(_up).normalized()
+		pos = lp - earth * (34.0 - 8.0 * k) + _up * 5.0 + side * 6.0
+		_cam.global_position = pos
+		_cam.look_at(pos + earth, _up)
+		_cam.fov = lerpf(58.0, 46.0, k)
+		_shot = 4
+		return
 	# Hard cuts between shots, smooth camera moves within one.
-	var shot := 0 if t < T_COUNT else (1 if t < T_LIFT else (2 if t < T_CLIMB else (3 if t < T_HOME else 4)))
+	var shot := 0 if t < T_COUNT else (1 if t < T_LIFT else (2 if t < T_LIFT + 3.5 else (5 if t < T_CLIMB else (3 if t < T_HOME else 4))))
 	if shot != _shot:
 		_shot = shot
 		_cam.global_position = pos
 	else:
-		_cam.global_position = _cam.global_position.lerp(pos, 0.2)
+		_cam.global_position = (pos if shot == 5 else _cam.global_position.lerp(pos, 0.5 if shot == 3 else 0.2))
 	if _cam.global_position.distance_to(look) > 0.5:
 		_cam.look_at(look, upv)
-	_cam.fov = lerpf(58.0, 48.0, smoothstep(T_HOME, T_TITLES, t))
+	_cam.fov = 58.0
 
 
 func _effects(t: float, delta: float, h: float) -> void:
@@ -378,6 +402,7 @@ func _effects(t: float, delta: float, h: float) -> void:
 	var shake := 0.0
 	if t > T_LIFT - 1.0 and t < T_CLIMB:
 		shake = 0.35 * (1.0 - clampf((t - T_LIFT) / 8.0, 0.0, 1.0)) + (0.05 if t < T_LIFT else 0.0)
+	world.env.earth.global_position = _cam.global_position + _earth_e * LunarEnv.EARTH_DIST
 	_cam.h_offset = randf_range(-shake, shake)
 	_cam.v_offset = randf_range(-shake, shake)
 	# Earth grows as you head home
