@@ -23,18 +23,24 @@ func _ready() -> void:
 		if typeof(parsed) == TYPE_DICTIONARY:
 			product_id = str(parsed.get("remove_ads_product_id", product_id))
 	if OS.get_name() == "Android" and Engine.has_singleton("GodotGooglePlayBilling"):
-		_client = BillingClient.new()
-		add_child(_client)
-		_client.connected.connect(_on_connected)
-		_client.disconnected.connect(func(): available = false)
-		_client.query_product_details_response.connect(_on_product_details)
-		_client.query_purchases_response.connect(_on_purchases)
-		_client.on_purchase_updated.connect(_on_purchases)
-		_client.acknowledge_purchase_response.connect(func(_r): pass)
-		_client.start_connection()
+		get_tree().create_timer(6.0, true, false, true).timeout.connect(_start_billing)
+
+
+func _start_billing() -> void:
+	Diagnostics.mark("billing start")
+	_client = BillingClient.new()
+	add_child(_client)
+	_client.connected.connect(_on_connected)
+	_client.disconnected.connect(func(): available = false)
+	_client.query_product_details_response.connect(_on_product_details)
+	_client.query_purchases_response.connect(_on_purchases)
+	_client.on_purchase_updated.connect(_on_purchases)
+	_client.acknowledge_purchase_response.connect(func(_r): pass)
+	_client.start_connection()
 
 
 func _on_connected() -> void:
+	Diagnostics.mark("billing connected")
 	available = true
 	_client.query_product_details(PackedStringArray([product_id]), BillingClient.ProductType.INAPP)
 	_client.query_purchases(BillingClient.ProductType.INAPP)

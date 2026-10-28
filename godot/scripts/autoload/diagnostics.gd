@@ -70,6 +70,12 @@ func event(what: String) -> void:
 	_last_event = what
 
 
+## Writes a line immediately (for steps right before a possible native crash).
+func mark(what: String) -> void:
+	_last_event = what
+	_append("%s | %s" % [Time.get_time_string_from_system(), what])
+
+
 func _append(line: String) -> void:
 	_crumb_mutex.lock()
 	var f := FileAccess.open(SESSION, FileAccess.READ_WRITE)

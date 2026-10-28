@@ -12,6 +12,7 @@ extends Node
 signal rewarded_ready_changed(ready: bool)
 
 const CONFIG_PATH := "res://data/ads.json"
+const START_DELAY := 10.0
 
 var config := {}
 var available := false         # plugin present and running on Android
@@ -41,7 +42,9 @@ func _ready() -> void:
 	available = bool(config.get("enabled", true)) and OS.get_name() == "Android" \
 		and Engine.has_singleton("PoingGodotAdMob")
 	if available:
-		_gather_consent()
+		# Start a little after the menu so a startup problem can't stop the player
+		# from reaching Settings > Copy crash log.
+		get_tree().create_timer(START_DELAY, true, false, true).timeout.connect(_gather_consent)
 
 
 ## Real ad units only in the Play Store bundle ("play_store" export feature). The
@@ -63,9 +66,11 @@ func _now() -> float:
 ## Google's User Messaging Platform: shows the GDPR/US-states consent form when the
 ## player's region requires it, then starts the ads SDK.
 func _gather_consent() -> void:
+	Diagnostics.mark("ads consent check")
 	var params := ConsentRequestParameters.new()
 	UserMessagingPlatform.consent_information.update(params,
 		func():
+			Diagnostics.mark("ads consent info ok")
 			if UserMessagingPlatform.consent_information.get_is_consent_form_available():
 				_load_and_show_form()
 			else:
@@ -105,11 +110,11 @@ func _start_sdk() -> void:
 	if sdk_ready or _sdk_starting:
 		return
 	_sdk_starting = true
-	Diagnostics.event("ads sdk start")
+	Diagnostics.mark("ads sdk start")
 	var listener := OnInitializationCompleteListener.new()
 	listener.on_initialization_complete = func(_status):
 		sdk_ready = true
-		Diagnostics.event("ads sdk ready")
+		Diagnostics.mark("ads sdk ready")
 		_load_rewarded()
 		_load_interstitial()
 	MobileAds.initialize(listener)
@@ -121,10 +126,12 @@ func _load_rewarded() -> void:
 	if not sdk_ready or _loading_rewarded or _rewarded != null:
 		return
 	_loading_rewarded = true
+	Diagnostics.mark("ads load rewarded")
 	var cb := RewardedAdLoadCallback.new()
 	cb.on_ad_loaded = func(ad):
 		_loading_rewarded = false
 		_rewarded = ad
+		Diagnostics.mark("ads rewarded loaded")
 		rewarded_ready_changed.emit(true)
 	cb.on_ad_failed_to_load = func(_err):
 		_loading_rewarded = false
@@ -136,6 +143,7 @@ func _load_interstitial() -> void:
 	if not sdk_ready or _loading_interstitial or _interstitial != null or IAP.ads_removed:
 		return
 	_loading_interstitial = true
+	Diagnostics.mark("ads load interstitial")
 	var cb := InterstitialAdLoadCallback.new()
 	cb.on_ad_loaded = func(ad):
 		_loading_interstitial = false
