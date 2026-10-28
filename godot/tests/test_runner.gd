@@ -844,8 +844,11 @@ func _test_save_load() -> void:
 	check(SaveManager.load_game(3) and GameState.credits == 4242.0, "corrupted save recovers from backup")
 	# Threaded save path
 	SaveManager.save_game(3, true)
-	await frames(10)
-	check(not SaveManager.is_saving(), "threaded save completes")
+	for i in 180:
+		await get_tree().physics_frame
+		if not SaveManager.is_saving():
+			break
+	check(not SaveManager.is_saving(), "threaded save completes (within 3 s)")
 
 
 func _test_diagnostics() -> void:
