@@ -45,7 +45,8 @@ func _ready() -> void:
 	Meshes.part(brush, Meshes.cyl(0.18, 6.0, 12), Meshes.hs(Color(0.3, 0.76, 0.97), 0.1, 0.35), Vector3(0, 3.0, 0))
 	Meshes.part(brush, Meshes.box(Vector3(0.6, 1.6, 0.4)), Meshes.hs(Color(0.3, 0.76, 0.97), 0.1, 0.35), Vector3(0, 6.6, 0.1))
 	Meshes.part(brush, Meshes.box(Vector3(0.5, 1.4, 0.5)), Meshes.hs(Color(0.97, 0.97, 0.95), 0.0, 0.8, Color(0, 0, 0), 0.0, 8.0, 0.1), Vector3(0, 6.6, 0.5))
-	var astro := Meshes.astronaut(Color(1.0, 0.5, 0.1))
+	var sk := Cosmetics.equipped("suit")        # your suit colours
+	var astro := Meshes.astronaut(Color.html(sk.get("accent", "#f28020")), Color.html(sk.get("suit", "#eeeee6")))
 	astro.position = p + Vector3(1.6, 0, 0.8)
 	astro.position.y = TerrainGen.height(astro.position.x, astro.position.z)
 	astro.rotation.y = 2.2

@@ -229,10 +229,10 @@ static func rock_material() -> ShaderMaterial:
 # --------------------------------------------------------------- astronaut
 
 ## Stylised astronaut (approx 1.8 m). Origin at the feet.
-static func astronaut(accent := Color(1.0, 0.45, 0.1)) -> Node3D:
+static func astronaut(accent := Color(1.0, 0.45, 0.1), suit_color := Color(0.92, 0.92, 0.9)) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Astronaut"
-	var suit := hs(Color(0.92, 0.92, 0.9), 0.05, 0.75, Color(0, 0, 0), 0.0, 4.0, 0.25)
+	var suit := hs(suit_color, 0.05, 0.75, Color(0, 0, 0), 0.0, 4.0, 0.25)
 	var dark := hs(Color(0.25, 0.26, 0.3), 0.3, 0.6)
 	var acc := hs(accent, 0.1, 0.5)
 	part(root, capsule(0.27, 0.8), suit, Vector3(0, 1.15, 0))

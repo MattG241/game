@@ -516,6 +516,21 @@ func _test_ads() -> void:
 	check(Cosmetics.is_unlocked("veh_racing") and Cosmetics.equipped_id("suit") == "suit_ninja", "unlocked skins are still yours after restarting the game")
 	var arm_mat: ShaderMaterial = game.player.cleaner._arm.material_override
 	check(arm_mat.get_shader_parameter("paint").is_equal_approx(Color.html("#1a1a1e")), "the suit colour shows on your arm")
+	GameState.buy_vehicle("scooter")
+	await frames(3)
+	var sv: LunarVehicle = game.vehicles[game.vehicles.size() - 1]
+	var dsuit: ShaderMaterial = null
+	for mi in sv.driver.find_children("*", "MeshInstance3D", true, false):
+		var mm = (mi as MeshInstance3D).material_override
+		if mm is ShaderMaterial and (mm as ShaderMaterial).get_shader_parameter("paint") is Color and (mm as ShaderMaterial).get_shader_parameter("paint").is_equal_approx(Color.html("#1a1a1e")):
+			dsuit = mm
+	check(dsuit != null, "the astronaut driving your vehicles wears your suit")
+	var painted := false
+	for mi in sv._paint_parts:
+		painted = painted or mi.material_override == Cosmetics.skin_material(Cosmetics.item("veh_racing"))
+	check(painted, "and the vehicle wears your paint")
+	(game.vehicles.pop_back() as Node).queue_free()      # leave no vehicle for the vehicle tests
+	GameState.vehicles.pop_back()
 	game.open_menu("style")
 	await frames(2)
 	check(game.menu._content.get_child_count() > 15, "STYLE tab lists every skin")

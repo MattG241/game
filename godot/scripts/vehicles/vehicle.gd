@@ -36,8 +36,27 @@ var _paint_parts: Array[MeshInstance3D] = []
 var _paint_mat: Material
 
 
-## Factory paint, or the vehicle skin the player is wearing.
+var _driver_pos := Vector3.ZERO
+var _driver_suit := ""
+
+
+func _make_driver(body: Node3D) -> void:
+	var was_visible := driver != null and driver.visible
+	if driver:
+		driver.queue_free()
+	var sk := Cosmetics.equipped("suit")
+	_driver_suit = sk.get("id", "")
+	driver = Meshes.astronaut(Color.html(sk.get("accent", "#f28020")), Color.html(sk.get("suit", "#eeeee6")))
+	driver.position = _driver_pos
+	driver.scale = Vector3.ONE * 0.92
+	driver.visible = was_visible
+	body.add_child(driver)
+
+
+## Factory paint, or the vehicle skin the player is wearing (and the driver's suit).
 func apply_paint() -> void:
+	if driver and Cosmetics.equipped_id("suit") != _driver_suit:
+		_make_driver(driver.get_parent())
 	var m := Cosmetics.skin_material(Cosmetics.equipped("vehicle"))
 	for mi in _paint_parts:
 		mi.material_override = m if m else _paint_mat
@@ -202,12 +221,9 @@ func setup(vehicle_index: int) -> void:
 			Meshes.part(wm, Meshes.cyl(wr * 0.55, wr * 0.74, 12), hub_mat, Vector3.ZERO, Vector3(0, 0, PI * 0.5))
 			for k in 6:
 				Meshes.part(wm, Meshes.box(Vector3(wr * 0.72, 0.06, wr * 0.25)), wheel_mat, Vector3.ZERO, Vector3(k * PI / 6.0, 0, 0), Vector3(1, 1, 1))
-	# Driver
-	driver = Meshes.astronaut(Color(1.0, 0.5, 0.1))
-	driver.position = Vector3(0, h * 0.55, -l * 0.05 if info["id"] != "cleaning_truck" else -l * 0.33)
-	driver.scale = Vector3.ONE * 0.92
-	driver.visible = false
-	body.add_child(driver)
+	# Driver (wears the player's suit colours)
+	_driver_pos = Vector3(0, h * 0.55, -l * 0.05 if info["id"] != "cleaning_truck" else -l * 0.33)
+	_make_driver(body)
 	# Label above vehicle
 	var lbl := Meshes.label(body, info["name"], Vector3(0, h + 2.0, 0), 48, Color(1, 0.85, 0.5), true)
 	lbl.name = "NameLabel"
