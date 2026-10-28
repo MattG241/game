@@ -46,6 +46,9 @@ func _process(_d: float) -> void:
 		if _args.has("pos"):
 			var p: PackedStringArray = _args["pos"].split(",")
 			pl.global_position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+		if _args.has("unlock"):
+			for i in GameState.regions.size():
+				GameState.regions[i] = true
 		if _args.has("tool"):
 			GameState.tools[_args["tool"]] = 0
 			GameState.equip(_args["tool"])
@@ -61,6 +64,12 @@ func _process(_d: float) -> void:
 	if game and _args.has("clean") and _frames > 10 and _frames < _target - 5:
 		game.controls.held["clean"] = true
 		game.player.yaw += 0.01 * sin(_frames * 0.05)
+	if game and _args.has("ending"):
+		if _frames == 10:
+			GameState.missions_done.append("m_clean_moon")
+			game._lander_action()
+		if _frames == _target - 30 and game.ending:
+			game.ending._t = float(_args["ending"])
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])
 	if _frames >= _target:

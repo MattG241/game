@@ -287,7 +287,10 @@ func _physics_process(delta: float) -> void:
 		var p := global_position
 		var reg := TerrainGen.region_at(p.x, p.z)
 		var r := Vector2(p.x, p.z).length()
-		if not GameState.region_unlocked(reg) or r > TerrainGen.WORLD_RADIUS - 50.0:
+		var over := r > TerrainGen.WRAP_RADIUS
+		if over and GameState.region_unlocked(reg) and GameState.region_unlocked(TerrainGen.region_at(-p.x, -p.z)):
+			wrap_around()
+		elif not GameState.region_unlocked(reg) or over:
 			# Previously velocity was overwritten every frame, which fought the engine and
 			# left the vehicle shaking in place on border ridges. Now: one clean put-back.
 			_border_back(reg, r)
@@ -311,6 +314,27 @@ func _physics_process(delta: float) -> void:
 		recover("")
 
 
+## Drove past the far edge: reappear on the opposite side, same speed and heading
+## relative to the Moon (a half turn about the vertical axis through the base).
+func wrap_around() -> void:
+	var half := Basis(Vector3.UP, PI)
+	var xf := global_transform
+	var dest := Transform3D(half * xf.basis, TerrainGen.wrap_point(xf.origin))
+	dest.origin.y = maxf(dest.origin.y, TerrainGen.height(dest.origin.x, dest.origin.z) + 0.6)
+	global_transform = dest
+	linear_velocity = half * linear_velocity
+	angular_velocity = half * angular_velocity
+	_good_xform = dest
+	_last_pos = dest.origin
+	var world := get_tree().get_first_node_in_group("world")
+	if world:
+		world.terrain.ensure_collision_near(dest.origin)
+	Diagnostics.event("vehicle wrapped around the moon")
+	if not GameState.flags.get("wrapped", false):
+		GameState.flags["wrapped"] = true
+		GameState.notify.emit("You drove all the way round the Moon!", "achievement")
+
+
 func _border_back(reg: int, r: float) -> void:
 	var back := _good_xform
 	var bp := back.origin
@@ -328,8 +352,10 @@ func _border_back(reg: int, r: float) -> void:
 	global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
 	_stuck_t = 0.0
 	Diagnostics.event("vehicle border put-back")
-	if r > TerrainGen.WORLD_RADIUS - 50.0:
-		GameState.notify.emit("The mountains are too steep to cross", "info")
+	if r > TerrainGen.WRAP_RADIUS:
+		var p := global_position
+		var fi := GameData.region(TerrainGen.region_at(-p.x, -p.z))
+		GameState.notify.emit("Round the Moon is %s - it needs a permit (%s CR)" % [fi["name"], GameState.fmt(fi["permit"])], "error")
 	else:
 		var info := GameData.region(reg)
 		GameState.notify.emit("%s needs a permit (%s CR) - Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
@@ -354,7 +380,7 @@ func _sanity(delta: float) -> void:
 	_good_t += delta
 	var gp := global_position
 	if _good_t > 0.5 and global_basis.y.y > 0.7 and GameState.region_unlocked(TerrainGen.region_at(gp.x, gp.z)) \
-			and Vector2(gp.x, gp.z).length() < TerrainGen.WORLD_RADIUS - 52.0:
+			and Vector2(gp.x, gp.z).length() < TerrainGen.WRAP_RADIUS - 2.0:
 		_good_t = 0.0
 		_good_xform = global_transform
 

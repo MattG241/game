@@ -90,7 +90,7 @@ func can_place(id: String, pos: Vector3) -> String:
 		return "Region locked"
 	if Vector2(pos.x, pos.z + 2.0).length() < 31.0:
 		return "Too close to the base"
-	if Vector2(pos.x, pos.z).length() > TerrainGen.WORLD_RADIUS - 60.0:
+	if Vector2(pos.x, pos.z).length() > TerrainGen.WRAP_RADIUS - 40.0:
 		return "Too far out"
 	if TerrainGen.normal(pos.x, pos.z).y < 0.82:
 		return "Ground too steep"

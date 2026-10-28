@@ -32,7 +32,9 @@
     {"id": "m_truck", "title": "Buy the Industrial Cleaning Truck", "hint": "8 metres of pure cleaning power.", "type": "own_vehicle", "vehicle": "cleaning_truck", "reward": 150000, "rp": 100},
     {"id": "m_swarm", "title": "Buy the Autonomous Swarm Controller", "hint": "The ultimate handheld tool.", "type": "own_tool", "tool": "swarm_controller", "reward": 400000, "rp": 150},
     {"id": "m_basin", "title": "Clean 60% of the Great Basin", "hint": "The enormous crater in the far Crater Fields.", "type": "landmark", "landmark": "great_basin", "value": 0.6, "reward": 500000, "rp": 200},
-    {"id": "m_tycoon", "title": "Lunar Cleaning Tycoon: earn 10,000,000 credits", "hint": "You started with a toothbrush.", "type": "stat", "stat": "credits_earned", "value": 10000000, "reward": 1000000, "rp": 300}
+    {"id": "m_tycoon", "title": "Lunar Cleaning Tycoon: earn 10,000,000 credits", "hint": "You started with a toothbrush.", "type": "stat", "stat": "credits_earned", "value": 10000000, "reward": 1000000, "rp": 300},
+    {"id": "m_clean_moon", "title": "Clean the entire Moon", "hint": "Every last speck. The MAP shows what's left and the arrow points to the nearest dust.", "type": "world_clean", "value": 1.0, "reward": 0, "rp": 0},
+    {"id": "m_go_home", "title": "Your work here is done", "hint": "Return to the lander at base and press INTERACT to fly home.", "type": "flag", "flag": "went_home", "value": 1, "reward": 0, "rp": 0}
   ],
   "achievements": [
     {"id": "a_sparkle", "title": "Sparkling", "desc": "Clean 100 m2.", "type": "stat", "stat": "m2_cleaned", "value": 100},
@@ -47,6 +49,8 @@
     {"id": "a_factory", "title": "Factory Floor", "desc": "Own 10 machines.", "type": "stat", "stat": "machines_count", "value": 10},
     {"id": "a_fleet", "title": "Fleet Manager", "desc": "Own all 4 vehicles.", "type": "stat", "stat": "vehicles_count", "value": 4},
     {"id": "a_scholar", "title": "Scholar", "desc": "Complete all research.", "type": "research_count", "value": 16},
-    {"id": "a_collector", "title": "Tool Collector", "desc": "Own all 12 tools.", "type": "stat", "stat": "tools_count", "value": 12}
+    {"id": "a_collector", "title": "Tool Collector", "desc": "Own all 12 tools.", "type": "stat", "stat": "tools_count", "value": 12},
+    {"id": "a_spotless", "title": "Spotless", "desc": "Clean every speck of dust on the Moon.", "type": "world_clean", "value": 1.0},
+    {"id": "a_home", "title": "Homeward Bound", "desc": "Fly home after cleaning the Moon.", "type": "flag", "flag": "went_home", "value": 1}
   ]
 }

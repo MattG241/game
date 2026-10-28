@@ -9,6 +9,14 @@ const QUADS_FAR := 8           # LOD1 grid quads per side (4 m spacing)
 const MASK := 128              # dirt mask texels per chunk side (0.25 m)
 const TEXEL := CHUNK / MASK
 const WORLD_RADIUS := 600.0
+# "Mini-planet": walking past WRAP_RADIUS brings you back in on the opposite side
+# (like passing the far pole of a small moon). From SEAM_START outwards the terrain is
+# made point-symmetric, so both sides of the crossing look the same.
+const WRAP_RADIUS := 530.0
+const SEAM_START := 430.0
+# Dust on ground steeper than this can't be reached, so none is generated there.
+const MAX_DUST_SLOPE := 2.5      # rise/run (about 68 degrees): sheer cliffs only
+const CLEAN_LEVEL := 10          # mask values at or below this count as clean
 const BASE_RADIUS := 34.0
 const ZONE_RADIUS := 150.0
 const SEED := 4242
@@ -166,6 +174,28 @@ static func _crater_layer(x: float, z: float, cell: float, prob: float, rmin: fl
 
 ## Main terrain sample: Vector3(height, crater_interior 0..1, rockiness 0..1)
 static func sample(x: float, z: float) -> Vector3:
+	var s := _sample_core(x, z)
+	var k := seam_k(x, z)
+	if k > 0.0:
+		var m := _sample_core(-x, -z)
+		s = s.lerp((s + m) * 0.5, k)
+	return s
+
+
+## 0 inside the seam band, rising to 1 at the wrap line.
+static func seam_k(x: float, z: float) -> float:
+	var r2 := x * x + z * z
+	if r2 < SEAM_START * SEAM_START:
+		return 0.0
+	return smoothstep(SEAM_START, WRAP_RADIUS, sqrt(r2))
+
+
+## Where a point past the wrap line comes back in (opposite side of the moon).
+static func wrap_point(p: Vector3) -> Vector3:
+	return Vector3(-p.x, p.y, -p.z)
+
+
+static func _sample_core(x: float, z: float) -> Vector3:
 	var r := sqrt(x * x + z * z)
 	var w := region_weights(x, z)
 	var flat := 1.0 - 0.6 * w.w
@@ -212,11 +242,6 @@ static func sample(x: float, z: float) -> Vector3:
 			var k := 1.0 - lateral / 34.0
 			h += smoothstep(150.0, 215.0, r) * 44.0 * k * k * (0.75 + 0.5 * (_n_mtn.get_noise_2d(x * 2.0, z * 2.0) * 0.5 + 0.5))
 			rock = maxf(rock, k * smoothstep(150.0, 215.0, r))
-	# Outer ring mountains bound the playable world
-	if r > 540.0:
-		var e := smoothstep(540.0, 640.0, r)
-		h += e * e * 95.0 * (0.7 + 0.6 * (_n_mtn.get_noise_2d(x * 0.7, z * 0.7) * 0.5 + 0.5))
-		rock = maxf(rock, e)
 	# Flattened authored sites
 	var fl := _flat
 	for fi in range(0, fl.size(), 4):
@@ -264,30 +289,103 @@ static func landmark(name: String) -> Array:
 	return []
 
 
+## Large boulders per chunk by region. A match instead of a constant array: constant
+## arrays are shared between threads and their reference counting raced on 8-core phones.
+static func rocks_for_region(region: int) -> int:
+	match region:
+		Region.CRATERS:
+			return 7
+		Region.HIGHLANDS:
+			return 14
+		Region.RESEARCH:
+			return 6
+		Region.INDUSTRIAL:
+			return 3
+	return 4
+
+
+const SMALL_ROCKS := 26
+
+
+## Rock i of a chunk: Vector4(world x, world z, size, hash) or w < 0 when absent.
+## Rocks i < big_count are boulders; the rest are pebbles.
+static func rock(key: Vector2i, i: int, big_count: int) -> Vector4:
+	var hx := hashf(key.x * 31 + i, key.y * 17 - i, 991)
+	var hz := hashf(key.x * 13 - i, key.y * 29 + i, 553)
+	var hsz := hashf(key.x + i * 7, key.y - i * 3, 211)
+	var x := key.x * CHUNK + hx * CHUNK
+	var z := key.y * CHUNK + hz * CHUNK
+	var r2 := x * x + z * z
+	if r2 < 60.0 * 60.0 or r2 > SEAM_START * SEAM_START:
+		return Vector4(0, 0, 0, -1)
+	var big := i < big_count
+	var s := (0.5 + hsz * hsz * 2.6) if big else (0.08 + hsz * 0.22)
+	if big and sample(x, z).z > 0.4:
+		s *= 1.6
+	return Vector4(x, z, s, hsz)
+
+
+## Chunks whose centre is close enough to have any rocks at all.
+static func chunk_has_rocks(key: Vector2i) -> bool:
+	var c := Vector2((key.x + 0.5) * CHUNK, (key.y + 0.5) * CHUNK)
+	return c.length() >= 30.0
+
+
+## Texels of a chunk where dust could never be reached or seen: under rocks and on
+## slopes too steep to stand on. Returns a byte per texel (1 = unreachable).
+static func unreachable_mask(key: Vector2i) -> PackedByteArray:
+	var m := PackedByteArray()
+	m.resize(MASK * MASK)
+	var ox := key.x * CHUNK
+	var oz := key.y * CHUNK
+	# Steep ground: 1 m height grid, slope per 1 m cell (4 x 4 texels).
+	var n := int(CHUNK) + 1
+	var hs := PackedFloat32Array()
+	hs.resize(n * n)
+	for j in n:
+		for i in n:
+			hs[j * n + i] = sample(ox + i, oz + j).x
+	var per := int(MASK / CHUNK)
+	for cj in n - 1:
+		for ci in n - 1:
+			var h00 := hs[cj * n + ci]
+			var h10 := hs[cj * n + ci + 1]
+			var h01 := hs[(cj + 1) * n + ci]
+			var h11 := hs[(cj + 1) * n + ci + 1]
+			var gx := (h10 - h00 + h11 - h01) * 0.5
+			var gz := (h01 - h00 + h11 - h10) * 0.5
+			if gx * gx + gz * gz > MAX_DUST_SLOPE * MAX_DUST_SLOPE:
+				for tz in per:
+					var row := (cj * per + tz) * MASK + ci * per
+					for tx in per:
+						m[row + tx] = 1
+	# Rocks from this chunk and its neighbours (they overlap chunk edges).
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var k := key + Vector2i(dx, dz)
+			if not chunk_has_rocks(k):
+				continue
+			var c := Vector2((k.x + 0.5) * CHUNK, (k.y + 0.5) * CHUNK)
+			var big := rocks_for_region(region_at(c.x, c.y))
+			for i in big + SMALL_ROCKS:
+				var rk := rock(k, i, big)
+				if rk.w < 0.0:
+					continue
+				var rad := rk.z * 1.15 + 0.05
+				var lx0 := maxi(int((rk.x - rad - ox) / TEXEL), 0)
+				var lx1 := mini(int((rk.x + rad - ox) / TEXEL), MASK - 1)
+				var lz0 := maxi(int((rk.y - rad - oz) / TEXEL), 0)
+				var lz1 := mini(int((rk.y + rad - oz) / TEXEL), MASK - 1)
+				for lz in range(lz0, lz1 + 1):
+					var wz := oz + (lz + 0.5) * TEXEL - rk.y
+					for lx in range(lx0, lx1 + 1):
+						var wx := ox + (lx + 0.5) * TEXEL - rk.x
+						if wx * wx + wz * wz < rad * rad:
+							m[lz * MASK + lx] = 1
+	return m
+
+
 ## Initial dust layer for a chunk (thread-safe). Bytes 0..255 per texel.
-# Ground covered by base structures has no dust: you could never see or reach it.
-# Footprints must match base.gd. (Plain code, not a const Array: this runs on worker
-# threads, where sharing a constant Array is not thread-safe.)
-const LANDER_PAD := Vector3(4.0, 30.0, 8.3)   # x, z, radius
-
-
-static func _in_rect(x: float, z: float, cx: float, cz: float, hx: float, hz: float) -> bool:
-	return absf(x - cx) < hx and absf(z - cz) < hz
-
-
-## True where a base building or landing pad sits on the ground.
-static func covered(x: float, z: float) -> bool:
-	if Vector2(x - LANDER_PAD.x, z - LANDER_PAD.y).length() < LANDER_PAD.z:
-		return true
-	return _in_rect(x, z, 0.0, -16.0, 7.2, 7.2) \
-		or _in_rect(x, z, -10.0, -16.0, 4.9, 2.4) \
-		or _in_rect(x, z, 10.0, -16.0, 4.9, 2.4) \
-		or _in_rect(x, z, 11.0, -3.6, 2.5, 2.5) \
-		or _in_rect(x, z, -11.0, -4.2, 2.4, 0.9) \
-		or _in_rect(x, z, -15.0, -18.0, 3.7, 3.7) \
-		or _in_rect(x, z, -19.0, 17.0, 5.2, 12.2)
-
-
 static func initial_dirt(key: Vector2i) -> PackedByteArray:
 	var data := PackedByteArray()
 	data.resize(MASK * MASK)
@@ -296,18 +394,39 @@ static func initial_dirt(key: Vector2i) -> PackedByteArray:
 	var r_c := Vector2(ox + CHUNK * 0.5, oz + CHUNK * 0.5).length()
 	# Near the base the ground has been "swept a little" - lighter coverage.
 	var base_k := clampf((r_c - 20.0) / 40.0, 0.0, 1.0)
-	var near_base := r_c < BASE_RADIUS + CHUNK
+	var blocked := unreachable_mask(key)
 	for lz in MASK:
 		var wz := oz + (lz + 0.5) * TEXEL
 		var row := lz * MASK
 		for lx in MASK:
+			if blocked[row + lx] != 0:
+				continue
 			var wx := ox + (lx + 0.5) * TEXEL
-			var n := _n_dirt.get_noise_2d(wx, wz)
+			var nn := _n_dirt.get_noise_2d(wx, wz)
 			var c := _n_dirt2.get_noise_2d(wx, wz)
-			var v := 0.78 + 0.18 * n - 0.1 * c
-			v = lerpf(0.62 + 0.1 * n, v, base_k)
-			data[row + lx] = 0 if near_base and covered(wx, wz) else clampi(int(v * 255.0), 120, 255)
+			var v := 0.78 + 0.18 * nn - 0.1 * c
+			v = lerpf(0.62 + 0.1 * nn, v, base_k)
+			data[row + lx] = clampi(int(v * 255.0), 120, 255)
 	return data
+
+
+## Chunks with ground inside the wrap line: these must all be cleaned to finish.
+static func playable_chunks() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var r := int(ceil(WRAP_RADIUS / CHUNK))
+	for z in range(-r, r):
+		for x in range(-r, r):
+			# Nearest point of the chunk square to the centre
+			var nx := clampf(0.0, x * CHUNK, (x + 1) * CHUNK)
+			var nz := clampf(0.0, z * CHUNK, (z + 1) * CHUNK)
+			if nx * nx + nz * nz < WRAP_RADIUS * WRAP_RADIUS:
+				out.append(Vector2i(x, z))
+	return out
+
+
+## Whether a texel counts towards "clean the whole Moon" (inside the wrap line).
+static func in_play(x: float, z: float) -> bool:
+	return x * x + z * z <= WRAP_RADIUS * WRAP_RADIUS
 
 
 ## Dust quantity multiplier at a position (region thickness x crater interiors).

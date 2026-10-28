@@ -10,6 +10,7 @@ const BAY_POS := Vector3(-19, 0, 14)
 const NPC_POS := Vector3(-7.5, 0, 1.5)
 
 var world: Node
+var lander: Node3D
 var _beacons: Array = []
 var _hopper_spin: Node3D
 var _npc: Node3D
@@ -120,12 +121,16 @@ func build(w: Node) -> void:
 	world.add_interactable(BAY_POS + Vector3(5.5, 0, -9.0), 3.5, func(): return "Vehicle Dealer", func(): world.open_menu("vehicles"), "bay")
 
 	# Lander (how you arrived)
-	var lander := Node3D.new()
+	lander = Node3D.new()
 	lander.position = Vector3(4, 0, 30)
 	lander.rotation.y = 0.4
 	add_child(lander)
-	Meshes.part(lander, Meshes.cyl(8.0, 0.25, 40), Meshes.hs(Color(0.3, 0.3, 0.33), 0.1, 0.8, Color(0, 0, 0), 0.0, 0.5, 0.4, 0.0), Vector3(0, 0.12, 0))
-	Meshes.part(lander, Meshes.torus(7.4, 7.9, 48), hazard, Vector3(0, 0.26, 0))
+	# The pad stays on the ground when the lander flies home at the end.
+	var pad := Node3D.new()
+	pad.position = lander.position
+	add_child(pad)
+	Meshes.part(pad, Meshes.cyl(8.0, 0.25, 40), Meshes.hs(Color(0.3, 0.3, 0.33), 0.1, 0.8, Color(0, 0, 0), 0.0, 0.5, 0.4, 0.0), Vector3(0, 0.12, 0))
+	Meshes.part(pad, Meshes.torus(7.4, 7.9, 48), hazard, Vector3(0, 0.26, 0))
 	Meshes.part(lander, Meshes.cyl(2.2, 2.4, 8, 1.7), Meshes.hs(Color(0.85, 0.75, 0.4), 0.9, 0.3, Color(0, 0, 0), 0.0, 3.0, 0.3), Vector3(0, 2.6, 0))
 	Meshes.part(lander, Meshes.cyl(1.6, 2.0, 12, 1.0), white, Vector3(0, 4.8, 0))
 	Meshes.part(lander, Meshes.sphere(0.5), window, Vector3(0, 5.0, -1.2))
@@ -144,6 +149,7 @@ func build(w: Node) -> void:
 		var pz := -22.0 + (i / 3) * 5.0
 		Meshes.part(self, Meshes.box(Vector3(0.2, 1.4, 0.2)), dark, Vector3(px, 0.7, pz))
 		Meshes.part(self, Meshes.box(Vector3(3.8, 0.08, 2.6)), Meshes.hs(Color(0.1, 0.2, 0.55), 0.8, 0.15, Color(0.02, 0.05, 0.15), 1.0, 5.0, 0.1), Vector3(px, 1.5, pz), Vector3(-0.45, 0, 0))
+		_static_box(Vector3(px, 1.1, pz), Vector3(3.8, 2.2, 2.4))
 	var tower := Node3D.new()
 	tower.position = Vector3(6, 0, -27)
 	add_child(tower)

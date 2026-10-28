@@ -63,7 +63,7 @@ func _process(delta: float) -> void:
 # ------------------------------------------------------------------ lifecycle
 
 func new_game() -> void:
-	dirt.clear()
+	dirt.reset()
 	credits = float(GameData.economy.get("start_credits", 0))
 	rp = 0.0
 	tank_dust = 0.0
@@ -103,6 +103,7 @@ func to_dict() -> Dictionary:
 		"flags": flags, "salvage_taken": salvage_taken,
 		"landmark_progress": landmark_progress, "stats": stats,
 		"player": player, "started_at": started_at,
+		"clean_chunks": dirt.clean.keys().map(func(k): return [k.x, k.y]),
 	}
 
 
@@ -142,6 +143,9 @@ func from_dict(d: Dictionary) -> void:
 	stats = d.get("stats", {})
 	player = d.get("player", player)
 	started_at = int(d.get("started_at", 0))
+	for k in d.get("clean_chunks", []):
+		if k is Array and k.size() == 2:
+			dirt.clean[Vector2i(int(k[0]), int(k[1]))] = true
 	battery = clampf(float(d.get("battery", battery_capacity())), 0.0, battery_capacity())
 	_emit_all()
 
@@ -596,7 +600,22 @@ func mission_progress(m: Dictionary) -> Vector2:
 			return Vector2(1.0 if flags.get(m["flag"], false) else 0.0, 1.0)
 		"research_count":
 			return Vector2(research_done.size(), float(m["value"]))
+		"world_clean":
+			return Vector2(world_clean_fraction(), 1.0)
 	return Vector2(0, 1)
+
+
+var _world_frac := -1.0
+var _world_frac_t := 0
+
+
+## Cleaned fraction of the whole Moon (cached for a second; it scans ~900 chunks).
+func world_clean_fraction() -> float:
+	var now := Time.get_ticks_msec()
+	if _world_frac < 0.0 or now - _world_frac_t > 1000:
+		_world_frac = dirt.world_fraction()
+		_world_frac_t = now
+	return _world_frac
 
 
 func current_mission() -> Dictionary:

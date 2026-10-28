@@ -102,6 +102,18 @@ func _process(delta: float) -> void:
 
 func _scan(fp: Vector3) -> void:
 	_desired.clear()
+	_want_around(fp)
+	# Near the wrap line, also build the far side so crossing over is seamless.
+	if Vector2(fp.x, fp.z).length() > TerrainGen.WRAP_RADIUS - LOD0_DIST:
+		_want_around(TerrainGen.wrap_point(fp))
+	# Unload chunks no longer wanted
+	for key in chunks.keys():
+		if not _desired.has(key):
+			_unload(key)
+	chunk_count_changed.emit(chunks.size())
+
+
+func _want_around(fp: Vector3) -> void:
 	var r := int(ceil(view_distance / TerrainGen.CHUNK)) + 1
 	var c := TerrainGen.chunk_key(fp.x, fp.z)
 	for dz in range(-r, r + 1):
@@ -113,12 +125,8 @@ func _scan(fp: Vector3) -> void:
 			var d := center.distance_to(Vector2(fp.x, fp.z))
 			if d > view_distance + TerrainGen.CHUNK * 0.75:
 				continue
-			_desired[key] = 0 if d < LOD0_DIST else 1
-	# Unload chunks no longer wanted
-	for key in chunks.keys():
-		if not _desired.has(key):
-			_unload(key)
-	chunk_count_changed.emit(chunks.size())
+			var lod := 0 if d < LOD0_DIST else 1
+			_desired[key] = mini(lod, int(_desired.get(key, lod)))
 
 
 func _dispatch() -> void:
@@ -147,6 +155,8 @@ func _dispatch() -> void:
 		return
 	var res := {}
 	var need_dirt := not dirt.has_chunk(best_key)
+	# Chunks from older saves get dust under rocks / on cliffs removed once.
+	res["sanitize"] = best_lod == 0 and dirt.needs_sanitize(best_key)
 	var id := WorkerThreadPool.add_task(_build_task.bind(best_key, best_lod, need_dirt, res), false, "terrain")
 	_tasks[best_key] = {"id": id, "res": res, "lod": best_lod}
 	if _tasks.size() < MAX_TASKS:
@@ -304,6 +314,8 @@ func _build_task(key: Vector2i, lod: int, need_dirt: bool, res: Dictionary) -> v
 		res["collision"] = coll
 	if need_dirt:
 		res["dirt"] = TerrainGen.initial_dirt(key)
+	elif res.get("sanitize", false):
+		res["blocked"] = TerrainGen.unreachable_mask(key)
 	res["rocks"] = _rock_placements(key, lod)
 
 
@@ -316,56 +328,34 @@ func _tint(x: float, z: float, interior: float) -> Color:
 	c += tints[1] * w.x + tints[2] * w.y + tints[3] * w.z + tints[4] * w.w
 	if total > 1.0:
 		c = (c - base * maxf(1.0 - total, 0.0)) / total
+	# Both sides of the wrap line must look alike: fade region colours out there.
+	c = c.lerp(base, TerrainGen.seam_k(x, z))
 	c.a = interior
 	return c
 
 
-## Large boulders per chunk by region. A match instead of a constant array: constant
-## arrays are shared between threads and their reference counting raced on 8-core phones.
-static func _rocks_for_region(region: int) -> int:
-	match region:
-		TerrainGen.Region.CRATERS:
-			return 7
-		TerrainGen.Region.HIGHLANDS:
-			return 14
-		TerrainGen.Region.RESEARCH:
-			return 6
-		TerrainGen.Region.INDUSTRIAL:
-			return 3
-	return 4
-
-
 func _rock_placements(key: Vector2i, lod: int) -> Array:
+	if not TerrainGen.chunk_has_rocks(key):
+		return Array()
 	var ox := key.x * TerrainGen.CHUNK
 	var oz := key.y * TerrainGen.CHUNK
-	var cx := ox + TerrainGen.CHUNK * 0.5
-	var cz := oz + TerrainGen.CHUNK * 0.5
-	var r := sqrt(cx * cx + cz * cz)
-	if r < 30.0:
-		return Array()
-	var region := TerrainGen.region_at(cx, cz)
-	var big_count := _rocks_for_region(region)
+	var c := Vector2(ox + TerrainGen.CHUNK * 0.5, oz + TerrainGen.CHUNK * 0.5)
+	var big_count := TerrainGen.rocks_for_region(TerrainGen.region_at(c.x, c.y))
 	var count: int = big_count
 	if lod == 0:
-		count += 26 if detail_level >= 1 else 10
+		count += TerrainGen.SMALL_ROCKS if detail_level >= 1 else 10
 	var out := Array()
 	for i in count:
+		var rk := TerrainGen.rock(key, i, big_count)
+		if rk.w < 0.0:
+			continue
 		var hx := TerrainGen.hashf(key.x * 31 + i, key.y * 17 - i, 991)
 		var hz := TerrainGen.hashf(key.x * 13 - i, key.y * 29 + i, 553)
-		var hsz := TerrainGen.hashf(key.x + i * 7, key.y - i * 3, 211)
-		var x := ox + hx * TerrainGen.CHUNK
-		var z := oz + hz * TerrainGen.CHUNK
-		if x * x + z * z < 60.0 * 60.0:
-			continue
-		var big: bool = i < big_count
-		var s := (0.5 + hsz * hsz * 2.6) if big else (0.08 + hsz * 0.22)
-		var s3 := TerrainGen.sample(x, z)
-		if s3.z > 0.4 and big:
-			s *= 1.6
-		var y := s3.x - s * 0.25
+		var s := rk.z
+		var y := TerrainGen.height(rk.x, rk.y) - s * 0.25
 		var rot := Basis(Vector3.UP, hx * TAU) * Basis(Vector3.RIGHT, (hz - 0.5) * 0.6)
-		var sc := Vector3(s * (0.8 + hz * 0.5), s * (0.6 + hx * 0.5), s * (0.8 + hsz * 0.4))
-		out.append([Transform3D(rot.scaled(sc), Vector3(x - ox, y, z - oz)), s])
+		var sc := Vector3(s * (0.8 + hz * 0.5), s * (0.6 + hx * 0.5), s * (0.8 + rk.w * 0.4))
+		out.append([Transform3D(rot.scaled(sc), Vector3(rk.x - ox, y, rk.y - oz)), s])
 	return out
 
 
@@ -376,6 +366,8 @@ func _finalize(key: Vector2i, lod: int, res: Dictionary) -> void:
 		return
 	if res.has("dirt"):
 		dirt.put_initial(key, res["dirt"])
+	if res.has("blocked"):
+		dirt.sanitize(key, res["blocked"])
 	var old: Dictionary = chunks.get(key, {})
 	var node := Node3D.new()
 	node.name = "Chunk_%d_%d" % [key.x, key.y]

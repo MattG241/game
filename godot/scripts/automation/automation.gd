@@ -39,22 +39,53 @@ func rebuild_all() -> void:
 	_rebuild_belts()
 
 
+## Combined bounding box of every mesh in a model, in the model's own space.
+static func model_bounds(root: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+			var mi := n as MeshInstance3D
+			var xf := _relative_xform(root, mi)
+			var b: AABB = xf * mi.mesh.get_aabb()
+			out = b if first else out.merge(b)
+			first = false
+	return out if not first else AABB(Vector3(-1, 0, -1), Vector3(2, 3, 2))
+
+
+static func _relative_xform(root: Node3D, n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur != root and cur is Node3D:
+		xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
+
+
 func _add_visual(m: Dictionary) -> void:
 	var built := MachineModels.build(m["id"])
 	var root: Node3D = built["root"]
 	root.position = AutomationSim.v3(m["pos"])
 	root.rotation.y = float(m["yaw"])
 	add_child(root)
+	# Collision matches the model's real footprint (solar arrays are much wider
+	# than the core), so vehicles and the player can't pass through any part.
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	var cs := CollisionShape3D.new()
-	var sh := CylinderShape3D.new()
-	sh.radius = 1.4
-	sh.height = 3.0
+	var box := model_bounds(root)
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(maxf(box.size.x, 1.0), maxf(box.size.y, 1.0), maxf(box.size.z, 1.0))
 	cs.shape = sh
-	cs.position = Vector3(0, 1.5, 0)
+	cs.position = box.get_center()
 	body.add_child(cs)
 	root.add_child(body)
+	# The ground under a machine can't be reached any more: no dust there.
+	var c := root.position + Basis(Vector3.UP, root.rotation.y) * box.get_center()
+	GameState.dirt.add_cover_box(c.x, c.z, sh.size.x * 0.5, sh.size.z * 0.5, root.rotation.y)
 	var info := GameData.machine(m["id"])
 	var lbl := Meshes.label(root, info["name"], Vector3(0, 5.6, 0), 40, Color(1, 0.9, 0.6), true)
 	lbl.visible = false

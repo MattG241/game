@@ -27,11 +27,13 @@ var _landmark_t := 0.0
 var _charge_msg_t := 0.0
 var _supervisor_idx := 0
 var _mouse_clean := false
+var ending: Ending
 
 
 func _ready() -> void:
 	add_to_group("world")
 	TerrainGen.setup()
+	GameState.dirt.covers.clear()
 	env = LunarEnv.new()
 	add_child(env)
 	terrain = Terrain.new()
@@ -42,6 +44,8 @@ func _ready() -> void:
 	landmarks = Landmarks.new()
 	add_child(landmarks)
 	landmarks.build(self)
+	_register_covers()
+	add_interactable(base.lander.position + Vector3(0, 0, -9.0), 5.0, _lander_text, _lander_action, "lander")
 	# UI
 	ui = CanvasLayer.new()
 	ui.layer = 5
@@ -469,6 +473,8 @@ func enter_vehicle(v: LunarVehicle) -> void:
 		GameState.tank_value *= (1.0 - frac)
 		GameState.tank_dust -= moved
 		GameState.tank_changed.emit(GameState.tank_dust, GameState.tank_capacity())
+		GameState.notify.emit("Suit tank emptied into the %s hopper (%s / %s) - keep cleaning, sell it all at the Exchange" % [
+			v.info["name"], GameState.fmt(v.hopper()), GameState.fmt(float(GameState.vehicle_stats(v.index)["storage"]))], "info")
 	Audio.play("pickup", -4.0)
 	_set_mode("vehicle")
 
@@ -494,6 +500,7 @@ func exit_vehicle() -> void:
 # --------------------------------------------------------------------- frame
 
 func _process(delta: float) -> void:
+	_update_bend()
 	if get_tree().paused:
 		return
 	# Cleaning is driven by the live button state every frame (not by press/release
@@ -543,6 +550,101 @@ func _process(delta: float) -> void:
 				GameState.landmark_progress[lm[0]] = GameState.dirt.area_clean_fraction(c.x, c.z, float(lm[3]) * 0.92, step)
 	if current_vehicle:
 		terrain.ensure_collision_near(current_vehicle.global_position)
+	_update_dust_finder(delta)
+
+
+## Ground under buildings and pads gets no dust: it could never be seen or reached.
+func _register_covers() -> void:
+	var d := GameState.dirt
+	d.add_cover_circle(4.0, 30.0, 8.3)                 # lander pad
+	d.add_cover_box(-19.0, 17.0, 5.2, 12.2, 0.0)        # vehicle bay floor
+	for root in [base, landmarks]:
+		for body in (root as Node).find_children("*", "StaticBody3D", true, false):
+			for cs in body.get_children():
+				if not (cs is CollisionShape3D and cs.shape is BoxShape3D):
+					continue
+				var xf: Transform3D = cs.global_transform
+				var size: Vector3 = (cs.shape as BoxShape3D).size * xf.basis.get_scale()
+				var p := xf.origin
+				# Only boxes that sit on the ground (not raised platforms or roofs).
+				if p.y - size.y * 0.5 > TerrainGen.height(p.x, p.z) + 1.0:
+					continue
+				d.add_cover_box(p.x, p.z, size.x * 0.5, size.z * 0.5, xf.basis.get_euler().y)
+
+
+# ------------------------------------------------------------------ ending
+
+func can_fly_home() -> bool:
+	return GameState.missions_done.has("m_clean_moon")
+
+
+func _lander_text() -> String:
+	return "FLY HOME" if can_fly_home() else "Lander (flies home once the Moon is spotless)"
+
+
+func _lander_action() -> void:
+	if not can_fly_home():
+		GameState.notify.emit("Not yet - the Moon still has dust on it (%.1f%% clean)" % (GameState.world_clean_fraction() * 100.0), "info")
+		return
+	if ending == null:
+		ending = Ending.new()
+		add_child(ending)
+		ending.start(self)
+
+
+# ------------------------------------------------------------ dust finder
+
+var _dust_target := Vector3.INF
+var _dust_t := 0.0
+
+
+## True during the final "clean every speck" mission.
+func hunting_dust() -> bool:
+	return str(GameState.current_mission().get("id", "")) == "m_clean_moon"
+
+
+## Nearest spot with dust left (refreshed once a second while hunting).
+func dust_target() -> Vector3:
+	return _dust_target
+
+
+func _update_dust_finder(delta: float) -> void:
+	_dust_t -= delta
+	if _dust_t > 0.0:
+		return
+	_dust_t = 1.0
+	_dust_target = GameState.dirt.nearest_dust(focus_node().global_position) if hunting_dust() else Vector3.INF
+
+
+# ------------------------------------------------------------- mini-planet
+
+## Visual radius of the "mini-planet" horizon curve (metres). Physics stays flat.
+const BEND_RADIUS := 800.0
+var _bend_labels: Array = []   # [Label3D, base global y]
+
+
+func _update_bend() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var c := cam.global_position
+	RenderingServer.global_shader_parameter_set("bend_origin", c)
+	RenderingServer.global_shader_parameter_set("bend_k", 1.0 / (2.0 * BEND_RADIUS))
+	# Label3D text can't use the bend shader, so drop labels by hand.
+	if _bend_labels.is_empty():
+		for l in find_children("*", "Label3D", true, false):
+			_bend_labels.append([l, (l as Label3D).global_position.y])
+	for e in _bend_labels:
+		var l: Label3D = e[0]
+		if not is_instance_valid(l) or not l.is_visible_in_tree():
+			continue
+		var gp := l.global_position
+		var d2 := Vector2(gp.x - c.x, gp.z - c.z).length_squared()
+		l.global_position.y = float(e[1]) - d2 / (2.0 * BEND_RADIUS)
+
+
+func _exit_tree() -> void:
+	RenderingServer.global_shader_parameter_set("bend_k", 0.0)
 
 
 ## Copies live node state into GameState right before saving.

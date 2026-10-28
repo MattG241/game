@@ -1,11 +1,16 @@
 shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never, shadows_disabled;
+#include "res://shaders/bend.gdshaderinc"
 // Additive animated energy surface (region barriers, cleaning beams, holograms).
 
 uniform vec3 color : source_color = vec3(0.1, 0.8, 1.0);
 uniform float intensity = 1.0;
 uniform float speed = 1.0;
 uniform float bands = 6.0;
+
+void vertex() {
+	VERTEX = bend_vertex(VERTEX, MODEL_MATRIX);
+}
 
 void fragment() {
 	float t = TIME * speed;

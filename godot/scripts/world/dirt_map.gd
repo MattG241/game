@@ -5,7 +5,7 @@ extends RefCounted
 ## Only touched chunks are kept in memory permanently and saved (ZSTD compressed).
 
 const MAGIC := "LCDM"
-const FORMAT_VERSION := 1
+const FORMAT_VERSION := 2
 const MASK := TerrainGen.MASK
 const TEXEL := TerrainGen.TEXEL
 const CHUNK := TerrainGen.CHUNK
@@ -14,6 +14,11 @@ enum Shape { ROUND, RECT }
 
 var chunks := {}          # Vector2i -> DirtChunk
 var visual_dirty := {}    # Vector2i -> true (needs GPU texture refresh)
+var clean := {}           # Vector2i -> true: chunk has no dust left (persisted in the save)
+# Ground under buildings, pads and machines (no dust there): PackedFloat32Array
+# [cx, cz, half_x, half_z, yaw] for boxes or [cx, cz, radius] for circles.
+var covers: Array[PackedFloat32Array] = []
+var _playable: Array[Vector2i] = []
 
 
 class DirtChunk:
@@ -24,11 +29,46 @@ class DirtChunk:
 	var modified := false
 	var compressed := PackedByteArray()
 	var compressed_valid := false
+	var dirty := 0                  # counted texels still above CLEAN_LEVEL
+	var play := PackedByteArray()   # per-texel 1 = counts for 100%; empty = all count
+	var sanitized := true           # false for chunks from saves before rocks/cliffs had no dust
 
-	func _init(d: PackedByteArray, init_total := -1) -> void:
+	func _init(key: Vector2i, d: PackedByteArray, init_total := -1) -> void:
 		data = d
 		total = _sum(d)
 		initial_total = init_total if init_total >= 0 else total
+		# Texels past the wrap line never need cleaning.
+		var ox := key.x * CHUNK
+		var oz := key.y * CHUNK
+		var far := Vector2(absf(ox + CHUNK * 0.5) + CHUNK * 0.5, absf(oz + CHUNK * 0.5) + CHUNK * 0.5)
+		if far.length() > TerrainGen.WRAP_RADIUS:
+			play.resize(MASK * MASK)
+			for lz in MASK:
+				var wz := oz + (lz + 0.5) * TEXEL
+				for lx in MASK:
+					play[lz * MASK + lx] = 1 if TerrainGen.in_play(ox + (lx + 0.5) * TEXEL, wz) else 0
+		recount()
+
+	func recount() -> void:
+		var n := 0
+		var all := play.is_empty()
+		for i in data.size():
+			if data[i] > TerrainGen.CLEAN_LEVEL and (all or play[i] == 1):
+				n += 1
+		dirty = n
+
+	## Removes all dust from one texel (covered or unreachable ground).
+	func zero(idx: int) -> void:
+		var v: int = data[idx]
+		if v == 0:
+			return
+		if v > TerrainGen.CLEAN_LEVEL and (play.is_empty() or play[idx] == 1):
+			dirty -= 1
+		total -= v
+		initial_total -= v
+		data[idx] = 0
+		modified = true
+		compressed_valid = false
 
 	static func _sum(d: PackedByteArray) -> int:
 		var s := 0
@@ -45,6 +85,9 @@ class DirtChunk:
 			cx: float, cz: float, r: float, amount: float, budget: int) -> int:
 		var d := data
 		var removed := 0
+		var cl := TerrainGen.CLEAN_LEVEL
+		var pl := play
+		var all := pl.is_empty()
 		var inv_r := 1.0 / r
 		var done := false
 		for lz in range(lz0, lz1 + 1):
@@ -63,6 +106,8 @@ class DirtChunk:
 				var rem := mini(cur, int(ceil(amount * w)))
 				d[idx] = cur - rem
 				removed += rem
+				if cur > cl and cur - rem <= cl and (all or pl[idx] == 1):
+					dirty -= 1
 				if removed >= budget:
 					done = true
 					break
@@ -80,6 +125,9 @@ class DirtChunk:
 		# Local frame: u across (right vector), v along (forward vector).
 		var d := data
 		var removed := 0
+		var cl := TerrainGen.CLEAN_LEVEL
+		var pl := play
+		var all := pl.is_empty()
 		var soft_w := 1.0 / maxf(hw * 0.25, 0.12)
 		var soft_l := 1.0 / maxf(hl * 0.25, 0.12)
 		var done := false
@@ -100,6 +148,8 @@ class DirtChunk:
 				var rem := mini(cur, int(ceil(amount * w)))
 				d[idx] = cur - rem
 				removed += rem
+				if cur > cl and cur - rem <= cl and (all or pl[idx] == 1):
+					dirty -= 1
 				if removed >= budget:
 					done = true
 					break
@@ -119,33 +169,186 @@ class DirtChunk:
 		return compressed
 
 
-## Removes dust under base structures from chunks loaded from older saves.
-func clear_covered() -> void:
-	for key in chunks:
-		var ox: float = key.x * CHUNK
-		var oz: float = key.y * CHUNK
-		if Vector2(ox + CHUNK * 0.5, oz + CHUNK * 0.5).length() > TerrainGen.BASE_RADIUS + CHUNK:
-			continue
-		var c: DirtChunk = chunks[key]
-		var changed := false
-		for lz in MASK:
-			var wz := oz + (lz + 0.5) * TEXEL
-			for lx in MASK:
-				var idx := lz * MASK + lx
-				if c.data[idx] != 0 and TerrainGen.covered(ox + (lx + 0.5) * TEXEL, wz):
-					c.total -= c.data[idx]
-					c.initial_total -= c.data[idx]
-					c.data[idx] = 0
-					changed = true
-		if changed:
-			c.modified = true
-			c.compressed_valid = false
-			visual_dirty[key] = true
-
-
+## Clears loaded dust (not the clean-chunk record or covers: see reset()).
 func clear() -> void:
 	chunks.clear()
 	visual_dirty.clear()
+
+
+## New game: forget everything.
+func reset() -> void:
+	clear()
+	clean.clear()
+
+
+func _make(key: Vector2i, data: PackedByteArray, init_total := -1) -> DirtChunk:
+	var c := DirtChunk.new(key, data, init_total)
+	for cv in covers:
+		_apply_cover(key, c, cv)
+	_note(key, c)
+	return c
+
+
+func _note(key: Vector2i, c: DirtChunk) -> void:
+	if c.dirty <= 0 and c.sanitized:
+		clean[key] = true
+
+
+# ------------------------------------------------------------------ covers
+
+## Ground under a building or pad: rectangle (half sizes, rotated by yaw).
+func add_cover_box(cx: float, cz: float, hx: float, hz: float, yaw: float) -> void:
+	_add_cover(PackedFloat32Array([cx, cz, hx, hz, yaw]))
+
+
+func add_cover_circle(cx: float, cz: float, r: float) -> void:
+	_add_cover(PackedFloat32Array([cx, cz, r]))
+
+
+func _add_cover(cv: PackedFloat32Array) -> void:
+	covers.append(cv)
+	var ext: float = cv[2] if cv.size() == 3 else Vector2(cv[2], cv[3]).length()
+	var k0 := TerrainGen.chunk_key(cv[0] - ext, cv[1] - ext)
+	var k1 := TerrainGen.chunk_key(cv[0] + ext, cv[1] + ext)
+	for kz in range(k0.y, k1.y + 1):
+		for kx in range(k0.x, k1.x + 1):
+			var key := Vector2i(kx, kz)
+			var c: DirtChunk = chunks.get(key)
+			if c != null and _apply_cover(key, c, cv):
+				visual_dirty[key] = true
+				_note(key, c)
+
+
+func _apply_cover(key: Vector2i, c: DirtChunk, cv: PackedFloat32Array) -> bool:
+	var ox := key.x * CHUNK
+	var oz := key.y * CHUNK
+	var circle := cv.size() == 3
+	var ext: float = cv[2] if circle else Vector2(cv[2], cv[3]).length()
+	var lx0 := maxi(floori((cv[0] - ext - ox) / TEXEL), 0)
+	var lx1 := mini(floori((cv[0] + ext - ox) / TEXEL), MASK - 1)
+	var lz0 := maxi(floori((cv[1] - ext - oz) / TEXEL), 0)
+	var lz1 := mini(floori((cv[1] + ext - oz) / TEXEL), MASK - 1)
+	if lx0 > lx1 or lz0 > lz1:
+		return false
+	var cs := 1.0 if circle else cos(cv[4])
+	var sn := 0.0 if circle else sin(cv[4])
+	var changed := false
+	for lz in range(lz0, lz1 + 1):
+		var dz := oz + (lz + 0.5) * TEXEL - cv[1]
+		for lx in range(lx0, lx1 + 1):
+			var idx := lz * MASK + lx
+			if c.data[idx] == 0:
+				continue
+			var dx := ox + (lx + 0.5) * TEXEL - cv[0]
+			var inside: bool
+			if circle:
+				inside = dx * dx + dz * dz < cv[2] * cv[2]
+			else:
+				# Into the box's frame (Godot yaw about +Y).
+				var u := dx * cs - dz * sn
+				var v := dx * sn + dz * cs
+				inside = absf(u) < cv[2] and absf(v) < cv[3]
+			if inside:
+				c.zero(idx)
+				changed = true
+	return changed
+
+
+## Chunks loaded from saves made before rocks and cliffs were dust-free.
+func needs_sanitize(key: Vector2i) -> bool:
+	var c: DirtChunk = chunks.get(key)
+	return c != null and not c.sanitized
+
+
+## Applies an unreachable-texel mask from TerrainGen.unreachable_mask (once).
+func sanitize(key: Vector2i, blocked: PackedByteArray) -> void:
+	var c: DirtChunk = chunks.get(key)
+	if c == null or c.sanitized:
+		return
+	for i in blocked.size():
+		if blocked[i] != 0:
+			c.zero(i)
+	c.sanitized = true
+	visual_dirty[key] = true
+	_note(key, c)
+
+
+# ---------------------------------------------------------------- progress
+
+func playable() -> Array[Vector2i]:
+	if _playable.is_empty():
+		_playable = TerrainGen.playable_chunks()
+	return _playable
+
+
+## True when every chunk of the Moon (inside the wrap line) has no dust left.
+func world_clean() -> bool:
+	for key in playable():
+		if not clean.has(key):
+			return false
+	return true
+
+
+## Approximate cleaned fraction of the whole Moon (exactly 1.0 only when world_clean()).
+func world_fraction() -> float:
+	var keys := playable()
+	var sum := 0.0
+	var all := true
+	for key in keys:
+		if clean.has(key):
+			sum += 1.0
+			continue
+		all = false
+		var c: DirtChunk = chunks.get(key)
+		if c != null and c.modified:
+			sum += clampf(1.0 - float(c.dirty) / float(MASK * MASK), 0.0, 0.999)
+	if all:
+		return 1.0
+	# Stays below 100% (mission checks add a small epsilon) until every chunk is clean.
+	return minf(sum / float(keys.size()), 0.998)
+
+
+## The nearest spot that still has dust (for the dust finder). Vector3.INF if none.
+func nearest_dust(from: Vector3) -> Vector3:
+	var best_key := Vector2i.ZERO
+	var best_d := INF
+	for key in playable():
+		if clean.has(key):
+			continue
+		var cc := Vector2((key.x + 0.5) * CHUNK, (key.y + 0.5) * CHUNK)
+		var d := cc.distance_squared_to(Vector2(from.x, from.z))
+		if d < best_d:
+			best_d = d
+			best_key = key
+	if best_d == INF:
+		return Vector3.INF
+	var ox := best_key.x * CHUNK
+	var oz := best_key.y * CHUNK
+	var centre := Vector3(ox + CHUNK * 0.5, 0, oz + CHUNK * 0.5)
+	var ch: DirtChunk = chunks.get(best_key)
+	if ch == null or not ch.sanitized:
+		return centre
+	# Nearest remaining dusty texel in that chunk.
+	var best := centre
+	var bd := INF
+	var all := ch.play.is_empty()
+	var data := ch.data
+	for lz in MASK:
+		var wz := oz + (lz + 0.5) * TEXEL
+		var row := lz * MASK
+		for lx in MASK:
+			var idx := row + lx
+			if data[idx] > TerrainGen.CLEAN_LEVEL and (all or ch.play[idx] == 1):
+				var wx := ox + (lx + 0.5) * TEXEL
+				var d := (wx - from.x) * (wx - from.x) + (wz - from.z) * (wz - from.z)
+				if d < bd:
+					bd = d
+					best = Vector3(wx, 0, wz)
+	if bd == INF:
+		# Nothing left after all (counts were stale): record it as clean.
+		ch.recount()
+		_note(best_key, ch)
+	return best
 
 
 func has_chunk(key: Vector2i) -> bool:
@@ -157,7 +360,7 @@ func get_chunk(key: Vector2i) -> DirtChunk:
 	if c == null:
 		TerrainGen.setup()
 		var init := TerrainGen.initial_dirt(key)
-		c = DirtChunk.new(init)
+		c = _make(key, init)
 		chunks[key] = c
 	return c
 
@@ -165,7 +368,7 @@ func get_chunk(key: Vector2i) -> DirtChunk:
 ## Register initial data generated on a worker thread (ignored if already present).
 func put_initial(key: Vector2i, data: PackedByteArray) -> void:
 	if not chunks.has(key):
-		chunks[key] = DirtChunk.new(data)
+		chunks[key] = _make(key, data)
 
 
 ## Free memory for chunks the player never touched.
@@ -231,6 +434,8 @@ func stamp(shape: int, cx: float, cz: float, a: float, b: float, yaw: float, str
 			if r > 0:
 				removed += r
 				visual_dirty[key] = true
+				if c.dirty <= 0:
+					_note(key, c)
 	return float(removed) / 255.0 * TEXEL * TEXEL
 
 
@@ -298,6 +503,9 @@ func decode(bytes: PackedByteArray) -> bool:
 	var version := buf.get_u32()
 	if version > FORMAT_VERSION:
 		return false
+	# Version 1 saves predate dust-free rocks/cliffs: those chunks get cleaned up
+	# the first time they stream in near the player.
+	var sanitized_saves := version >= 2
 	var count := buf.get_u32()
 	for i in count:
 		if buf.get_position() + 16 > bytes.size():
@@ -312,7 +520,9 @@ func decode(bytes: PackedByteArray) -> bool:
 		var raw: PackedByteArray = (res[1] as PackedByteArray).decompress(MASK * MASK, FileAccess.COMPRESSION_ZSTD)
 		if raw.size() != MASK * MASK:
 			return false
-		var c := DirtChunk.new(raw, init_total)
+		var key := Vector2i(kx, kz)
+		var c := DirtChunk.new(key, raw, init_total)
 		c.modified = true
-		chunks[Vector2i(kx, kz)] = c
+		c.sanitized = sanitized_saves
+		chunks[key] = c
 	return true

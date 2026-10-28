@@ -37,6 +37,10 @@ var _offer_amount := 0.0
 var _offer_t := 0.0
 var _recharge: Button
 var _recharge_cooldown := 0.0
+# Dust finder arrow (final mission)
+var _finder_on := false
+var _finder_angle := 0.0
+var _finder_dist := 0.0
 
 
 func _ready() -> void:
@@ -305,6 +309,40 @@ func _update_ad_buttons(delta: float) -> void:
 		_recharge.position = _left.position + Vector2(0, _left.size.y + 8)
 
 
+func _update_finder() -> void:
+	var was := _finder_on
+	_finder_on = false
+	if world and world.has_method("dust_target"):
+		var t: Vector3 = world.dust_target()
+		var cam := get_viewport().get_camera_3d()
+		if t.is_finite() and cam:
+			var fp: Vector3 = world.focus_node().global_position
+			var to := Vector2(t.x - fp.x, t.z - fp.z)
+			_finder_dist = to.length()
+			var fwd := -cam.global_basis.z
+			# Angle of the target relative to where the camera looks (0 = straight ahead).
+			_finder_angle = Vector2(fwd.x, fwd.z).angle_to(to)
+			_finder_on = true
+	if _finder_on or was:
+		queue_redraw()
+
+
+func _draw() -> void:
+	if not _finder_on:
+		return
+	var c := Vector2(_obj_panel.position.x + _obj_panel.size.x * 0.5, _obj_panel.position.y + _obj_panel.size.y + 44)
+	draw_circle(c, 30, Color(0.04, 0.06, 0.1, 0.75))
+	draw_arc(c, 30, 0, TAU, 32, Color(1.0, 0.4, 0.3, 0.9), 2.0, true)
+	var up := Vector2.UP.rotated(_finder_angle)
+	var side := Vector2(-up.y, up.x)
+	draw_colored_polygon(PackedVector2Array([c + up * 22, c - up * 12 + side * 13, c - up * 5, c - up * 12 - side * 13]), Color(1.0, 0.45, 0.35))
+	var txt := "DUST %d m" % int(_finder_dist) if _finder_dist >= 1.5 else "DUST HERE"
+	var f := UIKit.font_bold()
+	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+	draw_string_outline(f, c + Vector2(-w * 0.5, 52), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 5, Color(0, 0, 0, 0.85))
+	draw_string(f, c + Vector2(-w * 0.5, 52), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.6, 0.5))
+
+
 func set_prompt(text: String) -> void:
 	_prompt.text = text
 
@@ -312,6 +350,7 @@ func set_prompt(text: String) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_update_ad_buttons(delta)
+	_update_finder()
 	# Smoothly count credits up/down for satisfying feedback.
 	var target := GameState.credits
 	if absf(target - _shown_credits) < 0.5:
@@ -334,6 +373,8 @@ func _process(delta: float) -> void:
 		var prog := ""
 		if p.y > 1.0:
 			prog = "  (%s / %s)" % [GameState.fmt_short(minf(p.x, p.y)), GameState.fmt_short(p.y)]
+		elif m["type"] == "world_clean":
+			prog = "  (%.2f%% clean)" % (p.x * 100.0)
 		elif m["type"] == "landmark":
 			prog = "  (%d%% / %d%%)" % [roundi(p.x * 100.0), roundi(p.y * 100.0)]
 		_obj_hint.text = m.get("hint", "") + prog

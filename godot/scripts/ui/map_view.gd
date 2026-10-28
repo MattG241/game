@@ -78,13 +78,33 @@ func _draw() -> void:
 				pts.append(center + Vector2.from_angle(a0 + PI * 0.5 - i * PI * 0.5 / 8.0) * TerrainGen.ZONE_RADIUS * k)
 			draw_colored_polygon(pts, Color(0, 0, 0, 0.55))
 	draw_arc(center, TerrainGen.ZONE_RADIUS * k, 0, TAU, 64, Color(1, 0.6, 0.2, 0.6), 2.0, true)
-	# Cleaned chunks
-	for key in GameState.dirt.chunks:
-		var f := GameState.dirt.chunk_fraction(key)
-		if f > 0.01:
-			var o := TerrainGen.chunk_origin(key)
-			var p0 := _to_map(Vector3(o.x, 0, o.y), rect)
-			draw_rect(Rect2(p0, Vector2(TerrainGen.CHUNK * k, TerrainGen.CHUNK * k)), Color(0.2, 1.0, 0.8, 0.15 + 0.6 * f))
+	# Dust finder: every 32 m patch of the Moon - green = spotless, amber = started,
+	# red tint = untouched dust (shown once the final mission is active).
+	var dm := GameState.dirt
+	var hunting: bool = GameState.current_mission().get("id", "") == "m_clean_moon"
+	var cell := Vector2(TerrainGen.CHUNK * k, TerrainGen.CHUNK * k)
+	for key in dm.playable():
+		var o := TerrainGen.chunk_origin(key)
+		var p0 := _to_map(Vector3(o.x, 0, o.y), rect)
+		if dm.clean.has(key):
+			draw_rect(Rect2(p0, cell), Color(0.2, 1.0, 0.5, 0.45))
+		else:
+			var c: DirtMap.DirtChunk = dm.chunks.get(key)
+			if c != null and c.modified:
+				draw_rect(Rect2(p0, cell), Color(1.0, 0.75, 0.2, 0.2 + 0.4 * dm.chunk_fraction(key)))
+			elif hunting:
+				draw_rect(Rect2(p0, cell), Color(1.0, 0.25, 0.2, 0.25))
+	# The edge of the map continues round the far side of the Moon.
+	draw_arc(center, TerrainGen.WRAP_RADIUS * k, 0, TAU, 96, Color(0.6, 0.8, 1.0, 0.5), 1.5, true)
+	var pct := "MOON CLEANED  %.1f%%" % (GameState.world_clean_fraction() * 100.0)
+	draw_string_outline(_font, rect.position + Vector2(10, 24), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 4, Color(0, 0, 0, 0.85))
+	draw_string(_font, rect.position + Vector2(10, 24), pct, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UIKit.GOOD)
+	draw_string_outline(_font, rect.position + Vector2(10, rect.size.y - 10), "Edge of map: keep going to come round the far side", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85))
+	draw_string(_font, rect.position + Vector2(10, rect.size.y - 10), "Edge of map: keep going to come round the far side", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.7, 0.85, 1.0))
+	if hunting and world and world.has_method("dust_target"):
+		var t: Vector3 = world.dust_target()
+		if t.is_finite():
+			_marker(_to_map(t, rect), Color(1.0, 0.35, 0.3), "DUST")
 	# Region names
 	var names := {1: Vector3(380, 0, 0), 2: Vector3(0, 0, -380), 3: Vector3(-380, 0, 0), 4: Vector3(0, 0, 380), 0: Vector3(0, 0, 90)}
 	for idx in names:

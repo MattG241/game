@@ -420,7 +420,7 @@ func _tab_map() -> void:
 	mv.custom_minimum_size = Vector2(0, 560)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_child(mv)
-	_note("Teal squares show ground you have cleaned. Orange marker: base. Squares: machines. Purple dots: vehicles. Dark sectors are locked regions.")
+	_note("Green patches are spotless, amber ones are started. In the final mission red shows dust still left and DUST marks the nearest. The Moon is round: walk off the edge and you come back on the far side. Orange marker: base. Squares: machines. Purple dots: vehicles. Dark sectors are locked regions.")
 
 
 func _tab_settings() -> void:

@@ -128,12 +128,16 @@ func _physics_process(delta: float) -> void:
 	var p := global_position
 	var reg := TerrainGen.region_at(p.x, p.z)
 	var r := Vector2(p.x, p.z).length()
-	if not GameState.region_unlocked(reg) or r > TerrainGen.WORLD_RADIUS - 50.0:
+	var over := r > TerrainGen.WRAP_RADIUS
+	var far_reg := TerrainGen.region_at(-p.x, -p.z)
+	if over and GameState.region_unlocked(reg) and GameState.region_unlocked(far_reg):
+		wrap_around()
+	elif not GameState.region_unlocked(reg) or over:
 		# Stop at the border smoothly (stay where we were last frame). Only if that spot
 		# was also off-limits (e.g. a save inside a now-locked area) jump to the last
 		# allowed spot, so the player can never be trapped bouncing in place.
 		var prev_ok := GameState.region_unlocked(TerrainGen.region_at(prev.x, prev.z)) \
-			and Vector2(prev.x, prev.z).length() <= TerrainGen.WORLD_RADIUS - 50.0
+			and Vector2(prev.x, prev.z).length() <= TerrainGen.WRAP_RADIUS
 		if prev_ok:
 			global_position = Vector3(prev.x, maxf(prev.y, TerrainGen.height(prev.x, prev.z)), prev.z)
 		else:
@@ -145,8 +149,9 @@ func _physics_process(delta: float) -> void:
 		_blocked_msg_t -= delta
 		if _blocked_msg_t <= 0.0:
 			_blocked_msg_t = 3.0
-			if r > TerrainGen.WORLD_RADIUS - 50.0:
-				GameState.notify.emit("The mountains are too steep to cross", "info")
+			if over:
+				var fi := GameData.region(far_reg)
+				GameState.notify.emit("Round the Moon is %s - it needs a permit (%s CR)" % [fi["name"], GameState.fmt(fi["permit"])], "error")
 			else:
 				var info := GameData.region(reg)
 				GameState.notify.emit("%s requires a permit (%s CR) - see Shop > Permits" % [info["name"], GameState.fmt(info["permit"])], "error")
@@ -165,6 +170,25 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 	_footsteps(delta, on_floor)
 	_head_bob(delta, on_floor, input.length())
+
+
+## Walked past the far edge: come back in on the opposite side of the Moon, still
+## heading the same way round (a half turn about the Moon's axis).
+func wrap_around() -> void:
+	var dest := TerrainGen.wrap_point(global_position)
+	dest.y = maxf(dest.y, TerrainGen.height(dest.x, dest.z) + 0.05)
+	global_position = dest
+	velocity = Vector3(-velocity.x, velocity.y, -velocity.z)
+	yaw += PI
+	rotation.y = yaw
+	_last_ok = dest
+	var world := get_tree().get_first_node_in_group("world")
+	if world:
+		world.terrain.ensure_collision_near(dest)
+	Diagnostics.event("wrapped around the moon")
+	if not GameState.flags.get("wrapped", false):
+		GameState.flags["wrapped"] = true
+		GameState.notify.emit("You went all the way round the Moon!", "achievement")
 
 
 func jump() -> void:

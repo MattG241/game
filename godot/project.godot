@@ -75,3 +75,14 @@ anti_aliasing/quality/msaa_3d=1
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 lights_and_shadows/positional_shadow/atlas_size=1024
 lights_and_shadows/positional_shadow/atlas_size.mobile=1024
+
+[shader_globals]
+
+bend_origin={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+bend_k={
+"type": "float",
+"value": 0.0
+}

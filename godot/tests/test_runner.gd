@@ -20,6 +20,23 @@ func check(cond: bool, name: String, detail := "") -> void:
 		print("  FAIL  ", name, "  ", detail)
 
 
+## A spot where the ground (and the given offsets from it) starts dusty: no rocks or
+## cliffs, which have no dust any more.
+static func dusty_spot(offsets: Array, from := Vector2(70.0, 90.0)) -> Vector2:
+	var d := DirtMap.new()
+	for ring in 40:
+		for k in 16:
+			var p := from + Vector2.from_angle(k * TAU / 16.0) * ring * 4.0
+			var ok := true
+			for o in offsets:
+				if d.sample(p.x + o.x, p.y + o.y) < 0.45:
+					ok = false
+					break
+			if ok:
+				return p
+	return from
+
+
 func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
@@ -40,6 +57,7 @@ func _ready() -> void:
 	await _test_menus()
 	await _test_vehicle()
 	await _test_automation()
+	await _test_wrap_and_ending()
 	await _test_save_load()
 	await _test_diagnostics()
 	print("=== %d passed, %d failed ===" % [passed, failures])
@@ -66,15 +84,69 @@ func _test_data() -> void:
 func _test_dirt() -> void:
 	print("[dirt map]")
 	var dm := DirtMap.new()
-	check(dm.sample(4.0, 30.0) == 0.0 and dm.sample(0.0, -16.0) == 0.0, "no hidden dust under the lander pad or buildings")
-	check(dm.sample(4.0, 45.0) > 0.0, "open ground next to the pad is still dusty")
-	var ck := Vector2i(floori(4.0 / DirtMap.CHUNK), floori(30.0 / DirtMap.CHUNK))
-	dm.get_chunk(ck).data.fill(200)
-	dm.clear_covered()
-	check(dm.sample(4.0, 30.0) == 0.0 and dm.sample(4.0, 45.0) > 0.0, "old saves lose only the dust under structures")
+	check(dm.sample(4.0, 33.0) > 0.0, "ground starts dusty before anything is built on it")
+	dm.add_cover_circle(4.0, 30.0, 8.3)
+	dm.add_cover_box(-30.0, 40.0, 2.0, 1.0, 0.0)
+	check(dm.sample(4.0, 33.0) == 0.0 and dm.sample(-30.0, 40.0) == 0.0, "no hidden dust under pads and buildings (existing chunks)")
+	check(dm.sample(4.0, 45.0) > 0.0 and dm.sample(-30.0, 42.0) > 0.0, "open ground next to them is still dusty")
+	var rp := dusty_spot([Vector2(0, 2.5), Vector2(2.5, 0)], Vector2(150, 150))
+	dm.add_cover_box(rp.x, rp.y, 3.0, 1.0, PI * 0.5)
+	check(dm.sample(rp.x, rp.y + 2.5) == 0.0 and dm.sample(rp.x + 2.5, rp.y) > 0.0, "rotated covers follow the building's yaw (chunks made later)", str(rp))
+	# Unreachable dust: under rocks and on cliffs
+	var rk_found := false
+	for kx in range(6, 12):
+		var key := Vector2i(kx, 1)
+		var big := TerrainGen.rocks_for_region(TerrainGen.region_at((kx + 0.5) * 32.0, 48.0))
+		var rk := TerrainGen.rock(key, 0, big)
+		if rk.w >= 0.0 and rk.z > 1.0:
+			rk_found = true
+			check(dm.sample(rk.x, rk.y) == 0.0, "no dust hidden under boulders")
+			break
+	check(rk_found, "found a boulder to test")
+	var steep_ok := true
+	var steep_n := 0
+	var key2 := TerrainGen.chunk_key(-6.0, -250.0)
+	var mask := TerrainGen.unreachable_mask(key2)
+	var init := TerrainGen.initial_dirt(key2)
+	for i in mask.size():
+		if mask[i] != 0:
+			steep_n += 1
+			if init[i] != 0:
+				steep_ok = false
+	check(steep_ok, "unreachable ground (rocks, cliffs) never starts dusty", str(steep_n))
+	# Mini-planet seam: both sides of the wrap line match
+	check(is_equal_approx(TerrainGen.height(531.0, 40.0), TerrainGen.height(-531.0, -40.0)), "terrain matches across the wrap line")
+	check(TerrainGen.wrap_point(Vector3(531, 2, 40)).is_equal_approx(Vector3(-531, 2, -40)), "wrap point is the opposite side")
+	# 100% tracking
+	var pk := dm.playable()
+	check(pk.size() > 700 and pk.size() < 1200, "the whole Moon is a fixed set of patches", str(pk.size()))
+	check(not dm.world_clean() and dm.world_fraction() < 0.999, "a fresh Moon is not clean")
+	var cd := DirtMap.new()
+	var ckey := Vector2i(2, 2)
+	cd.stamp(DirtMap.Shape.RECT, 80.0, 80.0, 16.5, 16.5, 0.0, 10.0, 1e9)
+	check(cd.get_chunk(ckey).dirty == 0 and cd.clean.has(ckey), "a fully scrubbed patch is recorded as spotless")
+	var edge_key := TerrainGen.chunk_key(528.0, 2.0)
+	var ec := cd.get_chunk(edge_key)
+	for i in ec.data.size():
+		if ec.play[i] == 1:
+			ec.zero(i)
+	var beyond := 0
+	for i in ec.data.size():
+		if ec.play[i] == 0 and ec.data[i] > TerrainGen.CLEAN_LEVEL:
+			beyond += 1
+	check(ec.dirty == 0 and beyond > 0, "dust past the wrap line doesn't count", str(beyond))
+	check(cd.nearest_dust(Vector3(80, 0, 80)).is_finite(), "dust finder points at the nearest dust left")
+	# Older (v1) saves: chunks are cleaned of unreachable dust once they stream in
+	var v1 := DirtMap.encode_snapshot(cd.snapshot())
+	v1[4] = 1
+	var cd2 := DirtMap.new()
+	check(cd2.decode(v1) and cd2.needs_sanitize(ckey), "old-save chunks are flagged for cleanup")
+	cd2.sanitize(ckey, TerrainGen.unreachable_mask(ckey))
+	check(not cd2.needs_sanitize(ckey), "cleanup runs once")
 	var d := DirtMap.new()
-	var x := 70.3
-	var z := 90.7
+	var sp := dusty_spot([Vector2.ZERO, Vector2(3, 0), Vector2(10, 0), Vector2(-10, 0), Vector2(-11, 0), Vector2(-9, 0)])
+	var x := sp.x
+	var z := sp.y
 	var before := d.sample(x, z)
 	check(before > 0.4, "ground starts dusty", str(before))
 	var area1 := d.stamp(DirtMap.Shape.ROUND, x, z, 0.5, 0.0, 0.0, 0.5, 1e9)
@@ -82,13 +154,15 @@ func _test_dirt() -> void:
 	check(area1 > 0.0 and mid < before, "stamping removes dirt where brushed", "%f -> %f" % [before, mid])
 	check(d.sample(x + 3.0, z) > 0.4, "dirt elsewhere untouched")
 	var area2 := d.stamp(DirtMap.Shape.ROUND, x, z, 0.5, 0.0, 0.0, 5.0, 1e9)
-	var area3 := d.stamp(DirtMap.Shape.ROUND, x, z, 0.5, 0.0, 0.0, 5.0, 1e9)
+	# (brush edges remove less per pass, so re-check well inside the cleaned circle)
+	var area3 := d.stamp(DirtMap.Shape.ROUND, x, z, 0.3, 0.0, 0.0, 5.0, 1e9)
 	check(d.sample(x, z) == 0.0, "full strength clears completely")
 	check(area3 == 0.0, "already-cleaned ground yields nothing", str(area3))
 	var total := area1 + area2
 	check(total > 0.5 and total < 0.9, "removed area matches brush footprint (~0.785 m2)", str(total))
 	var capped := d.stamp(DirtMap.Shape.ROUND, x + 10.0, z, 1.0, 0.0, 0.0, 5.0, 0.1)
-	check(capped <= 0.11, "budget caps removal (tank full logic)", str(capped))
+	# Can overshoot by at most one texel (0.25 m x 0.25 m).
+	check(capped <= 0.1 + TerrainGen.TEXEL * TerrainGen.TEXEL, "budget caps removal (tank full logic)", str(capped))
 	var rect := d.stamp(DirtMap.Shape.RECT, x - 10.0, z, 2.0, 0.5, 0.3, 5.0, 1e9)
 	check(rect > 2.0, "wide brushes clean rectangles", str(rect))
 	# Cross-chunk stamp
@@ -289,8 +363,9 @@ func _test_economy() -> void:
 	check(s1["strength"] > s0["strength"] and s1["radius"] > s0["radius"], "upgrades raise strength and width")
 	# Upgraded tool removes more per stamp
 	var d := DirtMap.new()
-	var a0 := d.stamp(DirtMap.Shape.ROUND, 200, 200, s0["radius"], 0, 0, s0["strength"] * 0.05, 1e9)
-	var a1 := d.stamp(DirtMap.Shape.ROUND, 210, 200, s1["radius"], 0, 0, s1["strength"] * 0.05, 1e9)
+	var tp := dusty_spot([Vector2.ZERO, Vector2(1, 0), Vector2(-1, 0), Vector2(10, 0), Vector2(11, 0), Vector2(9, 0)], Vector2(200, 200))
+	var a0 := d.stamp(DirtMap.Shape.ROUND, tp.x, tp.y, s0["radius"], 0, 0, s0["strength"] * 0.05, 1e9)
+	var a1 := d.stamp(DirtMap.Shape.ROUND, tp.x + 10.0, tp.y, s1["radius"], 0, 0, s1["strength"] * 0.05, 1e9)
 	check(a1 > a0, "upgraded tool cleans more per second", "%f vs %f" % [a0, a1])
 	var cap0 := GameState.tank_capacity()
 	check(GameState.buy_tank_upgrade() and GameState.tank_capacity() > cap0, "storage upgrade increases capacity")
@@ -358,6 +433,45 @@ func _test_ads() -> void:
 	IAP.ads_removed = saved_removed
 	Settings.set_value("ads_removed", saved_removed)
 	Ads.reset_pacing()
+
+
+func _test_wrap_and_ending() -> void:
+	print("[mini-planet wrap and ending]")
+	var saved_regions := GameState.regions.duplicate()
+	for i in GameState.regions.size():
+		GameState.regions[i] = true
+	if game.current_vehicle:
+		game.exit_vehicle()
+	var p: Player = game.player
+	var y0 := TerrainGen.height(529.5, 10.0)
+	p.global_position = Vector3(529.5, y0 + 0.2, 10.0)
+	p.yaw = -PI * 0.5
+	p.velocity = Vector3(6, 0, 0)
+	p.wrap_around()
+	check(p.global_position.is_equal_approx(Vector3(-529.5, p.global_position.y, -10.0)), "walking off the edge comes back on the far side", str(p.global_position))
+	check(is_equal_approx(wrapf(p.yaw, -PI, PI), PI * 0.5) and p.velocity.x < 0.0, "still heading the same way round (now towards base)")
+	await frames(10)
+	check(p.global_position.y > TerrainGen.height(p.global_position.x, p.global_position.z) - 0.5, "lands on solid ground after wrapping")
+	p.global_position = Vector3(0, 1, 14)
+	GameState.regions = saved_regions
+	# Ending
+	check(not game.can_fly_home(), "lander won't leave before the Moon is clean")
+	GameState.missions_done.append("m_clean_moon")
+	game._lander_action()
+	check(game.ending != null and not game.hud.visible, "lander lift-off cinematic starts")
+	await frames(5)
+	game.ending._t = Ending.LIFT_AT + 4.0
+	await frames(3)
+	check(game.base.lander.global_position.y > 10.0, "lander climbs into the sky", str(game.base.lander.global_position.y))
+	game.ending._t = Ending.FADE_AT + 2.0
+	await frames(3)
+	check(GameState.flags.get("went_home", false) and GameState.missions_done.has("m_go_home"), "end screen: your work here is done")
+	game.ending.finish()
+	await frames(2)
+	check(game.ending == null and game.hud.visible and game.base.lander.global_position.y < 1.0, "keep cleaning returns to the game")
+	GameState.missions_done.erase("m_clean_moon")
+	GameState.missions_done.erase("m_go_home")
+	GameState.flags.erase("went_home")
 
 
 func _test_menus() -> void:
@@ -468,6 +582,14 @@ func _test_automation() -> void:
 	near_base.y = TerrainGen.height(near_base.x, near_base.z)
 	check(sim.can_place("dust_collector", Vector3(0, 0, 0)) != "", "can't build inside the base")
 	auto.add_machine("solar_array", Vector3(-36, TerrainGen.height(-36, 10), 10), 0.0)
+	var solar: Dictionary = GameState.machines[0]
+	var sv: Node3D = auto.visuals[int(solar["uid"])]["root"]
+	var bounds := Automation.model_bounds(sv)
+	var body_box: BoxShape3D = null
+	for b in sv.find_children("*", "CollisionShape3D", true, false):
+		body_box = (b as CollisionShape3D).shape as BoxShape3D
+	check(body_box != null and body_box.size.x >= bounds.size.x - 0.01 and body_box.size.z >= bounds.size.z - 0.01, "machine collision covers the whole model (no driving through panels)", str(bounds.size))
+	check(GameState.dirt.sample(-36.0, 10.0) == 0.0, "no dust left hidden under a new machine")
 	auto.add_machine("dust_collector", near_base, 0.0)
 	auto.add_machine("conveyor", Vector3(22, TerrainGen.height(22, 4), 4), 0.0)
 	var col: Dictionary = GameState.machines[1]

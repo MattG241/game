@@ -9,12 +9,15 @@ uniform vec3 dust_color : source_color = vec3(0.66, 0.63, 0.58);
 uniform vec3 clean_color : source_color = vec3(0.15, 0.155, 0.17);
 uniform float far_fade = 240.0;
 
+#include "res://shaders/bend.gdshaderinc"
+
 varying vec3 world_pos;
 varying vec3 world_n;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	VERTEX = bend_vertex(VERTEX, MODEL_MATRIX);
 }
 
 void fragment() {

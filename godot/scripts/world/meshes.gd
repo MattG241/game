@@ -28,42 +28,40 @@ static func hs(color: Color, metallic := 0.25, rough := 0.5, emit := Color(0, 0,
 	return m
 
 
-static func glow(color: Color, strength := 2.0) -> StandardMaterial3D:
+static func glow(color: Color, strength := 2.0) -> ShaderMaterial:
 	var key := "glow|%s|%.2f" % [color.to_html(), strength]
 	if _mats.has(key):
 		return _mats[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.emission_enabled = true
-	m.emission = color
-	m.emission_energy_multiplier = strength
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/glow.gdshader")
+	m.set_shader_parameter("color", color)
+	m.set_shader_parameter("strength", strength)
 	_mats[key] = m
 	return m
 
 
-static func plain(color: Color, metallic := 0.0, rough := 0.6) -> StandardMaterial3D:
+static func plain(color: Color, metallic := 0.0, rough := 0.6) -> ShaderMaterial:
 	var key := "plain|%s|%.2f|%.2f" % [color.to_html(), metallic, rough]
 	if _mats.has(key):
 		return _mats[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.metallic = metallic
-	m.roughness = rough
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/plain.gdshader")
+	m.set_shader_parameter("albedo", color)
+	m.set_shader_parameter("metallic", metallic)
+	m.set_shader_parameter("roughness", rough)
 	_mats[key] = m
 	return m
 
 
-static func visor() -> StandardMaterial3D:
+static func visor() -> ShaderMaterial:
 	if _mats.has("visor"):
 		return _mats["visor"]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.85, 0.55, 0.15)
-	m.metallic = 1.0
-	m.roughness = 0.08
-	m.metallic_specular = 1.0
-	m.emission_enabled = true
-	m.emission = Color(0.25, 0.12, 0.02)
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/plain.gdshader")
+	m.set_shader_parameter("albedo", Color(0.85, 0.55, 0.15))
+	m.set_shader_parameter("metallic", 1.0)
+	m.set_shader_parameter("roughness", 0.08)
+	m.set_shader_parameter("emission", Color(0.25, 0.12, 0.02))
 	_mats["visor"] = m
 	return m
 
