@@ -1,3 +1,7 @@
+> **Lunar Cleanup (Android game):** install the latest APK on your phone from
+> https://github.com/MattG241/game/releases/latest/download/LunarCleanup.apk
+> - full details in [`godot/README.md`](godot/README.md).
+
 # Golden Century
 
 A polished, playable Chinese-imperial slot game — configuration, evaluation
