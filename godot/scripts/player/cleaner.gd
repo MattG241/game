@@ -348,7 +348,9 @@ func _update_swarm(delta: float, strength: float) -> float:
 	for i in n:
 		var d: Node3D = _drones[i]
 		var a := _time * 0.6 + i * TAU / n
-		var rad := 4.0 + 1.5 * sin(_time * 0.9 + i)
+		# Two rings of drones sweeping around the player (wider with upgrades).
+		var reach: float = float(stats["radius"]) * (2.2 if i % 2 == 0 else 3.6)
+		var rad := reach + 1.2 * sin(_time * 0.9 + i)
 		var target := TerrainGen.surface(base + pb * Vector3(cos(a) * rad, 0, sin(a) * rad), 1.4)
 		d.global_position = d.global_position.lerp(target, minf(delta * 3.0, 1.0))
 		d.global_basis = pb * Basis(Vector3.UP, -a)

@@ -41,7 +41,7 @@
     "cost_factor": 0.45,
     "cost_growth": 1.75,
     "strength_per_level": 0.28,
-    "radius_per_level": 0.09,
+    "radius_per_level": 0.14,
     "min_cost": 25
   }
 }

@@ -10,7 +10,7 @@ const W := 512                      # relief texture (longitude x latitude)
 const H := 256
 const SW := 256                     # state overlay texture
 const SH := 128
-const CACHE := "user://globe_relief_v1.png"
+const CACHE := "user://globe_relief_v2.png"
 const ZOOM_MIN := 1.12
 const ZOOM_MAX := 4.2
 
@@ -25,7 +25,7 @@ var _font: Font
 var _vp: SubViewport
 var _cam: Camera3D
 var _globe: MeshInstance3D
-var _mat: ShaderMaterial
+var _mat: StandardMaterial3D
 var _state_img: Image
 var _state_tex: ImageTexture
 var _state_t := 0.0
@@ -37,6 +37,7 @@ var _tap_from := Vector2.INF        # where a possible tap started
 var _tap_moved := 0.0
 var _wp_button: Button
 var _overlay: Control
+var _view: TextureRect
 
 
 static func prepare() -> void:
@@ -53,11 +54,12 @@ static func prepare() -> void:
 	_task = WorkerThreadPool.add_task(_generate.bind(tints, cached), false, "globe")
 
 
-## Pixel centre of an equirectangular image -> direction (y = up).
+## Pixel centre of a globe texture -> direction (y = up). Same layout as SphereMesh's
+## UVs (u round from +Z towards +X, v from the top), so a plain material can show it.
 static func pixel_dir(x: int, y: int, w: int, h: int) -> Vector3:
-	var lon := (x + 0.5) / w * TAU - PI
-	var lat := PI * 0.5 - (y + 0.5) / h * PI
-	return Vector3(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon))
+	var u := (x + 0.5) / w * TAU
+	var v := (y + 0.5) / h * PI
+	return Vector3(sin(u) * sin(v), cos(v), cos(u) * sin(v))
 
 
 static func _generate(tints: PackedColorArray, cached: Image) -> void:
@@ -92,7 +94,7 @@ static func _generate(tints: PackedColorArray, cached: Image) -> void:
 		var ex := maxf(px * cos(lat), px * 0.25)     # metres per pixel east-west here
 		for x in W:
 			var i := y * W + x
-			var hx: float = hs[y * W + (x + 1) % W]
+			var hx: float = hs[y * W + (x + W - 1) % W]
 			var hy: float = hs[mini(y + 1, H - 1) * W + x]
 			var shade := clampf(0.62 + (hs[i] - hx) / ex * 1.6 + (hs[i] - hy) / px * 1.0 + hs[i] * 0.006, 0.18, 1.0)
 			var d := pixel_dir(x, y, W, H)
@@ -112,37 +114,44 @@ func _ready() -> void:
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	prepare()
-	var svc := SubViewportContainer.new()
-	svc.stretch = true
-	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(svc)
+	# Plain building blocks only: a custom globe shader in a stretched sub-viewport
+	# drew noise, offset from the markers, on an Adreno phone.
 	_vp = SubViewport.new()
 	_vp.own_world_3d = true
-	# No MSAA / transparency: in the Compatibility renderer on phones a multisampled,
-	# transparent sub-viewport showed nothing at all.
 	_vp.transparent_bg = false
 	_vp.msaa_3d = Viewport.MSAA_DISABLED
-	svc.add_child(_vp)
+	_vp.size = Vector2i(512, 512)
+	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_vp)
+	_view = TextureRect.new()
+	_view.texture = _vp.get_texture()
+	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_view.stretch_mode = TextureRect.STRETCH_SCALE
+	_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_view)
 	_cam = Camera3D.new()
 	_cam.fov = 40.0
 	_cam.near = 0.01
 	_cam.far = 20.0
 	_vp.add_child(_cam)
 	_globe = MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 1.0
-	sm.height = 2.0
-	sm.radial_segments = 96
-	sm.rings = 48
-	_globe.mesh = sm
-	_mat = ShaderMaterial.new()
-	_mat.shader = load("res://shaders/globe.gdshader")
+	_globe.mesh = _sphere(1.0)
+	_mat = StandardMaterial3D.new()
+	_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_mat.albedo_color = Color(0.35, 0.36, 0.4)
 	_globe.material_override = _mat
 	_vp.add_child(_globe)
 	_state_img = Image.create(SW, SH, false, Image.FORMAT_RGBA8)
 	_state_tex = ImageTexture.create_from_image(_state_img)
-	_mat.set_shader_parameter("state", _state_tex)
+	var shell := MeshInstance3D.new()
+	shell.mesh = _sphere(1.003)
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.albedo_texture = _state_tex
+	shell.material_override = sm
+	_globe.add_child(shell)
 	_overlay = Control.new()
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -170,6 +179,15 @@ func _center_on_focus() -> void:
 	if world and world.has_method("focus_node"):
 		d = world.focus_node().global_position
 	_rot = _facing(d.normalized())
+
+
+static func _sphere(r: float) -> SphereMesh:
+	var sm := SphereMesh.new()
+	sm.radius = r
+	sm.height = r * 2.0
+	sm.radial_segments = 96
+	sm.rings = 48
+	return sm
 
 
 static func _facing(f: Vector3) -> Basis:
@@ -264,8 +282,9 @@ func _tap(pos: Vector2) -> void:
 ## Direction from the Moon's centre under a point of the map view, or ZERO when the
 ## point is off the globe.
 func globe_dir_at(pos: Vector2) -> Vector3:
-	var o := _cam.project_ray_origin(pos)
-	var r := _cam.project_ray_normal(pos)
+	var vp_pos := pos * Vector2(_vp.size) / size.max(Vector2.ONE)
+	var o := _cam.project_ray_origin(vp_pos)
+	var r := _cam.project_ray_normal(vp_pos)
 	# |o + t r| = 1
 	var b := o.dot(r)
 	var c := o.dot(o) - 1.0
@@ -288,9 +307,12 @@ func _process(delta: float) -> void:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
 		_relief = ImageTexture.create_from_image(_relief_img)
-	if _relief:
-		_mat.set_shader_parameter("relief", _relief)
-		_mat.set_shader_parameter("relief_ready", 1.0)
+	if _relief and _mat.albedo_texture == null:
+		_mat.albedo_texture = _relief
+		_mat.albedo_color = Color.WHITE
+	var want := Vector2i(maxi(int(size.x), 64), maxi(int(size.y), 64))
+	if _vp.size != want:
+		_vp.size = want
 	_globe.basis = _rot
 	_cam.position = Vector3(0, 0, _dist)
 	_state_t -= delta
@@ -344,7 +366,7 @@ func _screen(p: Vector3, lift := 0.0) -> Vector2:
 	var g := _rot * (p.normalized() * (1.0 + lift))
 	if g.dot(_cam.position - g) <= 0.0:
 		return Vector2.INF
-	return _cam.unproject_position(g)
+	return _cam.unproject_position(g) * size / Vector2(_vp.size)
 
 
 func _draw_overlay() -> void:
