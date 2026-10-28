@@ -42,6 +42,7 @@ var landmark_progress := {}
 var stats := {}
 var player := {"pos": [0.0, 1.0, 12.0], "yaw": 0.0, "pitch": -0.25, "vehicle": -1}
 var started_at := 0
+var away_seconds := 0.0           # time since this save was written (set on load)
 
 var _mission_timer := 0.0
 var active := false           # true while a game world is running
@@ -94,6 +95,7 @@ func new_game() -> void:
 	player = {"pos": [sp.x, sp.y, sp.z], "yaw": 0.0, "pitch": -0.3, "vehicle": -1}
 	battery = battery_capacity()
 	started_at = int(Time.get_unix_time_from_system())
+	away_seconds = 0.0
 
 
 func to_dict() -> Dictionary:
@@ -118,6 +120,9 @@ func to_dict() -> Dictionary:
 func from_dict(d: Dictionary) -> void:
 	new_game()
 	d = migrate(d)
+	away_seconds = maxf(0.0, Time.get_unix_time_from_system() - float(d.get("saved_at", 0)))
+	if int(d.get("saved_at", 0)) <= 0:
+		away_seconds = 0.0
 	credits = float(d.get("credits", 0.0))
 	rp = float(d.get("rp", 0.0))
 	tank_dust = float(d.get("tank_dust", 0.0))
@@ -714,7 +719,7 @@ func mission_progress(m: Dictionary) -> Vector2:
 		"tier":
 			var best := 0
 			for mc in machines:
-				if mc["id"] == m["machine"]:
+				if m["machine"] == "any" or mc["id"] == m["machine"]:
 					best = maxi(best, int(mc.get("tier", 1)))
 			return Vector2(best, float(m["value"]))
 		"build":
@@ -733,6 +738,9 @@ func mission_progress(m: Dictionary) -> Vector2:
 			return Vector2(world_clean_fraction(), 1.0)
 		"hexes":
 			return Vector2(hexes_done.size(), float(m["value"]))
+		"fast_finish":
+			var fast: bool = flags.get("went_home", false) and stat("play_time") <= float(m["value"])
+			return Vector2(1.0 if fast else 0.0, 1.0)
 	return Vector2(0, 1)
 
 

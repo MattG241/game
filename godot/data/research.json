@@ -14,7 +14,7 @@
     {"id": "r_deep", "name": "Deep Extraction", "desc": "+60% Dust Collector deep extraction.", "rp": 120, "credits": 25000, "requires": ["r_solar"], "effect": {"deep": 0.6}},
     {"id": "r_logistics", "name": "Wide Sweep Arms", "desc": "+50% Dust Collector cleaning radius.", "rp": 100, "credits": 15000, "requires": ["r_solar"], "effect": {"link": 0.5}},
     {"id": "r_refining", "name": "Advanced Refining", "desc": "+40% value of everything machines sell.", "rp": 200, "credits": 60000, "requires": ["r_deep"], "effect": {"refine": 0.4}},
-    {"id": "r_autosell", "name": "Express Shipping", "desc": "Shipping depots launch twice as often.", "rp": 220, "credits": 70000, "requires": ["r_logistics"], "effect": {"ship": 1}},
+    {"id": "r_autosell", "name": "Hexagon Bounty", "desc": "+50% bonus for every hexagon you clear.", "rp": 220, "credits": 70000, "requires": ["r_logistics"], "effect": {"hexbonus": 0.5}},
     {"id": "r_market_3", "name": "Interplanetary Brand", "desc": "+35% dust price.", "rp": 400, "credits": 250000, "requires": ["r_market_2"], "effect": {"price": 0.35}},
     {"id": "r_bristle_3", "name": "Quantum Bristles", "desc": "+30% cleaning strength.", "rp": 500, "credits": 400000, "requires": ["r_bristle_2"], "effect": {"strength": 0.3}}
   ]

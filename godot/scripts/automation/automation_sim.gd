@@ -16,6 +16,8 @@ extends RefCounted
 const MAX_TIER := 5
 const TIER_MULT := 1.8          # each tier multiplies output by this
 const NEAR_DISTANCE := 150.0
+const AWAY_CAP := 4.0 * 3600.0   # machines work for at most this long while the game is closed
+const AWAY_SPEED := 0.5          # ...at half speed
 
 static var BASE_POS := LunarBase.at(LunarBase.EXCHANGE_POS)
 static var BASE_CENTER := LunarBase.at(Vector3(0, 0, -2))
@@ -218,6 +220,30 @@ func tick(dt: float, _near := {}) -> void:
 	production_rate = lerpf(production_rate, _prod_acc / dt * 60.0, 0.1)
 	_revenue_acc = 0.0
 	_prod_acc = 0.0
+
+
+## Work done while the game was closed: collectors keep extracting, stations and
+## hangars finish the hexagon they were on (no new ones). Returns {credits, hexes}.
+func run_away(seconds: float) -> Dictionary:
+	var credits0 := GameState.credits
+	var hexes0 := GameState.hexes_done.size()
+	var left := minf(seconds, AWAY_CAP) * AWAY_SPEED
+	var first := {}
+	for m in machines():
+		if m["id"] != "dust_collector":
+			first[m["uid"]] = target_of(m)
+	while left > 0.0:
+		var dt := minf(60.0, left)
+		left -= dt
+		for m in machines():
+			if m["id"] == "dust_collector":
+				var p := v3(m["pos"])
+				var rinfo := GameData.region(TerrainGen.region_of(p))
+				var deep := float(info(m).get("deep_rate", 1.0)) * tier_mult(m) * (1.0 + GameState.research_bonus("deep")) * dt
+				_sell(m, deep, float(rinfo["dust_mult"]))
+			elif int(first.get(m["uid"], -1)) >= 0 and target_of(m) == int(first[m["uid"]]):
+				_hex_worker(m, dt)
+	return {"credits": GameState.credits - credits0, "hexes": GameState.hexes_done.size() - hexes0}
 
 
 ## Sells what a machine produced straight away.

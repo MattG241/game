@@ -210,7 +210,7 @@ func _process(delta: float) -> void:
 			_battery_warn_t -= delta
 			if _battery_warn_t <= 0.0:
 				_battery_warn_t = 6.0
-				GameState.notify.emit("Suit battery empty - tool at 20%. Recharge at base or a Charging Station.", "error")
+				GameState.notify.emit("Suit battery empty - tool at 20%. Recharge at base or near one of your machines.", "error")
 	var removed_area := 0.0
 	var thickness := 1.0
 	var region := TerrainGen.region_of(aim_point)

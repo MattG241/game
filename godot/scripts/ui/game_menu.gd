@@ -202,7 +202,8 @@ func _note(text: String) -> void:
 # ---------------------------------------------------------------------- tabs
 
 func _tab_tools() -> void:
-	_note("Bigger tools clean wider strips, faster. Powered tools draw suit battery; recharge at the base or a Charging Station. Upgrades add +28% strength and +9% width per level.")
+	var up: Dictionary = GameData.economy["tool_upgrade"]
+	_note("Bigger tools clean wider strips, faster. Powered tools draw suit battery; it recharges at the base and near any of your machines. Upgrades add +%d%% strength and +%d%% width per level." % [roundi(float(up["strength_per_level"]) * 100.0), roundi(float(up["radius_per_level"]) * 100.0)])
 	var max_level := int(GameData.economy["tool_upgrade"]["max_level"])
 	for t in GameData.tools:
 		var id: String = t["id"]

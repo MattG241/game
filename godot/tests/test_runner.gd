@@ -84,6 +84,17 @@ func _test_data() -> void:
 	check(upgrades >= 20, "at least 20 progression upgrades", str(upgrades))
 	check(GameData.regions.size() == 5, "5 regions")
 	check(GameData.machines.size() == 3, "three automation machines (collector, station, hangar)")
+	var ach_ids := {}
+	for a in GameData.achievements:
+		ach_ids[a["id"]] = true
+	check(ach_ids.size() == GameData.achievements.size(), "every achievement has its own id")
+	var used := ["battery", "capacity", "deep", "drone", "jetpack", "link", "move", "price", "refine", "strength", "hexbonus"]
+	var dead := []
+	for r in GameData.research:
+		for k in r["effect"]:
+			if not used.has(k):
+				dead.append(r["id"])
+	check(dead.is_empty(), "every research project does something", str(dead))
 	var a := TerrainGen.height(123.4, -55.6)
 	var b := TerrainGen.height(123.4, -55.6)
 	check(is_equal_approx(a, b), "terrain is deterministic")
@@ -665,6 +676,10 @@ func _test_hexagons() -> void:
 			break
 	check(GameState.hexes_done.has(here) and GameState.credits > cr, "clearing a hexagon completes it with a bonus", "%d hexes" % GameState.hexes_done.size())
 	check(game.current_hex_fraction() == 1.0, "HUD shows the hexagon as done")
+	var flashes := game.find_children("*", "HexFlash", false, false)
+	check(not flashes.is_empty(), "a wall of light rises around the cleared hexagon")
+	await frames(int(HexFlash.LIFE * 60.0) + 30)
+	check(game.find_children("*", "HexFlash", false, false).is_empty(), "and fades away")
 	var t0 := Time.get_ticks_msec()
 	var pts := HexLines.border(5)
 	var ms := Time.get_ticks_msec() - t0
@@ -922,6 +937,29 @@ func _test_automation() -> void:
 	check(AutomationSim.hex_progress(far) > 0.05, "hangar drones make progress on a far hexagon", str(AutomationSim.hex_progress(far)))
 	var refund := sim.remove_machine(int(hg["uid"]))
 	check(refund >= float(GameData.machine("drone_hangar")["price"]) * 0.5 - 0.1, "removing a machine refunds half of what it cost")
+	# While the game was closed
+	var nothing: Dictionary = sim.run_away(0.0)
+	var cr_away := GameState.credits
+	var hexes_away := GameState.hexes_done.size()
+	var away: Dictionary = sim.run_away(10.0 * 3600.0)
+	check(float(nothing["credits"]) == 0.0 and float(away["credits"]) > 0.0 and absf(GameState.credits - cr_away - float(away["credits"])) < 1.0, "machines earn credits while the game is closed", GameState.fmt(float(away["credits"])))
+	var stations := 0
+	for m in GameState.machines:
+		if m["id"] != "dust_collector":
+			stations += 1
+	check(int(away["hexes"]) <= stations and GameState.hexes_done.size() - hexes_away == int(away["hexes"]), "but stations only finish the hexagon they were on", "%d hexes, %d stations" % [away["hexes"], stations])
+	var col_rate := float(GameData.machine("dust_collector")["deep_rate"]) * AutomationSim.tier_mult(col) * (1.0 + GameState.research_bonus("deep"))
+	var c_away := float(col["earned"])
+	sim.run_away(100.0 * 3600.0)
+	var units := (float(col["earned"]) - c_away) / (GameState.dust_price() * (1.0 + GameState.research_bonus("refine")) * float(GameData.region(TerrainGen.region_of(near_base))["dust_mult"]))
+	check(absf(units - col_rate * AutomationSim.AWAY_CAP * AutomationSim.AWAY_SPEED) < col_rate * 61.0, "closed-game work is capped at 4 hours, half speed", "%.0f units" % units)
+	var cr_wb := GameState.credits
+	game._welcome_back(2.0 * 3600.0)
+	await frames(2)
+	check(GameState.credits > cr_wb and get_tree().paused and game.menu.visible, "a WELCOME BACK message shows what the machines earned")
+	game.menu.close()
+	await frames(2)
+	check(not get_tree().paused, "and closes back to the game")
 	auto.rebuild_all()
 
 

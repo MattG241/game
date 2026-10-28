@@ -93,6 +93,10 @@ func _process(_d: float) -> void:
 		if _frames == 12:
 			GameState.missions_done.append("m_clean_moon")
 			game._lander_action()
+	if game and _args.has("hexflash") and _frames == 40:
+		# Clear a hexagon a little ahead of the player to show the effect.
+		var pl: Node3D = game.player
+		game.complete_hex(HexGrid.cell_of(pl.global_position))
 	if game and _args.has("ending"):
 		if _frames == 10:
 			GameState.missions_done.append("m_clean_moon")

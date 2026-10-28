@@ -99,6 +99,8 @@ func _ready() -> void:
 		var r := float(GameState.flags["automation_refund"])
 		GameState.flags.erase("automation_refund")
 		call_deferred("_automation_news", r)
+	elif GameState.away_seconds > 300.0 and not GameState.machines.is_empty():
+		call_deferred("_welcome_back", GameState.away_seconds)
 	if GameState.stat("play_time") < 1.0:
 		call_deferred("_intro")
 
@@ -127,6 +129,24 @@ func _make_gravity() -> void:
 	cs.shape = sh
 	a.add_child(cs)
 	add_child(a)
+
+
+## Machines kept working while the game was closed.
+func _welcome_back(away: float) -> void:
+	GameState.away_seconds = 0.0
+	var got: Dictionary = automation.sim.run_away(away)
+	if float(got["credits"]) < 1.0:
+		return
+	var h := int(away / 3600.0)
+	var mins := int(fmod(away / 60.0, 60.0))
+	var span := ("%d h %02d min" % [h, mins]) if h > 0 else ("%d min" % mins)
+	var text := "You were away for %s. Your machines kept cleaning:\n\n+%s CR" % [span, GameState.fmt(float(got["credits"]))]
+	if int(got["hexes"]) > 0:
+		text += "\n%d hexagon%s finished" % [got["hexes"], "" if int(got["hexes"]) == 1 else "s"]
+	text += "\n\nWhile the game is closed machines work at half speed for up to 4 hours, and stations only finish the hexagon they were on."
+	Audio.play("coin")
+	menu.show_dialog("WELCOME BACK", text)
+	_pause(true)
 
 
 func _automation_news(refund: float) -> void:
@@ -365,9 +385,9 @@ func supervisor_talk() -> void:
 		"Cleaned ground can't be cleaned twice - look for the pale dusty areas. Crater floors hold extra-thick dust.",
 		"Buy a bigger tank in Shop > Suit. Fewer trips means more cleaning.",
 		"Each region has more valuable dust. Unlock them with permits from the Shop.",
-		"Machines need power. Build a Solar Array first, then a Dust Collector within 14 m of the Dust Exchange so it sells automatically.",
-		"Conveyor Segments link machines up to 16 m apart. Chain them back to base, or use Storage + a Shipping Depot out in the field.",
-		"Cleaning drones and rovers need a Charging Station within 45 m of their bay or garage.",
+		"Machines work anywhere and sell what they clean by themselves. Upgrade them from Mk I to Mk V - each tier nearly doubles the output.",
+		"A Hexagon Cleaning Station clears its own hexagon, then the nearest unfinished one. Send Drone Hangar squads to any hexagon from the MAP.",
+		"Clean 90% of a hexagon and the rest is swept for you, with a bonus. Your suit battery recharges at base and near any machine.",
 		"Research makes everything better. Cleaning earns research points; so do salvage crates at the old research facility.",
 	]
 	var m := GameState.current_mission()
@@ -571,7 +591,7 @@ func _process(delta: float) -> void:
 	if _interact_t <= 0.0:
 		_interact_t = 0.15
 		_find_target()
-	# Battery recharge at base and charging stations
+	# Battery recharge at base and near any machine
 	var fp := focus_node().global_position
 	var charge_radius := float(GameData.economy["base_recharge_radius"])
 	var charging := fp.distance_to(AutomationSim.BASE_CENTER) < charge_radius
@@ -709,6 +729,8 @@ func complete_hex(cell: int) -> void:
 		if GameState.dirt.has_chunk(k):
 			loaded.append(k)
 	_sweeps.append([cell, loaded, 0.0])
+	if HexGrid.center_point(cell).distance_to(focus_node().global_position) < 400.0:
+		HexFlash.spawn(self, cell)
 
 
 ## How much of a hexagon is clean (0..1), from points spread over it.
@@ -729,7 +751,7 @@ func _hex_bonus(cell: int, swept_m2: float) -> void:
 	var mult := float(rinfo["dust_mult"])
 	# The swept dust is sold straight away, plus a bonus that grows as you go.
 	var dust := swept_m2 * float(GameData.economy["dust_per_m2"]) * float(rinfo["thickness"])
-	var bonus := (1500.0 + 150.0 * GameState.hexes_done.size()) * mult + dust * mult * GameState.dust_price()
+	var bonus := (1500.0 + 150.0 * GameState.hexes_done.size()) * mult * (1.0 + GameState.research_bonus("hexbonus")) + dust * mult * GameState.dust_price()
 	GameState.add_credits(bonus)
 	GameState.rp += 3
 	Audio.play("mission")
