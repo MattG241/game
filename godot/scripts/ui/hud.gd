@@ -19,6 +19,8 @@ var _obj_panel: PanelContainer
 var _region_label: Label
 var _prompt: Label
 var _toasts: VBoxContainer
+const MAX_TOASTS := 2
+const TOAST_W := 460.0
 var _popup: Label
 var _perf: Label
 var _vehicle_panel: PanelContainer
@@ -123,7 +125,7 @@ func _build() -> void:
 	_obj_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ov.add_child(_obj_hint)
 	# Toasts
-	_toasts = UIKit.vbox(6)
+	_toasts = UIKit.vbox(4)
 	_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_toasts)
 	# Prompt
@@ -179,8 +181,8 @@ func _layout() -> void:
 	# Objective sits between the status panel and the menu buttons.
 	_obj_panel.position = Vector2(maxf(s.x * 0.5 - 250, _insets.x + 340), _insets.y + 6)
 	_obj_panel.size.x = 440
-	_toasts.position = Vector2(s.x * 0.5 - 300, _insets.y + 150)
-	_toasts.size = Vector2(600, 300)
+	_toasts.position = Vector2(s.x * 0.5 - TOAST_W * 0.5, _insets.y + 150)
+	_toasts.size = Vector2(TOAST_W, 120)
 	_prompt.position = Vector2(s.x * 0.5 - 300, s.y - _insets.w - 150)
 	_prompt.size = Vector2(600, 40)
 	_popup.position = Vector2(s.x * 0.5 - 300, s.y * 0.36)
@@ -218,23 +220,32 @@ func _update_tool() -> void:
 
 
 func toast(text: String, kind := "info") -> void:
-	var p := UIKit.panel(Color(0.04, 0.06, 0.1, 0.85), _kind_color(kind), 12, 10)
+	# Small and few: at most MAX_TOASTS at once, the same message is not repeated.
+	for c in _toasts.get_children():
+		if c.has_meta("text") and c.get_meta("text") == text:
+			c.queue_free()
+	var p := UIKit.panel(Color(0.04, 0.06, 0.1, 0.8), _kind_color(kind), 8, 6)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var l := UIKit.label(text, 20, Color.WHITE, kind == "mission" or kind == "achievement")
+	p.set_meta("text", text)
+	var l := UIKit.label(text, 16, Color.WHITE, kind == "mission" or kind == "achievement")
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.custom_minimum_size = Vector2(560, 0)
+	l.custom_minimum_size = Vector2(TOAST_W - 20, 0)
 	p.add_child(l)
 	_toasts.add_child(p)
-	while _toasts.get_child_count() > 4:
-		var old := _toasts.get_child(0)
+	var live := []
+	for c in _toasts.get_children():
+		if not c.is_queued_for_deletion():
+			live.append(c)
+	while live.size() > MAX_TOASTS:
+		var old: Node = live.pop_front()
 		_toasts.remove_child(old)
 		old.queue_free()
 	p.modulate.a = 0.0
 	var tw := p.create_tween()
-	tw.tween_property(p, "modulate:a", 1.0, 0.2)
-	tw.tween_interval(3.2 if kind != "mission" else 5.0)
-	tw.tween_property(p, "modulate:a", 0.0, 0.5)
+	tw.tween_property(p, "modulate:a", 1.0, 0.15)
+	tw.tween_interval(2.6 if kind != "mission" else 3.6)
+	tw.tween_property(p, "modulate:a", 0.0, 0.4)
 	tw.tween_callback(p.queue_free)
 	if kind == "error":
 		Audio.play("error", -6.0)

@@ -680,6 +680,28 @@ func _test_hexagons() -> void:
 	check(not flashes.is_empty(), "a wall of light rises around the cleared hexagon")
 	await frames(int(HexFlash.LIFE * 60.0) + 30)
 	check(game.find_children("*", "HexFlash", false, false).is_empty(), "and fades away")
+	# A burst of hexagons (stations, hangars, big tools) gives one message, not one each.
+	var said := []
+	var listen := func(t: String, _k: String): said.append(t)
+	GameState.notify.connect(listen)
+	var burst := 0
+	for c in HexGrid.count():
+		if not GameState.hexes_done.has(c) and burst < 4:
+			game.complete_hex(c)
+			burst += 1
+	for i in 900:
+		await get_tree().process_frame
+		if said.any(func(t): return "HEXAGONS CLEARED" in t):
+			break
+	GameState.notify.disconnect(listen)
+	var hex_msgs: Array = said.filter(func(t): return "HEXAGON" in t)
+	check(hex_msgs.size() == 1 and "4 HEXAGONS CLEARED" in hex_msgs[0], "several hexagons clearing together share one message", str(hex_msgs))
+	check(game.find_children("*", "HexFlash", false, false).size() <= 1, "and only one light show plays at a time")
+	for i in 5:
+		GameState.notify.emit("test message %d" % i, "info")
+	await frames(2)
+	var shown: Array = game.hud._toasts.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	check(shown.size() <= HUD.MAX_TOASTS, "no more than two pop-ups on screen at once", str(shown.size()))
 	var t0 := Time.get_ticks_msec()
 	var pts := HexLines.border(5)
 	var ms := Time.get_ticks_msec() - t0

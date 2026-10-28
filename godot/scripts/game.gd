@@ -686,11 +686,15 @@ func dust_target() -> Vector3:
 
 var _hex_t := 0.0
 var _sweeps := []         # [cell, chunks still to sweep, m2 swept, paid by player cleaning]
+var _hex_batch := {}      # hexagons cleared since the last message: n, cr, age, quiet
+const HEX_BATCH_QUIET := 1.2   # message once no hexagon has cleared for this long...
+const HEX_BATCH_MAX := 4.0     # ...or this long after the first one
 
 
 ## Watches the hexagons around the player: once one is CLEAR_AT clean (ground measured
 ## plus machine work), it is finished: the rest is swept and a bonus paid.
 func _update_hexes(delta: float) -> void:
+	_flush_hex_batch(delta)
 	if not _sweeps.is_empty():
 		var job: Array = _sweeps[0]
 		var todo: Array = job[1]
@@ -729,7 +733,9 @@ func complete_hex(cell: int) -> void:
 		if GameState.dirt.has_chunk(k):
 			loaded.append(k)
 	_sweeps.append([cell, loaded, 0.0])
-	if HexGrid.center_point(cell).distance_to(focus_node().global_position) < 400.0:
+	# One light show at a time: a burst of hexagons shouldn't fill the sky.
+	if HexGrid.center_point(cell).distance_to(focus_node().global_position) < 400.0 \
+			and find_children("*", "HexFlash", false, false).is_empty():
 		HexFlash.spawn(self, cell)
 
 
@@ -754,11 +760,30 @@ func _hex_bonus(cell: int, swept_m2: float) -> void:
 	var bonus := (1500.0 + 150.0 * GameState.hexes_done.size()) * mult * (1.0 + GameState.research_bonus("hexbonus")) + dust * mult * GameState.dust_price()
 	GameState.add_credits(bonus)
 	GameState.rp += 3
-	Audio.play("mission")
-	Settings.vibrate(120, 0.6)
-	GameState.notify.emit("HEXAGON CLEARED  %d / %d   +%s CR  +3 RP" % [GameState.hexes_done.size(), HexGrid.count(), GameState.fmt(bonus)], "mission")
+	# Hexagons that clear close together (stations, hangars, big tools) share one
+	# message, sound and buzz instead of a pop-up each.
+	if _hex_batch.is_empty():
+		_hex_batch = {"n": 0, "cr": 0.0, "age": 0.0}
+	_hex_batch["n"] = int(_hex_batch["n"]) + 1
+	_hex_batch["cr"] = float(_hex_batch["cr"]) + bonus
+	_hex_batch["quiet"] = 0.0
 	Diagnostics.event("hex %d cleared" % cell)
 	GameState.check_missions()
+
+
+func _flush_hex_batch(delta: float) -> void:
+	if _hex_batch.is_empty():
+		return
+	_hex_batch["age"] = float(_hex_batch["age"]) + delta
+	_hex_batch["quiet"] = float(_hex_batch["quiet"]) + delta
+	if float(_hex_batch["quiet"]) < HEX_BATCH_QUIET and float(_hex_batch["age"]) < HEX_BATCH_MAX:
+		return
+	var n := int(_hex_batch["n"])
+	var what := "HEXAGON CLEARED" if n == 1 else "%d HEXAGONS CLEARED" % n
+	Audio.play("mission")
+	Settings.vibrate(120, 0.6)
+	GameState.notify.emit("%s  %d / %d   +%s CR  +%d RP" % [what, GameState.hexes_done.size(), HexGrid.count(), GameState.fmt(float(_hex_batch["cr"])), 3 * n], "mission")
+	_hex_batch = {}
 
 
 ## Fraction clean of the hexagon the player is in (for the HUD), -1 when unknown.
