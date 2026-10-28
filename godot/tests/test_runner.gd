@@ -775,7 +775,16 @@ func _test_saucer_and_hover() -> void:
 	await frames(120)
 	u.braking = false
 	check(TerrainGen.altitude(u.global_position) > alt0 + 5.0, "UP climbs over ridges", "%.1f -> %.1f" % [alt0, TerrainGen.altitude(u.global_position)])
+	# Fly fast for a while, then step out mid-air: you land on solid ground.
+	game.controls.move_vector = Vector2(0, -1)
+	await frames(300)
+	game.controls.move_vector = Vector2.ZERO
 	game.exit_vehicle()
+	var lowest := INF
+	for i in 120:
+		await get_tree().physics_frame
+		lowest = minf(lowest, TerrainGen.altitude(game.player.global_position))
+	check(lowest > -0.3 and TerrainGen.altitude(game.player.global_position) < 1.0, "stepping out of the saucer lands you on the ground, not through it", str(lowest))
 	await frames(400)
 	check(TerrainGen.altitude(u.global_position) < 2.5, "parked, it lands", str(TerrainGen.altitude(u.global_position)))
 	game.recall_vehicle(game.vehicles.size() - 1)
@@ -789,8 +798,9 @@ func _test_saucer_and_hover() -> void:
 	await frames(20)
 	pl.jump()
 	game.controls.held["jump"] = true
-	await frames(300)
-	check(TerrainGen.altitude(pl.global_position) < 1.0, "without the Hover Pack, Jump Jets don't keep you flying")
+	# A big jump plus a 1 s boost stays up for several seconds in Moon gravity.
+	await frames(720)
+	check(TerrainGen.altitude(pl.global_position) < 1.0, "without the Hover Pack, Jump Jets don't keep you flying", "%.2f floor %s hover %s" % [TerrainGen.altitude(pl.global_position), str(pl.is_on_floor()), str(GameState.has_hover_pack())])
 	game.controls.held.erase("jump")
 	await frames(30)
 	check(GameState.buy_hover_pack() and GameState.has_hover_pack(), "buy the Hover Pack")

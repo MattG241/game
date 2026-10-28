@@ -527,6 +527,9 @@ func exit_vehicle() -> void:
 	v.set_driving(false)
 	current_vehicle = null
 	var side := TerrainGen.surface(v.global_transform * Vector3(-(float(v.info["size"][0]) * 0.5 + 1.3), 0, 0), 0.3)
+	# The ground there must be solid before stepping out (a fast saucer can outrun
+	# the detailed terrain that carries collision).
+	terrain.prewarm(side)
 	player.global_position = side
 	player.velocity = Vector3.ZERO
 	player.global_basis = TerrainGen.upright(side, -v.global_basis.z)

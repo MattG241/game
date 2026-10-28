@@ -189,8 +189,14 @@ func _physics_process(delta: float) -> void:
 				_ok_t = 0.0
 				# A point 1.5 m back along the way we came, so we land clear of the border.
 				_last_ok = global_position - v_h.limit_length(1.0) * 1.5
-	# Safety net: never fall through the world.
-	if TerrainGen.altitude(global_position) < -2.0:
+	# Safety net: never fall through the world. Where the ground's collision isn't
+	# built yet, stand on the terrain height itself; below it anyway, step back up.
+	var alt := TerrainGen.altitude(global_position)
+	if alt < 0.0 and world and world.terrain and not world.terrain.has_collision_at(global_position):
+		global_position = TerrainGen.surface(global_position, 0.0)
+		var nu := global_position.normalized()
+		velocity -= nu * minf(velocity.dot(nu), 0.0)
+	elif alt < -1.0:
 		global_position = TerrainGen.surface(global_position, 0.5)
 		velocity = Vector3.ZERO
 	_footsteps(delta, on_floor)

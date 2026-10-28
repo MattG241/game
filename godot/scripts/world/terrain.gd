@@ -85,7 +85,10 @@ func prewarm(pos: Vector3) -> void:
 	keys.append_array(TerrainGen.neighbours(c))
 	for key in keys:
 		if chunks.has(key):
-			continue
+			if int(chunks[key]["lod"]) == 0:
+				continue
+			# A far (low detail) chunk has no collision: rebuild it in full now.
+			_unload(key)
 		var res := {}
 		_build_task(key, 0, not dirt.has_chunk(key), res)
 		_finalize(key, 0, res)
