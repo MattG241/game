@@ -32,15 +32,25 @@ var values := {
 	"sfx_volume": 0.9,
 	"perf_overlay": false,
 	"curved_horizon": true,
+	"safe_graphics_build": "",   # build that switched the curved horizon off after a crash
 }
 
 
 func _ready() -> void:
 	load_settings()
+	var build := str(ProjectSettings.get_setting("application/config/version"))
+	# Safe graphics switched on automatically by an older build: give the curved
+	# horizon another go with this build (it falls back again if it still crashes).
+	var safe_from := str(values.get("safe_graphics_build", ""))
+	if safe_from != "" and safe_from != build:
+		values["curved_horizon"] = true
+		values["safe_graphics_build"] = ""
+		save_settings()
 	# The game crashed before it ever drew a frame: most likely the GPU driver choked
 	# on a shader. Fall back to plain shaders (no curved horizon) so it can start.
 	if Diagnostics.previous_crashed and not Diagnostics.previous_drew_frame:
 		values["curved_horizon"] = false
+		values["safe_graphics_build"] = build
 		save_settings()
 		Diagnostics.safe_graphics_enabled = true
 	apply()

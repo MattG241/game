@@ -53,6 +53,7 @@ func _ready() -> void:
 	_ring.mesh = pm
 	_ring_mat = ShaderMaterial.new()
 	_ring_mat.shader = Meshes.world_shader("res://shaders/brush_ring.gdshader")
+	Meshes.register_bend(_ring_mat)
 	_ring.material_override = _ring_mat
 	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_ring)

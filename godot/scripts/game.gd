@@ -628,8 +628,12 @@ func _update_bend() -> void:
 	if cam == null:
 		return
 	var c := cam.global_position
-	RenderingServer.global_shader_parameter_set("bend_origin", c)
-	RenderingServer.global_shader_parameter_set("bend_k", 1.0 / (2.0 * BEND_RADIUS))
+	var k := 1.0 / (2.0 * BEND_RADIUS)
+	Meshes.apply_bend(c, k)
+	for key in terrain.chunks:
+		var m: ShaderMaterial = terrain.chunks[key]["mat"]
+		m.set_shader_parameter("bend_origin", c)
+		m.set_shader_parameter("bend_k", k)
 	# Label3D text can't use the bend shader, so drop labels by hand.
 	if _bend_labels.is_empty():
 		for l in find_children("*", "Label3D", true, false):
@@ -644,7 +648,7 @@ func _update_bend() -> void:
 
 
 func _exit_tree() -> void:
-	RenderingServer.global_shader_parameter_set("bend_k", 0.0)
+	Meshes.apply_bend(Vector3.ZERO, 0.0)
 
 
 ## Copies live node state into GameState right before saving.
