@@ -30,6 +30,9 @@ var _ring_mat: ShaderMaterial
 var _beam: MeshInstance3D
 var _particles: CPUParticles3D
 var _drones: Array = []
+var _swarm_dt := 0.0           # drones clean in 0.1 s steps, not every frame
+var _probe_t := -1.0           # seconds of extra crash breadcrumbs left after a tool change
+var _probe_next := 0.0
 var _last_stamp := Vector3.INF
 var _time := 0.0
 var _haptic_t := 0.0
@@ -102,7 +105,9 @@ func _make_particles() -> CPUParticles3D:
 
 
 func _on_tool_changed(id: String) -> void:
-	Diagnostics.event("tool " + id)
+	Diagnostics.mark("tool " + id)
+	_probe_t = 20.0
+	_probe_next = 0.0
 	stats = GameState.tool_stats(id)
 	if id == tool_id and _head != null:
 		_resize_ring()
@@ -223,6 +228,7 @@ func _process(delta: float) -> void:
 		_rate_t = 0.0
 	_update_rig(delta, active)
 	_update_effects(active)
+	_probe(delta, active)
 
 
 func _update_aim() -> void:
@@ -307,6 +313,14 @@ func _update_swarm(delta: float, strength: float) -> float:
 	var base := player.global_position
 	var pb := TerrainGen.upright(base, -player.global_basis.z)
 	var dust_per_m2 := float(GameData.economy["dust_per_m2"])
+	# Cleaning (and the dust map / ground texture updates it causes) runs ten times a
+	# second rather than every frame: four drones stamping every frame kept several
+	# ground textures re-uploading non-stop.
+	_swarm_dt += delta
+	var stamp_now := _swarm_dt >= 0.1
+	var step := _swarm_dt
+	if stamp_now:
+		_swarm_dt = 0.0
 	for i in n:
 		var d: Node3D = _drones[i]
 		var a := _time * 0.6 + i * TAU / n
@@ -316,10 +330,32 @@ func _update_swarm(delta: float, strength: float) -> float:
 		d.global_basis = pb * Basis(Vector3.UP, -a)
 		var props: Node3D = d.get_node("Props")
 		props.rotation.y += delta * 40.0
+		if not stamp_now:
+			continue
 		var budget := GameState.tank_space() / dust_per_m2 - total
 		if budget > 0.0:
-			total += dirt.stamp(DirtMap.Shape.ROUND, d.global_position, stats["radius"], 0.0, Vector3.ZERO, strength * delta, budget)
+			total += dirt.stamp(DirtMap.Shape.ROUND, d.global_position, stats["radius"], 0.0, Vector3.ZERO, strength * step, budget)
 	return total
+
+
+## Extra breadcrumbs for a while after changing tools, written straight to the crash
+## log, so a native crash right after equipping something shows what was going on.
+func _probe(delta: float, active: bool) -> void:
+	if _probe_t < 0.0:
+		return
+	_probe_t -= delta
+	_probe_next -= delta
+	if _probe_next > 0.0:
+		return
+	_probe_next = 0.5
+	var vis := 0
+	for d in _drones:
+		var cam := get_viewport().get_camera_3d()
+		if cam and not cam.is_position_behind((d as Node3D).global_position):
+			vis += 1
+	Diagnostics.mark("tool %s t%.1f active %s removing %s drones %d/%d bat %d tank %d dirty %d" % [
+		tool_id, 20.0 - _probe_t, str(active), str(removing), vis, _drones.size(),
+		int(GameState.battery), int(GameState.tank_space()), dirt.visual_dirty.size()])
 
 
 func _update_rig(delta: float, active: bool) -> void:
