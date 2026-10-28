@@ -19,6 +19,9 @@ var ghost: Node3D
 var ghost_yaw := 0.0
 var ghost_ok := false
 var ghost_reason := ""
+var ghost_link_text := ""       # "Links to the base", "NOT LINKED ...", shown while placing
+var _preview: MeshInstance3D    # link-range ring + lines to what it would connect to
+var _preview_key := ""
 
 
 func setup(w: Node) -> void:
@@ -293,6 +296,7 @@ func _update_ghost() -> void:
 	pos.y = TerrainGen.height(pos.x, pos.z)
 	ghost.global_position = pos
 	ghost.rotation.y = ghost_yaw
+	_update_link_preview(pos)
 	var reason := sim.can_place(placing, pos)
 	var price := float(GameData.machine(placing)["price"])
 	if reason == "" and not GameState.can_afford(price):
@@ -302,6 +306,46 @@ func _update_ghost() -> void:
 		ghost_ok = ok
 		ghost_reason = reason
 		MachineModels.ghostify(ghost, ok)
+
+
+## Draws the ghost's link range and lines to everything it would join, and explains it.
+func _update_link_preview(pos: Vector3) -> void:
+	var pv := sim.preview_links(placing, pos)
+	var links: Array = pv["links"]
+	var r: float = pv["range"]
+	if r <= 0.0:
+		ghost_link_text = "Power is shared by all machines - no link needed" if placing == "solar_array" else ""
+	elif links.is_empty():
+		ghost_link_text = "NOT LINKED - move within %d m of a machine, or bridge with Conveyors" % int(r)
+	elif pv["base"]:
+		ghost_link_text = "Links to the base Exchange network (%d)" % links.size()
+	else:
+		ghost_link_text = "Links to %d machine%s - add Storage + a Depot to sell" % [links.size(), "" if links.size() == 1 else "s"]
+	# Rebuild the lines only when something changed (position snapped to 0.5 m).
+	var key := "%d|%d|%d|%d" % [roundi(pos.x * 2.0), roundi(pos.z * 2.0), links.size(), int(r)]
+	if key == _preview_key and _preview:
+		return
+	_preview_key = key
+	if _preview == null:
+		_preview = MeshInstance3D.new()
+		_preview.material_override = Meshes.glow(Color(0.3, 0.9, 1.0), 2.5)
+		_preview.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_preview)
+	var im := ImmediateMesh.new()
+	if r > 0.0:
+		im.surface_begin(Mesh.PRIMITIVE_LINES)
+		var n := 48
+		for i in n:
+			for k in 2:
+				var a := TAU * float(i + k) / n
+				var p := pos + Vector3(cos(a) * r, 0, sin(a) * r)
+				im.surface_add_vertex(Vector3(p.x, TerrainGen.height(p.x, p.z) + 0.3, p.z))
+		for t in links:
+			var tp: Vector3 = t
+			im.surface_add_vertex(pos + Vector3(0, 1.2, 0))
+			im.surface_add_vertex(Vector3(tp.x, TerrainGen.height(tp.x, tp.z) + 1.2, tp.z))
+		im.surface_end()
+	_preview.mesh = im
 
 
 func confirm_placement() -> bool:
@@ -330,3 +374,8 @@ func cancel_placement() -> void:
 	placing = ""
 	ghost_ok = false
 	ghost_reason = ""
+	ghost_link_text = ""
+	_preview_key = ""
+	if _preview:
+		_preview.queue_free()
+		_preview = null

@@ -185,7 +185,7 @@ func _layout() -> void:
 	_popup.position = Vector2(s.x * 0.5 - 300, s.y * 0.36)
 	_popup.size = Vector2(600, 80)
 	_vehicle_panel.position = Vector2(_insets.x + 6, _insets.y + 250)
-	_place_panel.position = Vector2(s.x * 0.5 - 260, s.y - _insets.w - 90)
+	_place_panel.position = Vector2(s.x * 0.5 - 340, s.y - _insets.w - 125)
 	_perf.position = Vector2(_insets.x + 8, s.y * 0.5)
 	_offer.position = Vector2(s.x * 0.5 - 210, s.y * 0.36 + 96)
 	_recharge.position = _left.position + Vector2(0, _left.size.y + 8)
@@ -400,6 +400,9 @@ func _process(delta: float) -> void:
 			var info := GameData.machine(placing)
 			var reason: String = world.automation.ghost_reason
 			_place_label.text = "%s  -  %s CR   %s" % [info["name"], GameState.fmt(info["price"]), ("OK: tap BUILD" if reason == "" else reason)]
+			var lt: String = world.automation.ghost_link_text
+			if lt != "":
+				_place_label.text += "\n" + lt
 			_place_label.add_theme_color_override("font_color", UIKit.GOOD if reason == "" else UIKit.BAD)
 	if GameState.tank_dust >= GameState.tank_capacity() - 0.01:
 		_tank_flash += delta

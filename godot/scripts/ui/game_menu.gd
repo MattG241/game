@@ -298,9 +298,25 @@ func _tab_permits() -> void:
 		_card(r["name"], r["desc"], "Dust value x%s   Dust density x%s   %s" % [str(r["dust_mult"]), str(r["thickness"]), req_text], Color.html(r["tint"]), [b], unlocked)
 
 
+const AUTOMATION_HELP := """1. POWER is shared by everything. The base gives 6, each Solar Array 12. Use more than you make and every machine slows down.
+
+2. LINKS: machines within 9 m of each other join one network. Conveyor Segments reach 16 m - use them as bridges. The blue ring while placing shows the reach.
+
+3. DUST NEEDS A DESTINATION, or machines stop with "Buffer full":
+ - linked to the base Dust Exchange: sold automatically, or
+ - far away: a Storage Container plus a Shipping Depot rockets it to Earth every 30 s.
+
+4. DRONES AND ROVERS need a Charging Station within 45 m of their bay. Rovers collect the most dust, then drones; collectors are slow but never stop.
+
+5. A PROCESSING STATION next to a Storage Container makes dust worth 3x - in any network.
+
+Starter pod: Solar Array + Charging Station + Drone Bay + Storage + Shipping Depot, all close together. Add a Rover Garage and a Processing Station as you earn more."""
+
+
 func _tab_build() -> void:
 	var sim: AutomationSim = world.automation.sim
-	_note("Machines are placed 8 m in front of you. Link producers to the base Dust Exchange or to Storage + a Shipping Depot with Conveyor Segments. Power: %d / %d used (efficiency %d%%)." % [int(sim.demand), int(sim.supply), int(sim.efficiency * 100.0)])
+	_note("Power: %d / %d used (machines run at %d%%). Machines are placed 8 m in front of you; the blue ring shows what they will link to." % [int(sim.demand), int(sim.supply), int(sim.efficiency * 100.0)])
+	_content.add_child(UIKit.accent_button("HOW AUTOMATION WORKS", func(): show_dialog("HOW AUTOMATION WORKS", AUTOMATION_HELP), Vector2(420, 64), 22))
 	for m in GameData.machines:
 		var id: String = m["id"]
 		var count := 0

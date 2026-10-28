@@ -645,6 +645,23 @@ func _test_automation() -> void:
 	check(float(bay["produced"]) > 0.0, "cleaning drone produces dust", str(bay["produced"]))
 	# Power shortage reduces efficiency
 	check(sim.efficiency > 0.0 and sim.efficiency <= 1.0, "power efficiency computed", str(sim.efficiency))
+	# Link preview while placing
+	var pv := sim.preview_links("dust_collector", near_base + Vector3(5, 0, 0))
+	check(pv["base"] and not (pv["links"] as Array).is_empty(), "placement preview shows a link to the base network")
+	check((sim.preview_links("dust_collector", Vector3(-200, 0, 200))["links"] as Array).is_empty(), "placement preview warns when nothing is in reach")
+	# A processor + storage also pays off in a network linked to the base
+	var bp := near_base + Vector3(0, 0, 6)
+	bp.y = TerrainGen.height(bp.x, bp.z)
+	auto.add_machine("storage_container", bp, 0.0)
+	var bst: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	auto.add_machine("processor", near_base + Vector3(6, 0, 3), 0.0)
+	var bpr: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	check(sim.net_of.has(int(bpr["uid"])) and sim.net_of[int(bpr["uid"])] == sim.net_of[AutomationSim.BASE_UID], "processor joins the base network")
+	var cr2 := GameState.credits
+	for i in 30:
+		sim.tick(1.0)
+	check(float(bpr.get("produced", 0.0)) > 0.0 and String(bpr["status"]) != "No power", "processor refines in a base network", str(bpr.get("status", "")))
+	check(GameState.credits > cr2 and sim.stored(bst) < sim.storage_capacity(bst), "base sells refined dust (storage never stalls)")
 
 
 func _test_save_load() -> void:

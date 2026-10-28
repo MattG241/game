@@ -10,7 +10,9 @@ extends RefCounted
 ##   network. The base Dust Exchange is a network node that buys everything instantly.
 ## - Producers (collectors, drone bays, rover garages) fill an internal buffer, then push
 ##   it into network storage (storage containers, depot hoppers) or straight to the base.
-## - Processors refine raw dust stored in their network (3x value).
+## - Processors refine raw dust stored in their network (3x value). This works in base
+##   networks too: there the base sells refined dust at once and raw dust only when
+##   storage gets full, so a processor + storage pay off anywhere.
 ## - Shipping depots sell the whole network's storage every interval.
 ## - Drones and rovers need a Charging Station within 45 m of their home.
 
@@ -175,6 +177,28 @@ func rebuild() -> void:
 	_compute_power()
 
 
+## What a machine placed at pos would connect to: {"links": [positions], "base": bool,
+## "range": metres}. Used by the placement preview.
+func preview_links(id: String, pos: Vector3) -> Dictionary:
+	var r := float(GameData.machine(id).get("link", 0)) * (1.0 + GameState.research_bonus("link"))
+	var out := {"links": [], "base": false, "range": r}
+	if r <= 0.0:
+		return out
+	if pos.distance_to(BASE_POS) <= maxf(r, BASE_LINK):
+		out["links"].append(BASE_POS)
+		out["base"] = true
+	for m in machines():
+		var mr := link_range(m)
+		if mr <= 0.0:
+			continue
+		var mp := v3(m["pos"])
+		if pos.distance_to(mp) <= maxf(r, mr):
+			out["links"].append(mp)
+			if net_of.has(int(m["uid"])) and net_of.has(BASE_UID) and net_of[int(m["uid"])] == net_of[BASE_UID]:
+				out["base"] = true
+	return out
+
+
 func _find(parent: Array, i: int) -> int:
 	while parent[i] != i:
 		parent[i] = parent[parent[i]]
@@ -248,7 +272,7 @@ func _collector(m: Dictionary, dt: float) -> void:
 		m["status"] = "No power"
 		return
 	if float(m.get("d", 0.0)) >= buffer_capacity(m) - 0.01:
-		m["status"] = "Buffer full - link storage"
+		m["status"] = "Buffer full - link it to the base, a Storage Container or a Depot"
 		return
 	var p := v3(m["pos"])
 	var rinfo := GameData.region(TerrainGen.region_at(p.x, p.z))
@@ -302,7 +326,7 @@ func update_agent(m: Dictionary, dt: float) -> void:
 			a["bat"] = minf(float(a["bat"]) + 25.0 * dt, 100.0)
 			a["wait"] = float(a["wait"]) - dt
 			if float(a["load"]) > 0.01:
-				m["status"] = "Waiting - buffer full"
+				m["status"] = "Buffer full - link the bay to the base, storage or a Depot"
 			elif float(a["bat"]) >= 99.0 and float(a["wait"]) <= 0.0:
 				var t := _pick_target(m, home, rng)
 				if t == Vector3.INF:
@@ -404,12 +428,14 @@ func _network(net: Array, dt: float) -> void:
 				producers.append(m)
 			"processor":
 				processors.append(m)
+	# A base network with a processor and storage keeps raw dust for refining.
+	var refine_for_base := has_base and not processors.is_empty() and not containers.is_empty()
 	# 1) producers -> base (instant sale) or containers
 	for p in producers:
 		var d := float(p.get("d", 0.0))
 		if d <= 0.0:
 			continue
-		if has_base:
+		if has_base and not refine_for_base:
 			_sell(d, float(p.get("v", 0.0)))
 			p["d"] = 0.0
 			p["v"] = 0.0
@@ -427,6 +453,11 @@ func _network(net: Array, dt: float) -> void:
 			p["v"] = float(p["v"]) - val
 			if float(p["d"]) <= 0.0001:
 				break
+		# Storage full in a base network: sell the rest raw rather than stall.
+		if refine_for_base and float(p["d"]) > 0.0001:
+			_sell(float(p["d"]), float(p["v"]))
+			p["d"] = 0.0
+			p["v"] = 0.0
 	# 2) processors refine raw dust inside containers
 	for pr in processors:
 		if efficiency <= 0.0:
@@ -450,12 +481,25 @@ func _network(net: Array, dt: float) -> void:
 			done += mv
 		pr["rate_acc"] = float(pr.get("rate_acc", 0.0)) + done
 		pr["produced"] = float(pr.get("produced", 0.0)) + done
-		pr["status"] = "Refining" if done > 0.0 else ("No storage linked" if containers.is_empty() else "Waiting for dust")
+		pr["status"] = "Refining" if done > 0.0 else ("Needs a Storage Container linked next to it" if containers.is_empty() else "Waiting for dust")
 	# 3) base flushes storage instantly; depots launch on a timer
 	if has_base:
 		for c in containers:
-			_flush(c)
-			c["status"] = "Linked to base exchange"
+			if refine_for_base:
+				# Refined dust sells straight away; raw waits for the processor unless
+				# storage is getting full.
+				if float(c.get("rd", 0.0)) > 0.0:
+					_sell(float(c["rd"]), float(c.get("rv", 0.0)))
+					c["rd"] = 0.0
+					c["rv"] = 0.0
+				if stored(c) > storage_capacity(c) * 0.8:
+					_sell(float(c.get("d", 0.0)), float(c.get("v", 0.0)))
+					c["d"] = 0.0
+					c["v"] = 0.0
+				c["status"] = "Refining for the base exchange"
+			else:
+				_flush(c)
+				c["status"] = "Linked to base exchange"
 	else:
 		var interval := 30.0 / (1.0 + GameState.research_bonus("ship"))
 		for dp in depots:

@@ -64,6 +64,12 @@ func _process(_d: float) -> void:
 	if game and _args.has("clean") and _frames > 10 and _frames < _target - 5:
 		game.controls.held["clean"] = true
 		game.player.yaw += 0.01 * sin(_frames * 0.05)
+	if game and _args.has("place") and _frames == 10:
+		GameState.credits = 1e6
+		if _args.has("prebuild"):
+			game.automation.add_machine("solar_array", Vector3(40, TerrainGen.height(40, 4), 4), 0.0)
+			game.automation.add_machine("charging_station", Vector3(46, TerrainGen.height(46, 10), 10), 0.0)
+		game.begin_placement(_args["place"])
 	if game and _args.has("ending"):
 		if _frames == 10:
 			GameState.missions_done.append("m_clean_moon")
