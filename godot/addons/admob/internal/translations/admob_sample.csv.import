@@ -15,3 +15,5 @@ dest_files=["res://addons/admob/internal/translations/admob_sample.en.translatio
 
 compress=1
 delimiter=0
+unescape_keys=false
+unescape_translations=true
