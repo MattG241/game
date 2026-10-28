@@ -32,6 +32,15 @@ var _full_warn_t := 0.0
 # Flying vehicles (the Lunar Saucer): no wheels, hovers at a height above the ground.
 var flying := false
 var descending := false        # saucer DOWN held
+var _paint_parts: Array[MeshInstance3D] = []
+var _paint_mat: Material
+
+
+## Factory paint, or the vehicle skin the player is wearing.
+func apply_paint() -> void:
+	var m := Cosmetics.skin_material(Cosmetics.equipped("vehicle"))
+	for mi in _paint_parts:
+		mi.material_override = m if m else _paint_mat
 var _fly_speed := 0.0
 var _fly_alt := 1.2
 var _beam: MeshInstance3D
@@ -111,6 +120,13 @@ func setup(vehicle_index: int) -> void:
 			Meshes.part(body, Meshes.box(Vector3(0.5, h * 1.2, 0.5)), paint, Vector3(w * 0.35, h * 1.4, -l * 0.1))
 			for i in 3:
 				Meshes.part(body, Meshes.box(Vector3(0.4, 0.12, 0.05)), Meshes.glow(Color(1.0, 0.75, 0.2), 3.0), Vector3((i - 1) * 0.8, h * 1.35, -l * 0.49))
+	# Parts in the vehicle's paint can be repainted with a skin.
+	_paint_parts.clear()
+	for mi in body.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).material_override == paint:
+			_paint_parts.append(mi)
+	_paint_mat = paint
+	apply_paint()
 	# Headlights
 	for s in [-1, 1]:
 		Meshes.part(body, Meshes.box(Vector3(0.22, 0.12, 0.05)), Meshes.glow(Color(1.0, 0.95, 0.8), 4.0), Vector3(s * w * 0.32, h * 0.55, -l * 0.5 - 0.03), Vector3.ZERO, Vector3.ONE, false)

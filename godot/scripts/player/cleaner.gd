@@ -69,6 +69,28 @@ func _ready() -> void:
 	GameState.tool_changed.connect(_on_tool_changed)
 	RenderingServer.frame_post_draw.connect(func(): _trace("drawn"))
 	_on_tool_changed(GameState.equipped)
+	_apply_suit()
+	Settings.changed.connect(_on_settings)
+
+
+## Suit colours on the arm and glove; tool skin re-applied when it changes.
+func _apply_suit() -> void:
+	var sk := Cosmetics.equipped("suit")
+	_arm.material_override = Meshes.hs(Color.html(sk.get("suit", "#eeeee6")), 0.05, 0.75, Color(0, 0, 0), 0.0, 5.0, 0.2)
+	_glove.material_override = Meshes.hs(Color.html(sk.get("accent", "#f28020")), 0.1, 0.6)
+
+
+var _skin_ids := ""
+
+
+func _on_settings() -> void:
+	var ids := Cosmetics.equipped_id("suit") + Cosmetics.equipped_id("tool")
+	if ids == _skin_ids:
+		return
+	_skin_ids = ids
+	_apply_suit()
+	tool_id = ""
+	_on_tool_changed(GameState.equipped)
 
 
 func _make_particles() -> CPUParticles3D:
@@ -130,6 +152,8 @@ func _on_tool_changed(id: String) -> void:
 	add_child(_head)
 	_shaft.material_override = _rig["shaft_mat"]
 	_grip.material_override = _rig["grip_mat"]
+	Cosmetics.skin_tool(_head, _shaft, Color.html(stats.get("color", "#ffffff")))
+	_skin_ids = Cosmetics.equipped_id("suit") + Cosmetics.equipped_id("tool")
 	var emitter: bool = _rig["emitter"]
 	_shaft.visible = not emitter
 	_grip.visible = not emitter

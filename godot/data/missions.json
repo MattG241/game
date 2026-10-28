@@ -56,6 +56,7 @@
     {"id": "a_hover", "title": "Floating Around", "desc": "Fit the Hover Pack.", "type": "flag", "flag": "hover_pack", "value": 1},
     {"id": "a_saucer", "title": "Close Encounter", "desc": "Own the Lunar Saucer.", "type": "own_vehicle", "vehicle": "lunar_ufo"},
     {"id": "a_mk5", "title": "Top of the Line", "desc": "Upgrade any machine to Mk V.", "type": "tier", "machine": "any", "value": 5},
+    {"id": "a_prospector", "title": "Prospector", "desc": "Dig up 10 gold nuggets.", "type": "stat", "stat": "nuggets", "value": 10},
     {"id": "a_whole_moon", "title": "Not One Speck", "desc": "Clean every speck of dust on the Moon.", "type": "world_clean", "value": 1.0},
     {"id": "a_speedrun", "title": "Speed Cleaner", "desc": "Fly home within 6 hours of play.", "type": "fast_finish", "value": 21600},
     {"id": "a_home", "title": "Homeward Bound", "desc": "Fly home after cleaning the Moon.", "type": "flag", "flag": "went_home", "value": 1}

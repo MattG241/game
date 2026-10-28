@@ -31,6 +31,8 @@ var values := {
 	"music_volume": 0.6,
 	"sfx_volume": 0.9,
 	"perf_overlay": false,
+	"ads_removed": false,     # Remove Ads purchase (also re-checked with Google Play)
+	"cosmetics": {},          # skins unlocked / worn (kept across every save)
 }
 
 

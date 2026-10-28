@@ -25,10 +25,11 @@ var _interact_t := 0.0
 var _autosave_t := 0.0
 var _landmark_t := 0.0
 var _charge_msg_t := 0.0
-var _supervisor_idx := 0
 var _mouse_clean := false
 var ending: Ending
 var hex_lines: HexLines
+var nuggets: Nuggets
+var hologram: Hologram
 
 
 func _ready() -> void:
@@ -80,6 +81,15 @@ func _ready() -> void:
 	hex_lines = HexLines.new()
 	hex_lines.world = self
 	add_child(hex_lines)
+	nuggets = Nuggets.new()
+	nuggets.world = self
+	add_child(nuggets)
+	hologram = Hologram.new()
+	hologram.world = self
+	add_child(hologram)
+	GameState.notify.connect(func(text: String, kind: String):
+		if kind == "achievement":
+			hologram.cheer(text))
 	# Automation
 	automation = Automation.new()
 	add_child(automation)
@@ -87,6 +97,9 @@ func _ready() -> void:
 	# Vehicles
 	_spawn_vehicles()
 	GameState.vehicles_changed.connect(_spawn_vehicles)
+	Settings.changed.connect(func():
+		for v in vehicles:
+			(v as LunarVehicle).apply_paint())
 	GameState.mission_completed.connect(_on_mission)
 	GameState.active = true
 	Audio.play_music(true)
@@ -390,14 +403,7 @@ func supervisor_talk() -> void:
 		"Clean 90% of a hexagon and the rest is swept for you, with a bonus. Your suit battery recharges at base and near any machine.",
 		"Research makes everything better. Cleaning earns research points; so do salvage crates at the old research facility.",
 	]
-	var m := GameState.current_mission()
-	var text: String = tips[_supervisor_idx % tips.size()]
-	_supervisor_idx += 1
-	if not m.is_empty():
-		text = "Current contract: %s\n%s\n\n%s" % [m["title"], m["hint"], text]
-	controls.release_all()
-	menu.show_dialog("SUPERVISOR GLEAM", text)
-	_pause(true)
+	hologram.talk(tips)
 
 
 func _pause(on: bool) -> void:
@@ -445,7 +451,8 @@ func quit_to_menu() -> void:
 
 
 func _on_mission(m: Dictionary) -> void:
-	pass
+	if m["id"] != "m_go_home":
+		hologram.cheer("Contract done: " + str(m["title"]))
 
 
 # ------------------------------------------------------------------- economy
@@ -783,6 +790,7 @@ func _flush_hex_batch(delta: float) -> void:
 	Audio.play("mission")
 	Settings.vibrate(120, 0.6)
 	GameState.notify.emit("%s  %d / %d   +%s CR  +%d RP" % [what, GameState.hexes_done.size(), HexGrid.count(), GameState.fmt(float(_hex_batch["cr"])), 3 * n], "mission")
+	hologram.cheer(what.capitalize() if n > 1 else "Hexagon cleared!")
 	_hex_batch = {}
 
 

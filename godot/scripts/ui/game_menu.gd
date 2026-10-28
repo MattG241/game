@@ -9,7 +9,7 @@ signal closed
 const TABS := [
 	["shop", "TOOLS"], ["suit", "SUIT"], ["vehicles", "VEHICLES"], ["permits", "PERMITS"],
 	["build", "BUILD"], ["research", "RESEARCH"], ["missions", "MISSIONS"], ["ops", "OPERATIONS"],
-	["inventory", "INVENTORY"], ["map", "MAP"], ["settings", "SETTINGS"], ["pause", "GAME"],
+	["inventory", "INVENTORY"], ["map", "MAP"], ["style", "STYLE"], ["settings", "SETTINGS"], ["pause", "GAME"],
 ]
 
 var world: Node
@@ -144,6 +144,7 @@ func _rebuild() -> void:
 		"ops": _tab_ops()
 		"inventory": _tab_inventory()
 		"map": _tab_map()
+		"style": _tab_style()
 		"settings": _tab_settings()
 		"pause": _tab_pause()
 
@@ -446,6 +447,38 @@ func _tab_map() -> void:
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_child(mv)
 	_note("Drag the Moon to spin it, pinch (or +/-) to zoom, ME to find yourself. Green patches are spotless, amber ones are started. In the final mission red shows dust still left and DUST marks the nearest. Orange marker: base. White arrow: you. Squares: machines. Purple dots: vehicles. Dark areas are locked regions.")
+
+
+func _tab_style() -> void:
+	var total := 0
+	for cat in Cosmetics.CATS:
+		total += Cosmetics.items(cat).size()
+	_note("Make it yours: suit colours, tool skins and vehicle paint. Most unlock by watching one short ad%s; a few are achievement rewards. Unlocks carry over to every save.  (%d / %d unlocked)" % [
+		" (all free with Remove Ads)" if not IAP.ads_removed else " - Remove Ads unlocked them all", Cosmetics.count_unlocked(), total])
+	var titles := {"suit": "SUIT COLOURS", "tool": "TOOL SKINS (all tools)", "vehicle": "VEHICLE PAINT (all vehicles)"}
+	for cat in Cosmetics.CATS:
+		_header(titles[cat])
+		var on := Cosmetics.equipped_id(cat)
+		for it in Cosmetics.items(cat):
+			var id: String = it["id"]
+			var col := Color.html(it.get("color", it.get("suit", "#c0c0c0")))
+			if it.get("rainbow", false):
+				col = Color(1.0, 0.4, 0.8)
+			var buttons := []
+			var info := ""
+			if id == on:
+				info = "Wearing"
+			elif Cosmetics.is_unlocked(id):
+				buttons.append(UIKit.button("WEAR", func():
+					Cosmetics.equip(id)
+					Audio.play("ui_click")
+					_mark_dirty(), Vector2(200, 60), 20))
+			else:
+				info = Cosmetics.lock_text(id)
+				if it.get("unlock", "") == "ad":
+					buttons.append(UIKit.accent_button("WATCH AD", func():
+						Cosmetics.unlock_with_ad(id, func(_ok): _mark_dirty()), Vector2(200, 60), 20))
+			_card(it["name"], "", info, col, buttons, id == on)
 
 
 func _tab_settings() -> void:

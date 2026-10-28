@@ -4,6 +4,7 @@ extends Node
 
 var _args := {}
 var _frames := 0
+const SHOWER_SKIP := 12.0   # jump into the shower's peak
 var _target := 120
 var _boot: Node
 
@@ -93,6 +94,18 @@ func _process(_d: float) -> void:
 		if _frames == 12:
 			GameState.missions_done.append("m_clean_moon")
 			game._lander_action()
+	if game and _args.has("shower") and _frames == 6:
+		game.env.start_shower()
+		game.env._shower_t = SHOWER_SKIP
+	if game and _args.has("nugget") and _frames == 20:
+		game.nuggets._next = 0.0
+		game.nuggets._last_m2 = -1.0
+		print("nugget spawned: ", game.nuggets.spawn(), " count ", game.nuggets.count(), " at ", game.nuggets._list[0]["pos"] if game.nuggets.count() > 0 else "-", " player ", game.player.global_position, " dirt ", GameState.dirt.sample(game.player.global_position))
+	if game and _args.has("holo") and _frames == 20:
+		if _args["holo"] == "point":
+			game.hologram.say("That hexagon's 72% done - finish it off! 85 m that way.", 30.0, game.player.global_position + game.player.global_basis.x * 60.0)
+		else:
+			game.supervisor_talk()
 	if game and _args.has("hexflash") and _frames == 40:
 		# Clear a hexagon a little ahead of the player to show the effect.
 		var pl: Node3D = game.player
@@ -103,6 +116,12 @@ func _process(_d: float) -> void:
 			game._lander_action()
 		if _frames == _target - 30 and game.ending:
 			game.ending._t = float(_args["ending"])
+		if game.ending and _frames > _target - 30 and _frames % 5 == 0 and _args.has("debug"):
+			print("t ", game.ending._t, " alt ", TerrainGen.altitude(game.base.lander.global_position), " lander ", game.base.lander.global_position, " same ", game.base.lander == game.ending._lander)
+	if game and _args.has("skin") and _frames == 8:
+		for id in _args["skin"].split(","):
+			Cosmetics.unlock(id)
+			Cosmetics.equip(id)
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])
 	if game and _args.has("machines") and _frames == 12:

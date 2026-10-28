@@ -76,6 +76,7 @@ func start(w: Node) -> void:
 	# sun stay put so every shot agrees on where home is.
 	_earth_e = world.env.earth_dir()
 	world.env.set_process(false)
+	world.env.start_shower()      # a meteor shower to see you off
 	# Brighter, warmer light for the film
 	world.env.sun.light_energy = 2.3
 	world.env.env.ambient_light_energy = 0.75
@@ -403,6 +404,8 @@ func _effects(t: float, delta: float, h: float) -> void:
 	if t > T_LIFT - 1.0 and t < T_CLIMB:
 		shake = 0.35 * (1.0 - clampf((t - T_LIFT) / 8.0, 0.0, 1.0)) + (0.05 if t < T_LIFT else 0.0)
 	world.env.earth.global_position = _cam.global_position + _earth_e * LunarEnv.EARTH_DIST
+	world.env.place_sky_objects(_cam.global_position)
+	world.env._update_meteors(delta)
 	_cam.h_offset = randf_range(-shake, shake)
 	_cam.v_offset = randf_range(-shake, shake)
 	# Earth grows as you head home

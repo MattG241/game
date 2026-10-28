@@ -37,13 +37,16 @@ func rebuild_all() -> void:
 		_add_visual(m)
 
 
-## Combined bounding box of every mesh in a model, in the model's own space.
-static func model_bounds(root: Node3D) -> AABB:
+## Combined bounding box of every mesh in a model, in the model's own space
+## (leaving out the parts under `skip`).
+static func model_bounds(root: Node3D, skip := []) -> AABB:
 	var out := AABB()
 	var first := true
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
+		if skip.has(n):
+			continue
 		stack.append_array(n.get_children())
 		if n is MeshInstance3D and (n as MeshInstance3D).mesh:
 			var mi := n as MeshInstance3D
@@ -69,11 +72,13 @@ func _add_visual(m: Dictionary) -> void:
 	var mp := AutomationSim.v3(m["pos"])
 	root.transform = Transform3D(TerrainGen.heading_basis(mp, float(m["yaw"])), mp)
 	add_child(root)
-	# Collision matches the model's real footprint, so nothing passes through it.
+	# Collision matches the machine's body. Moving parts (a collector's low sweeping
+	# arms, turning heads) are left out so they don't keep you out of USE range.
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	var cs := CollisionShape3D.new()
-	var box := model_bounds(root)
+	var full := model_bounds(root)
+	var box := model_bounds(root, built["spin"])
 	var sh := BoxShape3D.new()
 	sh.size = Vector3(maxf(box.size.x, 1.0), maxf(box.size.y, 1.0), maxf(box.size.z, 1.0))
 	cs.shape = sh
@@ -83,7 +88,7 @@ func _add_visual(m: Dictionary) -> void:
 	# The ground under a machine can't be reached any more: no dust there.
 	GameState.dirt.add_cover_box(Transform3D(root.basis, root.transform * box.get_center()), sh.size.x * 0.5, sh.size.z * 0.5)
 	var info := GameData.machine(m["id"])
-	var lbl := Meshes.label(root, info["name"], Vector3(0, box.end.y + 1.6, 0), 40, Color(1, 0.9, 0.6), true)
+	var lbl := Meshes.label(root, info["name"], Vector3(0, full.end.y + 1.6, 0), 40, Color(1, 0.9, 0.6), true)
 	lbl.visible = false
 	built["label"] = lbl
 	var col := Color.html(info.get("color", "#ffffff"))
@@ -101,7 +106,10 @@ func _add_visual(m: Dictionary) -> void:
 		built["drones"] = squad
 	var uid := int(m["uid"])
 	visuals[uid] = built
-	world.add_interactable(root.position, 3.5, func(): return _machine_text(uid), func(): world.open_machine_panel(uid), "machine_%d" % uid)
+	# USE works from anywhere around it, even at the corners of a big machine.
+	var reach := Vector2(maxf(absf(box.position.x), absf(box.end.x)), maxf(absf(box.position.z), absf(box.end.z))).length() + 2.0
+	built["reach"] = reach
+	world.add_interactable(root.position, reach, func(): return _machine_text(uid), func(): world.open_machine_panel(uid), "machine_%d" % uid)
 
 
 func _machine_text(uid: int) -> String:

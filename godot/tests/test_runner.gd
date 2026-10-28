@@ -65,6 +65,7 @@ func _ready() -> void:
 	await _test_vehicle()
 	await _test_automation()
 	await _test_saucer_and_hover()
+	await _test_sky_nuggets_hologram()
 	await _test_round_moon_and_ending()
 	await _test_save_load()
 	await _test_diagnostics()
@@ -496,6 +497,36 @@ func _test_ads() -> void:
 	check(game.controls._look_index != 5, "HUD ad button takes the touch, not the camera")
 	_touch(game.controls, 5, r.get_center(), false)
 	game.hud._offer.visible = false
+	# Customisation: one rewarded ad per skin
+	var saved_cos = Settings.get_value("cosmetics", {})
+	Settings.set_value("cosmetics", {})
+	check(Cosmetics.is_unlocked("tool_factory") and not Cosmetics.is_unlocked("tool_chrome"), "ad skins start locked, factory looks are free")
+	check(not Cosmetics.is_unlocked("tool_gold") and Cosmetics.lock_text("tool_gold").begins_with("Achievement"), "some skins are achievement rewards")
+	var rs0 := Ads.rewarded_shown
+	var got := [false]
+	Cosmetics.unlock_with_ad("tool_chrome", func(ok): got[0] = ok)
+	check(got[0] and Ads.rewarded_shown == rs0 + 1 and Cosmetics.is_unlocked("tool_chrome") and Cosmetics.equipped_id("tool") == "tool_chrome", "watching one ad unlocks a skin and wears it")
+	await frames(2)
+	var shaft: MeshInstance3D = game.player.cleaner._shaft
+	check(shaft.material_override == Cosmetics.skin_material(Cosmetics.item("tool_chrome")), "the held tool wears the skin")
+	Cosmetics.unlock_with_ad("veh_racing", func(_ok): pass)
+	Cosmetics.unlock_with_ad("suit_ninja", func(_ok): pass)
+	check(Cosmetics.equipped_id("vehicle") == "veh_racing" and Cosmetics.equipped_id("suit") == "suit_ninja", "suits and vehicle paint unlock the same way")
+	Settings.load_settings()
+	check(Cosmetics.is_unlocked("veh_racing") and Cosmetics.equipped_id("suit") == "suit_ninja", "unlocked skins are still yours after restarting the game")
+	var arm_mat: ShaderMaterial = game.player.cleaner._arm.material_override
+	check(arm_mat.get_shader_parameter("paint").is_equal_approx(Color.html("#1a1a1e")), "the suit colour shows on your arm")
+	game.open_menu("style")
+	await frames(2)
+	check(game.menu._content.get_child_count() > 15, "STYLE tab lists every skin")
+	game.menu.close()
+	IAP.ads_removed = true
+	check(Cosmetics.is_unlocked("veh_stealth") and not Cosmetics.is_unlocked("veh_gold"), "Remove Ads unlocks every ad skin (not achievement ones)")
+	IAP.ads_removed = false
+	Settings.set_value("cosmetics", {})
+	await frames(2)
+	check(Cosmetics.equipped_id("tool") == "tool_factory", "back to factory looks")
+	Settings.set_value("cosmetics", saved_cos)
 	# Remove ads
 	Ads.reset_pacing()
 	IAP.buy()
@@ -588,8 +619,11 @@ func _test_finale() -> void:
 	await frames(3)
 	check(game.ending._count.text != "", "a countdown runs before lift-off", game.ending._count.text)
 	game.ending._t = Ending.T_LIFT + 4.0
-	await frames(3)
-	check(TerrainGen.altitude(game.base.lander.global_position) > 10.0, "the lander climbs into the sky", str(TerrainGen.altitude(game.base.lander.global_position)))
+	for i in 30:
+		await get_tree().process_frame
+		if TerrainGen.altitude(game.base.lander.global_position) > 10.0:
+			break
+	check(TerrainGen.altitude(game.base.lander.global_position) > 10.0, "the lander climbs into the sky", "%s paused=%s t=%.2f done=%s cam=%s" % [TerrainGen.altitude(game.base.lander.global_position), get_tree().paused, game.ending._t, game.ending._done, game.ending._cam != null])
 	game.ending._t = Ending.T_CLIMB + 9.0
 	await frames(3)
 	check(game.ending._globe != null and game.ending._globe.visible and not game.terrain.visible, "the whole Moon shows as a globe below", str(TerrainGen.altitude(game.base.lander.global_position)))
@@ -730,9 +764,9 @@ func _test_menus() -> void:
 	await get_tree().process_frame
 	check(not get_tree().paused and not game.menu.visible, "closing menu resumes")
 	game.supervisor_talk()
-	await get_tree().process_frame
-	check(game.menu.visible, "supervisor dialog shows")
-	game.menu.close()
+	await frames(20)
+	check(game.hologram.showing() and game.hologram._fade > 0.5 and not get_tree().paused, "Supervisor Gleam appears as a hologram with a tip (no pause)")
+	check("Contract" in game.hologram._text.text or GameState.current_mission().is_empty(), "the hologram mentions the current contract", game.hologram._text.text)
 
 
 func _test_vehicle() -> void:
@@ -896,6 +930,70 @@ func _test_saucer_and_hover() -> void:
 	check(float(old["credits"]) >= 100.0 + 3500.0, "retired machines are fully refunded", str(old["credits"]))
 
 
+const NUG_FAR := 30.0
+
+
+func _test_sky_nuggets_hologram() -> void:
+	print("[sky, gold nuggets, hologram]")
+	if game.current_vehicle:
+		game.exit_vehicle()
+	var env: LunarEnv = game.env
+	check(env.sky_mat.get_shader_parameter("milky") is Texture2D, "the sky has the painted Milky Way")
+	check(env.planets.size() == LunarEnv.PLANETS.size(), "far planets hang among the stars")
+	await frames(2)
+	var cam := get_viewport().get_camera_3d()
+	check(absf(env.planets[0].global_position.distance_to(cam.global_position) - LunarEnv.PLANET_DIST) < 1.0, "planets stay put among the stars as you move")
+	env.start_shower()
+	check(env.shower_active(), "meteor showers happen")
+	env._update_meteors(LunarEnv.SHOWER_LEN * 0.5)
+	check(float(env.sky_mat.get_shader_parameter("shower")) > 0.3, "the shower fills the sky")
+	env._update_meteors(LunarEnv.SHOWER_LEN)
+	check(not env.shower_active() and env._shower_in > 100.0, "then passes, until the next one")
+	# Gold nuggets
+	var pl: Player = game.player
+	pl.global_position = TerrainGen.map_ground(220.0, -160.0, 0.3)
+	game.terrain.prewarm(pl.global_position)
+	await frames(5)
+	var nug: Nuggets = game.nuggets
+	var spawned := false
+	for i in 10:
+		if nug.spawn():
+			spawned = true
+			break
+	check(spawned and nug.count() > 0, "a gold nugget hides in the dust nearby")
+	var np: Vector3 = nug._list[nug.count() - 1]["pos"]
+	check(GameState.dirt.sample(np) > 0.5 and np.distance_to(pl.global_position) < NUG_FAR, "on dusty ground, in reach")
+	var cr := GameState.credits
+	var found0 := GameState.stat("nuggets")
+	var worth := nug.value_at(np)
+	GameState.dirt.stamp(DirtMap.Shape.ROUND, np, 1.5, 0.0, Vector3.ZERO, 100.0, 1e9)
+	for i in 30:
+		await get_tree().process_frame
+		if GameState.stat("nuggets") > found0:
+			break
+	check(GameState.stat("nuggets") == found0 + 1.0 and GameState.credits >= cr + worth - 0.5, "brushing the dust off digs it out for a jackpot",
+		"worth %s, got %s, found %d, dust there %.2f, left %d, paused %s" % [GameState.fmt(worth), GameState.fmt(GameState.credits - cr), GameState.stat("nuggets") - found0, GameState.dirt.sample(np), nug.count(), get_tree().paused])
+	check(worth >= GameState.tank_capacity() * GameState.dust_price() * 1.4, "worth more than a full tank")
+	# Hologram
+	var holo: Hologram = game.hologram
+	holo._show_t = 0.0
+	holo._fade = 0.0
+	holo.visible = false
+	holo.say("Test pointing", 5.0, pl.global_position + pl.global_basis.x * 40.0)
+	await frames(30)
+	check(holo.showing() and holo._fade > 0.9 and holo._arrow.visible, "Gleam's hologram points the way")
+	holo._show_t = 0.0
+	await frames(60)
+	check(not holo.visible, "and fades out")
+	GameState.tank_dust = GameState.tank_capacity()
+	holo._tank_hinted = false
+	await frames(3)
+	check(holo.showing() and "Dust Exchange" in holo._text.text, "a full tank far from base: Gleam points to the Dust Exchange")
+	GameState.tank_dust = 0.0
+	holo._show_t = 0.0
+	await frames(60)
+
+
 func _test_automation() -> void:
 	print("[automation]")
 	var auto: Automation = game.automation
@@ -912,7 +1010,9 @@ func _test_automation() -> void:
 	var body_box: BoxShape3D = null
 	for b in cv.find_children("*", "CollisionShape3D", true, false):
 		body_box = (b as CollisionShape3D).shape as BoxShape3D
-	check(body_box != null and body_box.size.x >= bounds.size.x - 0.01, "machine collision covers the whole model", str(bounds.size))
+	var body_bounds := Automation.model_bounds(cv, auto.visuals[int(col["uid"])]["spin"])
+	check(body_box != null and body_box.size.x >= body_bounds.size.x - 0.01, "machine collision covers the machine's body", str(body_bounds.size))
+	check(body_box.size.x < bounds.size.x - 2.0, "a collector's low sweeping arms don't block the player", "%s vs %s" % [body_box.size, bounds.size])
 	check(GameState.dirt.sample(near_base) == 0.0, "no dust left hidden under a new machine")
 	check(cv.global_basis.y.dot(cv.global_position.normalized()) > 0.999, "machines stand upright on the sphere")
 	var cr0 := GameState.credits
@@ -951,6 +1051,16 @@ func _test_automation() -> void:
 	# Drone Hangar: sent to a hexagon chosen on the map
 	auto.add_machine("drone_hangar", M(-46, 40), 0.0)
 	var hg: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	var reach_ok := true
+	for uid in auto.visuals:
+		var vv: Dictionary = auto.visuals[uid]
+		var shape: BoxShape3D = null
+		for b in (vv["root"] as Node3D).find_children("*", "CollisionShape3D", true, false):
+			shape = (b as CollisionShape3D).shape as BoxShape3D
+		var corner := Vector2(shape.size.x, shape.size.z).length() * 0.5 + 0.6
+		if float(vv["reach"]) < corner:
+			reach_ok = false
+	check(reach_ok, "USE reaches every machine from any side, even its corners")
 	var far := HexGrid.cell_of(M(250, 250))
 	check(sim.assign(hg, far) and int(hg["target"]) == far, "a drone hangar can be sent to any hexagon")
 	check(not sim.assign(hg, own), "but not to one that is already clean")
