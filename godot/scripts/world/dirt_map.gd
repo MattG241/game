@@ -303,6 +303,43 @@ func _apply_cover(key: Vector3i, c: DirtChunk, cv: PackedFloat32Array) -> bool:
 	return changed
 
 
+## Removes all dust of one terrain chunk that lies in hexagon `cell` (the finishing
+## sweep when a hexagon is cleared). Works on 8x8 texel blocks: blocks whose corners
+## all fall in one cell are handled whole, only blocks on a border are checked texel
+## by texel. Returns the removed area in square metres.
+func sweep_cell(key: Vector3i, cell: int) -> float:
+	var c := get_chunk(key)
+	var cand := HexGrid.candidates(key)
+	var b := 8
+	var nb := MASK / b
+	var owner := PackedInt32Array()
+	owner.resize((nb + 1) * (nb + 1))
+	for j in nb + 1:
+		for i in nb + 1:
+			owner[j * (nb + 1) + i] = HexGrid.nearest(TerrainGen.chunk_dir(key, float(i * b) / MASK, float(j * b) / MASK), cand)
+	var before := c.total
+	for j in nb:
+		for i in nb:
+			var o0 := owner[j * (nb + 1) + i]
+			var same := o0 == owner[j * (nb + 1) + i + 1] and o0 == owner[(j + 1) * (nb + 1) + i] and o0 == owner[(j + 1) * (nb + 1) + i + 1]
+			if same and o0 != cell:
+				continue
+			for tz in b:
+				var lz := j * b + tz
+				for tx in b:
+					var lx := i * b + tx
+					var idx := lz * MASK + lx
+					if c.data[idx] == 0:
+						continue
+					if same or HexGrid.nearest(TerrainGen.chunk_dir(key, (lx + 0.5) / MASK, (lz + 0.5) / MASK), cand) == cell:
+						c.zero(idx)
+	var removed := before - c.total
+	if removed > 0:
+		visual_dirty[key] = true
+		_note(key, c)
+	return float(removed) / 255.0 * TEXEL * TEXEL
+
+
 ## Chunks whose unreachable texels (under rocks, on cliffs) still need clearing.
 func needs_sanitize(key: Vector3i) -> bool:
 	var c: DirtChunk = chunks.get(key)

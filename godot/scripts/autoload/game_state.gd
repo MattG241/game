@@ -34,6 +34,8 @@ var vehicles: Array = []      # [{id, engine, storage_lvl, clean_lvl, pos, yaw, 
 var machines: Array = []      # [{uid, id, pos, yaw, buffer, value, ...}] - driven by Automation
 var next_uid := 1
 var flags := {}
+var hexes_done: Array = []       # hexagon sectors cleared (HexGrid cell indices)
+var hex_frac := {}               # cell -> fraction clean last measured (for the map)
 var salvage_taken: Array = []
 var landmark_progress := {}
 var stats := {}
@@ -82,6 +84,8 @@ func new_game() -> void:
 	next_uid = 1
 	flags = {}
 	salvage_taken = []
+	hexes_done = []
+	hex_frac = {}
 	landmark_progress = {}
 	stats = {}
 	var sp := LunarBase.spawn_point()
@@ -102,6 +106,7 @@ func to_dict() -> Dictionary:
 		"missions_done": missions_done, "achievements_done": achievements_done,
 		"vehicles": vehicles, "machines": machines, "next_uid": next_uid,
 		"flags": flags, "salvage_taken": salvage_taken,
+		"hexes_done": hexes_done, "hex_frac": hex_frac,
 		"landmark_progress": landmark_progress, "stats": stats,
 		"player": player, "started_at": started_at,
 		"clean_chunks": dirt.clean.keys().map(func(k): return [k.x, k.y, k.z]),
@@ -140,6 +145,13 @@ func from_dict(d: Dictionary) -> void:
 	next_uid = int(d.get("next_uid", machines.size() + 1))
 	flags = d.get("flags", {})
 	salvage_taken = d.get("salvage_taken", [])
+	hexes_done = []
+	for c in d.get("hexes_done", []):
+		hexes_done.append(int(c))
+	hex_frac = {}
+	var hf: Dictionary = d.get("hex_frac", {})
+	for k in hf:
+		hex_frac[int(k)] = float(hf[k])
 	landmark_progress = d.get("landmark_progress", {})
 	stats = d.get("stats", {})
 	player = d.get("player", player)
@@ -638,6 +650,8 @@ func mission_progress(m: Dictionary) -> Vector2:
 			return Vector2(research_done.size(), float(m["value"]))
 		"world_clean":
 			return Vector2(world_clean_fraction(), 1.0)
+		"hexes":
+			return Vector2(hexes_done.size(), float(m["value"]))
 	return Vector2(0, 1)
 
 

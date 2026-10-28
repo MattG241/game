@@ -379,7 +379,7 @@ func _process(delta: float) -> void:
 		if p.y > 1.0:
 			prog = "  (%s / %s)" % [GameState.fmt_short(minf(p.x, p.y)), GameState.fmt_short(p.y)]
 		elif m["type"] == "world_clean":
-			prog = "  (%.2f%% clean)" % (p.x * 100.0)
+			prog = "  (%.2f%% clean, %d / %d hexagons)" % [p.x * 100.0, GameState.hexes_done.size(), HexGrid.count()]
 		elif m["type"] == "landmark":
 			prog = "  (%d%% / %d%%)" % [roundi(p.x * 100.0), roundi(p.y * 100.0)]
 		_obj_hint.text = m.get("hint", "") + prog
@@ -387,6 +387,9 @@ func _process(delta: float) -> void:
 		var fp: Vector3 = world.focus_node().global_position
 		var reg := GameData.region(TerrainGen.region_of(fp))
 		_region_label.text = "%s  x%s" % [reg["name"].to_upper(), str(reg["dust_mult"])]
+		var hf: float = world.current_hex_fraction()
+		if hf >= 0.0:
+			_region_label.text += "   HEX %d%%" % mini(int(hf * 100.0), 100)
 		var c: Cleaner = world.player.cleaner
 		var rate_txt := ""
 		if c and c.rate > 0.05:

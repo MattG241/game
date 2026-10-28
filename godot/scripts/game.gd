@@ -35,6 +35,7 @@ func _ready() -> void:
 	TerrainGen.setup()
 	GameState.dirt.covers.clear()
 	_make_gravity()
+	HexGrid.setup()
 	MapView.prepare()
 	env = LunarEnv.new()
 	add_child(env)
@@ -574,6 +575,7 @@ func _process(delta: float) -> void:
 	if current_vehicle:
 		terrain.ensure_collision_near(current_vehicle.global_position)
 	_update_dust_finder(delta)
+	_update_hexes(delta)
 
 
 ## Ground under buildings and pads gets no dust: it could never be seen or reached.
@@ -634,6 +636,77 @@ const HUNT_FROM := 0.6
 ## Nearest spot with dust left (refreshed once a second while hunting).
 func dust_target() -> Vector3:
 	return _dust_target
+
+
+# ------------------------------------------------------------- hexagons
+
+var _hex_t := 0.0
+var _sweep := []          # [cell, chunks still to sweep, m2 swept]
+
+
+## Watches the hexagons around the player: once one is CLEAR_AT clean, the rest of it
+## is swept (one terrain chunk per frame) and a bonus is paid.
+func _update_hexes(delta: float) -> void:
+	if not _sweep.is_empty():
+		var cell: int = _sweep[0]
+		var todo: Array = _sweep[1]
+		if not todo.is_empty():
+			_sweep[2] = float(_sweep[2]) + GameState.dirt.sweep_cell(todo.pop_back(), cell)
+			return
+		_hex_cleared(cell, float(_sweep[2]))
+		_sweep.clear()
+	_hex_t -= delta
+	if _hex_t > 0.0:
+		return
+	_hex_t = 1.0
+	var fd := focus_node().global_position.normalized()
+	var near := cos(HexGrid.cell_angle * 1.1)
+	for cell in HexGrid.candidates(TerrainGen.key_of(fd)):
+		if GameState.hexes_done.has(cell) or HexGrid.centers[cell].dot(fd) < near:
+			continue
+		var f := hex_fraction(cell)
+		GameState.hex_frac[cell] = f
+		if f >= HexGrid.CLEAR_AT:
+			_sweep = [cell, HexGrid.chunks_of(cell).duplicate(), 0.0]
+			return
+
+
+## How much of a hexagon is clean (0..1), from points spread over it.
+func hex_fraction(cell: int) -> float:
+	var pts := HexGrid.samples(cell)
+	if pts.is_empty():
+		return 1.0
+	var n_clean := 0
+	for d in pts:
+		if GameState.dirt.sample(d * TerrainGen.RADIUS) < 0.05:
+			n_clean += 1
+	return float(n_clean) / pts.size()
+
+
+func _hex_cleared(cell: int, swept_m2: float) -> void:
+	GameState.hexes_done.append(cell)
+	GameState.hex_frac[cell] = 1.0
+	var c := HexGrid.center_point(cell)
+	var rinfo := GameData.region(TerrainGen.region_of(c))
+	var mult := float(rinfo["dust_mult"])
+	# The swept dust is sold straight away, plus a bonus that grows as you go.
+	var dust := swept_m2 * float(GameData.economy["dust_per_m2"]) * float(rinfo["thickness"])
+	var bonus := (1500.0 + 150.0 * GameState.hexes_done.size()) * mult + dust * mult * GameState.dust_price()
+	GameState.add_credits(bonus)
+	GameState.rp += 3
+	Audio.play("mission")
+	Settings.vibrate(120, 0.6)
+	GameState.notify.emit("HEXAGON CLEARED  %d / %d   +%s CR  +3 RP" % [GameState.hexes_done.size(), HexGrid.count(), GameState.fmt(bonus)], "mission")
+	Diagnostics.event("hex %d cleared" % cell)
+	GameState.check_missions()
+
+
+## Fraction clean of the hexagon the player is in (for the HUD), -1 when unknown.
+func current_hex_fraction() -> float:
+	var cell := HexGrid.cell_of(focus_node().global_position)
+	if GameState.hexes_done.has(cell):
+		return 1.0
+	return float(GameState.hex_frac.get(cell, -1.0))
 
 
 # ------------------------------------------------------------- waypoint

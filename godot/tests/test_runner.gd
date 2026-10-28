@@ -61,6 +61,7 @@ func _ready() -> void:
 	await _test_ads()
 	await _test_menus()
 	await _test_waypoint_and_finder()
+	await _test_hexagons()
 	await _test_vehicle()
 	await _test_automation()
 	await _test_round_moon_and_ending()
@@ -599,6 +600,45 @@ func _test_waypoint_and_finder() -> void:
 			GameState.missions_done.append(m["id"])
 	check(str(GameState.current_mission().get("id", "")) == "m_clean_moon" and not game.hunting_dust(), "no dust arrow in the final mission before 60% is clean")
 	GameState.missions_done = saved
+
+
+func _test_hexagons() -> void:
+	print("[hexagon sectors]")
+	HexGrid.setup()
+	check(HexGrid.count() == 10 * HexGrid.FREQ * HexGrid.FREQ + 2, "the Moon is split into hexagons (and 12 pentagons)", str(HexGrid.count()))
+	var own_ok := true
+	for i in HexGrid.count():
+		if HexGrid.cell_of(HexGrid.centers[i]) != i:
+			own_ok = false
+	check(own_ok and HexGrid.cell_of(Vector3.UP) == HexGrid.cell_of(HexGrid.centers[0]), "every hexagon owns its centre")
+	var cell := HexGrid.cell_of(M(150.0, 120.0).normalized())
+	var dm := DirtMap.new()
+	var dusty := 0
+	for d in HexGrid.samples(cell):
+		if dm.sample(d * TerrainGen.RADIUS) > 0.05:
+			dusty += 1
+	for k in HexGrid.chunks_of(cell):
+		dm.sweep_cell(k, cell)
+	var left := 0
+	for d in HexGrid.samples(cell):
+		if dm.sample(d * TerrainGen.RADIUS) > 0.0:
+			left += 1
+	check(dusty > 100 and left == 0, "the finishing sweep clears a whole hexagon", "%d dusty, %d left" % [dusty, left])
+	var outside := HexGrid.centers[cell].slerp(Vector3.DOWN, 0.4)
+	check(dm.sample(outside * TerrainGen.RADIUS) > 0.3, "ground outside the hexagon is untouched")
+	# In the game: a hexagon at 90% gets finished and pays a bonus.
+	var pl: Player = game.player
+	var here := HexGrid.cell_of(pl.global_position)
+	for k in HexGrid.chunks_of(here):
+		GameState.dirt.sweep_cell(k, here)
+	var cr := GameState.credits
+	var done0 := GameState.hexes_done.size()
+	for i in 90:
+		await get_tree().process_frame
+		if GameState.hexes_done.size() > done0:
+			break
+	check(GameState.hexes_done.has(here) and GameState.credits > cr, "clearing a hexagon completes it with a bonus", "%d hexes" % GameState.hexes_done.size())
+	check(game.current_hex_fraction() == 1.0, "HUD shows the hexagon as done")
 
 
 func _test_menus() -> void:

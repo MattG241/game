@@ -10,15 +10,16 @@ extends Control
 
 const W := 512                      # relief texture (longitude x latitude)
 const H := 256
-const SW := 256                     # state overlay texture
-const SH := 128
+const SW := 512                     # state overlay texture (same size as the relief)
+const SH := 256
 const CACHE := "user://globe_relief_v3.png"
 const ZOOM_MIN := 1.12
 const ZOOM_MAX := 4.2
 
 static var _relief: ImageTexture
 static var _relief_img: Image
-static var _keys := PackedInt32Array()   # chunk index of each state pixel
+static var _keys := PackedInt32Array()   # hexagon of each state pixel
+static var _edge := PackedByteArray()    # 1 where a state pixel is on a hexagon border
 static var _regions := PackedByteArray() # region of each state pixel
 static var _task := -1
 
@@ -27,7 +28,9 @@ var _font: Font
 var _disc: ColorRect
 var _mat: ShaderMaterial
 var _state_img: Image
-var _state_tex: ImageTexture
+var _globe_tex: ImageTexture
+var _composed_relief := false
+var _state_sig := ""
 var _state_t := 0.0
 var _rot := Basis.IDENTITY          # globe orientation
 var _dist := 3.3                    # camera distance (globe radius = 1)
@@ -72,8 +75,16 @@ static func _generate(tints: PackedColorArray, cached: Image) -> void:
 	for y in SH:
 		for x in SW:
 			var d := pixel_dir(x, y, SW, SH)
-			keys[y * SW + x] = TerrainGen.key_index(TerrainGen.key_of(d))
+			keys[y * SW + x] = HexGrid.cell_of(d)
 			regs[y * SW + x] = TerrainGen.region_dir(d)
+	var edge := PackedByteArray()
+	edge.resize(SW * SH)
+	for y in SH:
+		for x in SW:
+			var k := keys[y * SW + x]
+			if k != keys[y * SW + (x + 1) % SW] or (y + 1 < SH and k != keys[(y + 1) * SW + x]):
+				edge[y * SW + x] = 1
+	_edge = edge
 	_keys = keys
 	_regions = regs
 	if cached != null:
@@ -122,8 +133,7 @@ func _ready() -> void:
 	_disc.material = _mat
 	add_child(_disc)
 	_state_img = Image.create(SW, SH, false, Image.FORMAT_RGBA8)
-	_state_tex = ImageTexture.create_from_image(_state_img)
-	_mat.set_shader_parameter("state", _state_tex)
+	_compose()
 	_overlay = Control.new()
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -269,9 +279,8 @@ func _process(delta: float) -> void:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
 		_relief = ImageTexture.create_from_image(_relief_img)
-	if _relief:
-		_mat.set_shader_parameter("relief", _relief)
-		_mat.set_shader_parameter("relief_ready", 1.0)
+	if _relief and not _composed_relief:
+		_compose()
 	var r := _radius()
 	_disc.position = size * 0.5 - Vector2(r, r)
 	_disc.size = Vector2(r, r) * 2.0
@@ -286,21 +295,29 @@ func _process(delta: float) -> void:
 
 ## Cleaning progress per chunk, dust still left (final mission) and locked regions.
 func _update_state() -> void:
-	var dm := GameState.dirt
 	var hunting: bool = world != null and world.has_method("hunting_dust") and world.hunting_dust()
-	var n := 6 * TerrainGen.N * TerrainGen.N
+	# Only rebuild when something shown has changed (it is a big loop on a phone).
+	var sig := "%s|%d|%s" % [str(hunting), GameState.hexes_done.size(), str(GameState.regions)]
+	for k in GameState.hex_frac:
+		sig += "|%d:%d" % [k, int(float(GameState.hex_frac[k]) * 50.0)]
+	if sig == _state_sig:
+		return
+	_state_sig = sig
+	# Hexagons: green = cleared, amber = started (stronger the cleaner), red = still
+	# dusty during the dust hunt.
+	var n := HexGrid.count()
 	var cols := PackedColorArray()
 	cols.resize(n)
-	for key in dm.playable():
-		var st := dm.chunk_state(key)
+	for i in n:
+		var f := float(GameState.hex_frac.get(i, 0.0))
 		var c := Color(0, 0, 0, 0)
-		if st >= 1.0:
-			c = Color(0.2, 1.0, 0.5, 0.55)
-		elif st > 0.0:
-			c = Color(1.0, 0.75, 0.2, 0.25 + 0.4 * st)
+		if GameState.hexes_done.has(i):
+			c = Color(0.2, 1.0, 0.5, 0.5)
+		elif f > 0.02:
+			c = Color(1.0, 0.75, 0.2, 0.12 + 0.4 * f)
 		elif hunting:
-			c = Color(1.0, 0.25, 0.2, 0.3)
-		cols[TerrainGen.key_index(key)] = c
+			c = Color(1.0, 0.25, 0.2, 0.25)
+		cols[i] = c
 	var locked := PackedByteArray()
 	locked.resize(5)
 	for r in 5:
@@ -311,12 +328,31 @@ func _update_state() -> void:
 		var c: Color = cols[_keys[i]]
 		if locked[_regions[i]] == 1 and c.a < 0.5:
 			c = Color(0, 0, 0, 0.55)
+		if _edge[i] == 1:
+			c = Color(0.06, 0.08, 0.12, maxf(c.a, 0.7)) if c.g < 0.9 else Color(0.6, 1.0, 0.75, 0.9)
 		data[i * 4] = int(c.r * 255.0)
 		data[i * 4 + 1] = int(c.g * 255.0)
 		data[i * 4 + 2] = int(c.b * 255.0)
 		data[i * 4 + 3] = int(c.a * 255.0)
 	_state_img.set_data(SW, SH, false, Image.FORMAT_RGBA8, data)
-	_state_tex.update(_state_img)
+	_compose()
+
+
+## Relief with the progress overlay blended in: the globe shader's single texture.
+func _compose() -> void:
+	_composed_relief = _relief != null
+	var base: Image
+	if _relief_img and _composed_relief:
+		base = _relief_img.duplicate()
+	else:
+		base = Image.create(W, H, false, Image.FORMAT_RGBA8)
+		base.fill(Color(0.42, 0.43, 0.47))
+	base.blend_rect(_state_img, Rect2i(0, 0, W, H), Vector2i.ZERO)
+	if _globe_tex == null:
+		_globe_tex = ImageTexture.create_from_image(base)
+		_mat.set_shader_parameter("globe_tex", _globe_tex)
+	else:
+		_globe_tex.update(base)
 
 
 # ------------------------------------------------------------------ overlay
@@ -334,7 +370,7 @@ func _draw_overlay() -> void:
 	var o := _overlay
 	if _relief == null:
 		o.draw_string(_font, size * 0.5 - Vector2(90, 0), "Charting the Moon...", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, UIKit.MUTED)
-	var pct := "MOON CLEANED  %.1f%%" % (GameState.world_clean_fraction() * 100.0)
+	var pct := "MOON CLEANED  %.1f%%     HEXAGONS  %d / %d" % [GameState.world_clean_fraction() * 100.0, GameState.hexes_done.size(), HexGrid.count()]
 	_text(Vector2(12, 28), pct, 18, UIKit.GOOD)
 	_text(Vector2(12, size.y - 12), "Drag to spin  -  pinch or +/- to zoom  -  tap to set a waypoint", 14, Color(0.7, 0.85, 1.0))
 	var hunting: bool = world != null and world.has_method("hunting_dust") and world.hunting_dust()
