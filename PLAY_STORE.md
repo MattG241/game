@@ -51,9 +51,10 @@ Use `store/README.md` (text) and `store/google_play/` (icon, feature graphic, sc
 
 ### App content (Policy > App content)
 
-- **Privacy policy URL:** <https://github.com/MattG241/game/blob/claude/slot-symbol-config-3721du/PRIVACY.md>
-  (works once this branch is merged; until then use the copy on branch
-  `ccr-5f39f0cd-uy7tpf`).
+- **Privacy policy URL:** <https://mattg241.github.io/privacy> (the developer website,
+  repo `MattG241/MattG241.github.io`; keep it in sync with `PRIVACY.md`).
+- **Developer website** (Store settings > Contact details): <https://mattg241.github.io>.
+  AdMob verifies the app via <https://mattg241.github.io/app-ads.txt>.
 - **Ads:** Yes, the app contains ads.
 - **Advertising ID:** Yes, used for *Advertising or marketing* (Google Mobile Ads SDK).
 - **Target audience:** 13-15, 16-17 and 18+. Do **not** select under-13 ages: that puts the
