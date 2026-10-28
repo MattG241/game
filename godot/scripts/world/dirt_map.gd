@@ -29,6 +29,8 @@ var _playable: Array[Vector3i] = []
 # Flat-world chunks from an old save, projected onto the sphere the first time they're
 # needed (see _migrate).
 var _legacy: Array = []
+# Hexagons that have been cleared: chunks created later start with no dust there.
+var swept_cells := {}
 
 
 class DirtChunk:
@@ -163,12 +165,17 @@ func clear() -> void:
 func reset() -> void:
 	clear()
 	clean.clear()
+	swept_cells.clear()
 
 
 func _make(key: Vector3i, data: PackedByteArray, init_total := -1) -> DirtChunk:
 	var c := DirtChunk.new(data, init_total)
 	for cv in covers:
 		_apply_cover(key, c, cv)
+	if not swept_cells.is_empty():
+		for cell in HexGrid.candidates(key):
+			if swept_cells.has(cell):
+				_sweep_chunk(key, c, cell)
 	_note(key, c)
 	return c
 
@@ -309,6 +316,14 @@ func _apply_cover(key: Vector3i, c: DirtChunk, cv: PackedFloat32Array) -> bool:
 ## by texel. Returns the removed area in square metres.
 func sweep_cell(key: Vector3i, cell: int) -> float:
 	var c := get_chunk(key)
+	var removed := _sweep_chunk(key, c, cell)
+	if removed > 0:
+		visual_dirty[key] = true
+		_note(key, c)
+	return float(removed) / 255.0 * TEXEL * TEXEL
+
+
+func _sweep_chunk(key: Vector3i, c: DirtChunk, cell: int) -> int:
 	var cand := HexGrid.candidates(key)
 	var b := 8
 	var nb := MASK / b
@@ -333,11 +348,7 @@ func sweep_cell(key: Vector3i, cell: int) -> float:
 						continue
 					if same or HexGrid.nearest(TerrainGen.chunk_dir(key, (lx + 0.5) / MASK, (lz + 0.5) / MASK), cand) == cell:
 						c.zero(idx)
-	var removed := before - c.total
-	if removed > 0:
-		visual_dirty[key] = true
-		_note(key, c)
-	return float(removed) / 255.0 * TEXEL * TEXEL
+	return before - c.total
 
 
 ## Chunks whose unreachable texels (under rocks, on cliffs) still need clearing.

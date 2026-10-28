@@ -247,6 +247,10 @@ func _tab_suit() -> void:
 	_card("Moon Boots  (Level %d/%d)" % [GameState.boots_level, boots.size() - 1], "Faster walking, sprinting and higher jumps.",
 		"Walk %.1f m/s   Sprint %.1f m/s" % [mv["walk"], mv["sprint"]], UIKit.CYAN,
 		[_buy_button("MAXED" if mc < 0 else "UPGRADE", maxf(mc, 0), func(): GameState.buy_boots_upgrade(), mc >= 0)])
+	var hp := GameState.has_hover_pack()
+	_card("Hover Pack", "Hold JUMP in the air to hover as long as your suit battery lasts. Tools clean from up to 6 m above the ground. Bigger batteries fly longer.",
+		"Fitted" if hp else "Needs the Jump Jets research", Color(0.55, 0.8, 1.0),
+		[_buy_button("OWNED" if hp else "BUY", GameState.HOVER_PACK_COST, func(): GameState.buy_hover_pack(), not hp and GameState.research_bonus("jetpack") > 0.0)], hp)
 
 
 func _tab_vehicles() -> void:
@@ -298,24 +302,20 @@ func _tab_permits() -> void:
 		_card(r["name"], r["desc"], "Dust value x%s   Dust density x%s   %s" % [str(r["dust_mult"]), str(r["thickness"]), req_text], Color.html(r["tint"]), [b], unlocked)
 
 
-const AUTOMATION_HELP := """1. POWER is shared by everything. The base gives 6, each Solar Array 12. Use more than you make and every machine slows down.
+const AUTOMATION_HELP := """Machines work wherever you build them - no power, cables or storage. Everything they clean is sold straight away, and every machine upgrades from Mk I to Mk V (each tier almost doubles its output).
 
-2. LINKS: machines within 9 m of each other join one network. Conveyor Segments reach 16 m - use them as bridges. The blue ring while placing shows the reach.
+DUST COLLECTOR - keeps a circle of ground around itself clean and extracts a steady trickle of deep regolith. Cheap; great early on.
 
-3. DUST NEEDS A DESTINATION, or machines stop with "Buffer full":
- - linked to the base Dust Exchange: sold automatically, or
- - far away: a Storage Container plus a Shipping Depot rockets it to Earth every 30 s.
+HEXAGON CLEANING STATION - build it inside a hexagon. It clears that whole hexagon, then moves on to the nearest unfinished one by itself. Mk I takes about 10 minutes per hexagon, Mk V about one.
 
-4. DRONES AND ROVERS need a Charging Station within 45 m of their bay. Rovers collect the most dust, then drones; collectors are slow but never stop.
+DRONE HANGAR - its drone squad clears any hexagon on the Moon. Tap the hangar and press CHOOSE ON MAP, then tap a hexagon on the globe. Left alone it picks the nearest unfinished hexagon.
 
-5. A PROCESSING STATION next to a Storage Container makes dust worth 3x - in any network.
-
-Starter pod: Solar Array + Charging Station + Drone Bay + Storage + Shipping Depot, all close together. Add a Rover Garage and a Processing Station as you earn more."""
+Every hexagon cleared by a machine pays the same hexagon bonus as clearing it yourself."""
 
 
 func _tab_build() -> void:
 	var sim: AutomationSim = world.automation.sim
-	_note("Power: %d / %d used (machines run at %d%%). Machines are placed 8 m in front of you; the blue ring shows what they will link to." % [int(sim.demand), int(sim.supply), int(sim.efficiency * 100.0)])
+	_note("Automation revenue %s CR/min. Machines are placed 8 m in front of you. Tap a machine to upgrade it (Mk I-V)." % GameState.fmt(sim.revenue_rate))
 	_content.add_child(UIKit.accent_button("HOW AUTOMATION WORKS", func(): show_dialog("HOW AUTOMATION WORKS", AUTOMATION_HELP), Vector2(420, 64), 22))
 	for m in GameData.machines:
 		var id: String = m["id"]
@@ -323,8 +323,13 @@ func _tab_build() -> void:
 		for mc in GameState.machines:
 			if mc["id"] == id:
 				count += 1
-		var p := float(m.get("power", 0))
-		var info := "Power %s%d" % ["+" if p < 0 else "-", int(absf(p))] + ("   Link %d m" % int(m["link"]) if float(m.get("link", 0)) > 0 else "") + "   Owned %d" % count
+		var info := "Owned %d" % count
+		match id:
+			"dust_collector":
+				info = "Cleans a %d m circle (Mk I)   Owned %d" % [int(sim.collector_radius({"id": id, "tier": 1})), count]
+			"hex_station", "drone_hangar":
+				var mins := AutomationSim.hex_area() / sim.hex_rate({"id": id, "tier": 1}) / 60.0
+				info = "About %d min per hexagon at Mk I, %d s at Mk V   Owned %d" % [int(round(mins)), int(mins * 60.0 / pow(AutomationSim.TIER_MULT, 4)), count]
 		_card(m["name"], m["desc"], info, Color.html(m["color"]), [_buy_button("PLACE", float(m["price"]), func(): world.begin_placement(id))])
 
 
@@ -378,8 +383,8 @@ func _tab_ops() -> void:
 	var tiles := [
 		["Automation revenue", "%s CR/min" % GameState.fmt(sim.revenue_rate)],
 		["Automation output", "%s dust/min" % GameState.fmt(sim.production_rate)],
-		["Power", "%d / %d  (%d%%)" % [int(sim.demand), int(sim.supply), int(sim.efficiency * 100)]],
-		["Machines", "%d in %d networks" % [GameState.machines.size(), sim.networks.size()]],
+		["Machines", "%d" % GameState.machines.size()],
+		["Hexagons cleared", "%d / %d" % [GameState.hexes_done.size(), HexGrid.count()]],
 		["Total earned", "%s CR" % GameState.fmt(GameState.stat("credits_earned"))],
 		["Auto dust produced", GameState.fmt(GameState.stat("auto_dust"))],
 		["Area cleaned", "%s m2" % GameState.fmt(GameState.stat("m2_cleaned"))],
@@ -399,13 +404,10 @@ func _tab_ops() -> void:
 		g.add_child(p)
 	_header("EQUIPMENT STATUS")
 	if GameState.machines.is_empty():
-		_note("No machines yet. Open BUILD to place your first Solar Array and Dust Collector.")
+		_note("No machines yet. Open BUILD to place a Dust Collector, a Hexagon Cleaning Station or a Drone Hangar.")
 	for m in GameState.machines:
 		var info := GameData.machine(m["id"])
-		var uid := int(m["uid"])
-		var net := "network %d" % (int(sim.net_of[uid]) + 1) if sim.net_of.has(uid) else "not linked"
-		var p := AutomationSim.v3(m["pos"])
-		var txt := "%s   |   %s/min   |   produced %s   |   %s   |   at %d, %d" % [m.get("status", ""), GameState.fmt(m.get("rate", 0.0)), GameState.fmt_short(m.get("produced", 0.0)), net, int(p.x), int(p.z)]
+		var txt := "%s   |   %s   |   %s dust/min   |   earned %s CR" % [AutomationSim.tier_name(AutomationSim.tier(m)), m.get("status", ""), GameState.fmt(m.get("rate", 0.0)), GameState.fmt_short(m.get("earned", 0.0))]
 		_card(info["name"], "", txt, Color.html(info["color"]), [])
 
 
@@ -430,9 +432,15 @@ func _tab_inventory() -> void:
 	_note(", ".join(names) if not names.is_empty() else "None yet.")
 
 
+## A Drone Hangar waiting for its target hexagon to be tapped on the map (-1 = none).
+var map_assign_uid := -1
+
+
 func _tab_map() -> void:
 	var mv := MapView.new()
 	mv.world = world
+	mv.assign_uid = map_assign_uid
+	map_assign_uid = -1
 	mv.custom_minimum_size = Vector2(0, 620)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_content.add_child(mv)
@@ -540,28 +548,39 @@ func show_machine(uid: int) -> void:
 	if m.is_empty():
 		return
 	var info := GameData.machine(m["id"])
+	var t := AutomationSim.tier(m)
 	var v := UIKit.vbox(8)
-	var lines := [info["desc"], "Status: " + str(m.get("status", "")),
-		"Output: %s dust/min   Produced: %s" % [GameState.fmt(m.get("rate", 0.0)), GameState.fmt(m.get("produced", 0.0))],
-		"Network: %s" % ("linked (%d machines)" % sim.networks[sim.net_of[uid]].size() if sim.net_of.has(uid) else "not linked - place within link range of the base, storage or a conveyor")]
-	if sim.stored(m) > 0.0:
-		lines.append("Holding %s dust" % GameState.fmt(sim.stored(m)))
-	if m.has("agent"):
-		lines.append("Unit battery %d%%   load %d" % [int(m["agent"]["bat"]), int(m["agent"]["load"])])
-	for t in lines:
-		var l := UIKit.label(t, 20, UIKit.TEXT)
+	var lines := [info["desc"], "Tier: %s   Status: %s" % [AutomationSim.tier_name(t), str(m.get("status", ""))],
+		"Output: %s dust/min   Earned: %s CR" % [GameState.fmt(m.get("rate", 0.0)), GameState.fmt(m.get("earned", 0.0))]]
+	match m["id"]:
+		"dust_collector":
+			lines.append("Keeps a %d m circle clean" % int(sim.collector_radius(m)))
+		"hex_station", "drone_hangar":
+			lines.append("Clears %d m2 per second - about %d s per hexagon" % [int(sim.hex_rate(m)), int(AutomationSim.hex_area() / sim.hex_rate(m))])
+			if m["id"] == "drone_hangar":
+				lines.append("Target: " + ("hexagon %d (chosen on the map)" % (int(m["target"]) + 1) if m.get("manual", false) else "nearest unfinished hexagon"))
+	for line in lines:
+		var l := UIKit.label(line, 20, UIKit.TEXT)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(600, 0)
 		v.add_child(l)
 	var buttons := []
-	if sim.stored(m) > 0.0:
-		buttons.append(UIKit.accent_button("COLLECT DUST", func():
-			var got := sim.collect_into_tank(m)
-			GameState.notify.emit("Collected %s dust into your tank" % GameState.fmt(got), "info")
-			close(); _hide_frame(false), Vector2(220, 68)))
-	buttons.append(UIKit.button("REMOVE (50% REFUND)", func():
+	var cost := sim.upgrade_cost(m)
+	if cost >= 0.0:
+		var up := UIKit.accent_button("UPGRADE TO %s  %s CR" % [AutomationSim.tier_name(t + 1), GameState.fmt(cost)], func():
+			if sim.upgrade(m):
+				close(); _hide_frame(false)
+				show_machine(uid), Vector2(360, 68), 18)
+		up.disabled = not GameState.can_afford(cost)
+		buttons.append(up)
+	if m["id"] == "drone_hangar":
+		buttons.append(UIKit.button("CHOOSE ON MAP", func():
+			close(); _hide_frame(false)
+			map_assign_uid = uid
+			world.open_menu("map"), Vector2(240, 68), 18))
+	buttons.append(UIKit.button("REMOVE (50% BACK)", func():
 		world.automation.remove_machine(uid)
-		close(); _hide_frame(false), Vector2(280, 68)))
+		close(); _hide_frame(false), Vector2(260, 68), 18))
 	buttons.append(UIKit.button("CLOSE", func(): close(); _hide_frame(false), Vector2(160, 68)))
 	_hide_frame(true)
 	show_modal(info["name"], v, buttons)

@@ -30,7 +30,7 @@ static func build(id: String) -> Dictionary:
 			var arms := Node3D.new()
 			arms.position = Vector3(0, 0.35, 0)
 			root.add_child(arms)
-			var r: float = info.get("radius", 6.0)
+			var r := minf(float(info.get("radius", 6.0)), 5.0)
 			for i in 3:
 				var arm := Node3D.new()
 				arm.rotation.y = i * TAU / 3.0
@@ -65,6 +65,29 @@ static func build(id: String) -> Dictionary:
 			Meshes.part(coil, Meshes.torus(1.2, 1.5, 24), paint, Vector3.ZERO)
 			Meshes.part(coil, Meshes.sphere(0.45), Meshes.glow(col, 4.0), Vector3.ZERO)
 			out["spin"].append(coil)
+		"hex_station":
+			# Hexagonal pad, mast and a turning emitter that beams at its hexagon.
+			Meshes.part(root, Meshes.cyl(3.0, 0.35, 6), hazard, Vector3(0, 0.17, 0))
+			Meshes.part(root, Meshes.cyl(2.4, 1.2, 6), dark, Vector3(0, 0.9, 0))
+			Meshes.part(root, Meshes.cyl(0.6, 5.0, 12, 0.4), paint, Vector3(0, 3.9, 0))
+			var head := Node3D.new()
+			head.position = Vector3(0, 7.0, 0)
+			root.add_child(head)
+			Meshes.part(head, Meshes.torus(0.9, 1.25, 24), Meshes.glow(col, 3.0), Vector3.ZERO)
+			Meshes.part(head, Meshes.sphere(0.6, 16), white, Vector3(0, 0.5, 0))
+			Meshes.part(head, Meshes.box(Vector3(3.0, 0.15, 0.3)), metal, Vector3(0, 0.0, 0))
+			out["spin"].append(head)
+		"drone_hangar":
+			Meshes.part(root, Meshes.box(Vector3(7.0, 0.3, 6.0)), dark, Vector3(0, 0.15, 0))
+			Meshes.part(root, Meshes.box(Vector3(6.6, 3.0, 0.4)), paint, Vector3(0, 1.8, 2.7))
+			Meshes.part(root, Meshes.box(Vector3(6.6, 0.4, 5.6)), white, Vector3(0, 3.4, 0.0))
+			for x in [-2.0, 0.0, 2.0]:
+				Meshes.part(root, Meshes.torus(0.7, 0.85, 20), Meshes.glow(col, 2.5), Vector3(x, 0.32, -1.0))
+			var radar := Node3D.new()
+			radar.position = Vector3(2.5, 3.6, 1.5)
+			root.add_child(radar)
+			Meshes.part(radar, Meshes.box(Vector3(1.6, 0.6, 0.1)), metal, Vector3(0, 0.5, 0))
+			out["spin"].append(radar)
 		"drone_bay":
 			Meshes.part(root, Meshes.box(Vector3(4.0, 0.3, 4.0)), dark, Vector3(0, 0.15, 0))
 			Meshes.part(root, Meshes.box(Vector3(3.6, 2.2, 1.2)), paint, Vector3(0, 1.4, 1.4))

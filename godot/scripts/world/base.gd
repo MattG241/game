@@ -194,6 +194,11 @@ static func at(flat: Vector3) -> Vector3:
 	return TerrainGen.map_point(flat.x, flat.z, flat.y)
 
 
+static func at_array(flat: Vector3) -> Array:
+	var p := at(flat)
+	return [p.x, p.y, p.z]
+
+
 ## Transform for a flat-layout point turned yaw radians (yaw as on the old flat map).
 static func at_xform(flat: Vector3, yaw: float) -> Transform3D:
 	var t := TerrainGen.map_xform(flat.x, flat.z, flat.y)

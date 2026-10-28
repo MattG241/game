@@ -39,6 +39,7 @@ var _pinch_d := 0.0
 var _tap_from := Vector2.INF        # where a possible tap started
 var _tap_moved := 0.0
 var _wp_button: Button
+var assign_uid := -1                # a Drone Hangar to send to the tapped hexagon
 var _overlay: Control
 
 
@@ -241,6 +242,18 @@ func _tap(pos: Vector2) -> void:
 	var d := globe_dir_at(pos)
 	if d == Vector3.ZERO:
 		return
+	if assign_uid >= 0:
+		var sim: AutomationSim = world.automation.sim
+		var m := sim.get_machine(assign_uid)
+		var cell := HexGrid.cell_of(d)
+		if not m.is_empty() and sim.assign(m, cell):
+			assign_uid = -1
+			Audio.play("place")
+			GameState.notify.emit("Drone Hangar sent to hexagon %d" % (cell + 1), "info")
+		else:
+			Audio.play("error")
+			GameState.notify.emit("Pick an unfinished hexagon in an unlocked region", "error")
+		return
 	var w: Vector3 = world.waypoint()
 	if w.is_finite():
 		var ws := _screen(w)
@@ -372,6 +385,8 @@ func _draw_overlay() -> void:
 		o.draw_string(_font, size * 0.5 - Vector2(90, 0), "Charting the Moon...", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, UIKit.MUTED)
 	var pct := "MOON CLEANED  %.1f%%     HEXAGONS  %d / %d" % [GameState.world_clean_fraction() * 100.0, GameState.hexes_done.size(), HexGrid.count()]
 	_text(Vector2(12, 28), pct, 18, UIKit.GOOD)
+	if assign_uid >= 0:
+		_text(Vector2(12, 56), "TAP A HEXAGON TO SEND THE DRONE HANGAR THERE", 18, UIKit.ACCENT)
 	_text(Vector2(12, size.y - 12), "Drag to spin  -  pinch or +/- to zoom  -  tap to set a waypoint", 14, Color(0.7, 0.85, 1.0))
 	var hunting: bool = world != null and world.has_method("hunting_dust") and world.hunting_dust()
 	# Region names

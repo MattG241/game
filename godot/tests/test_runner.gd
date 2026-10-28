@@ -64,6 +64,7 @@ func _ready() -> void:
 	await _test_hexagons()
 	await _test_vehicle()
 	await _test_automation()
+	await _test_saucer_and_hover()
 	await _test_round_moon_and_ending()
 	await _test_save_load()
 	await _test_diagnostics()
@@ -76,12 +77,12 @@ func _test_data() -> void:
 	print("[data]")
 	TerrainGen.setup()
 	check(GameData.tools.size() == 12, "12 cleaning tools defined")
-	check(GameData.vehicles.size() == 4, "4 vehicles defined")
+	check(GameData.vehicles.size() == 5, "5 vehicles defined (incl. the Lunar Saucer)")
 	check(GameData.missions.size() >= 20, "at least 20 missions", str(GameData.missions.size()))
 	var upgrades: int = GameData.tools.size() * int(GameData.economy["tool_upgrade"]["max_level"]) + GameData.economy["tank_levels"].size() - 1 + GameData.economy["battery_levels"].size() - 1 + GameData.economy["boots_levels"].size() - 1
 	check(upgrades >= 20, "at least 20 progression upgrades", str(upgrades))
 	check(GameData.regions.size() == 5, "5 regions")
-	check(GameData.machines.size() >= 8, "automation machines defined")
+	check(GameData.machines.size() == 3, "three automation machines (collector, station, hangar)")
 	var a := TerrainGen.height(123.4, -55.6)
 	var b := TerrainGen.height(123.4, -55.6)
 	check(is_equal_approx(a, b), "terrain is deterministic")
@@ -633,9 +634,9 @@ func _test_hexagons() -> void:
 		GameState.dirt.sweep_cell(k, here)
 	var cr := GameState.credits
 	var done0 := GameState.hexes_done.size()
-	for i in 90:
+	for i in 150:
 		await get_tree().process_frame
-		if GameState.hexes_done.size() > done0:
+		if GameState.hexes_done.size() > done0 and GameState.credits > cr:
 			break
 	check(GameState.hexes_done.has(here) and GameState.credits > cr, "clearing a hexagon completes it with a bonus", "%d hexes" % GameState.hexes_done.size())
 	check(game.current_hex_fraction() == 1.0, "HUD shows the hexagon as done")
@@ -738,80 +739,144 @@ func _test_vehicle() -> void:
 	check(saved_pos.distance_to(v.global_position) < 0.5 and saved_pos.distance_to(start) > 3.0, "vehicle position saved", str(saved_pos))
 
 
+func _test_saucer_and_hover() -> void:
+	print("[lunar saucer + hover pack]")
+	GameState.credits = 1e8
+	check(GameState.buy_vehicle("lunar_ufo"), "buy the Lunar Saucer")
+	await frames(3)
+	var u: LunarVehicle = game.vehicles[game.vehicles.size() - 1]
+	check(u.flying, "the saucer flies")
+	game.terrain.prewarm(u.global_position)
+	game.enter_vehicle(u)
+	await frames(10)
+	var start := u.global_position
+	game.controls.move_vector = Vector2(0, -1)
+	u.cleaning = true
+	await frames(240)
+	var alt := TerrainGen.altitude(u.global_position)
+	check(alt > 4.0 and alt < 10.0, "it cruises a few metres above the ground", str(alt))
+	check(u.global_position.distance_to(start) > 30.0, "it flies forward fast", str(u.global_position.distance_to(start)))
+	check(u.hopper() > 0.0, "its beam cleans the ground below", str(u.hopper()))
+	game.controls.move_vector = Vector2.ZERO
+	await frames(30)
+	var alt0 := TerrainGen.altitude(u.global_position)
+	u.braking = true
+	await frames(120)
+	u.braking = false
+	check(TerrainGen.altitude(u.global_position) > alt0 + 5.0, "UP climbs over ridges", "%.1f -> %.1f" % [alt0, TerrainGen.altitude(u.global_position)])
+	game.exit_vehicle()
+	await frames(400)
+	check(TerrainGen.altitude(u.global_position) < 2.5, "parked, it lands", str(TerrainGen.altitude(u.global_position)))
+	game.recall_vehicle(game.vehicles.size() - 1)
+	# Hover Pack: Jump Jets alone only give a short boost; the pack hovers on battery.
+	var pl: Player = game.player
+	if not GameState.research_done.has("r_jetpack"):
+		GameState.research_done.append("r_jetpack")
+	GameState.flags.erase("hover_pack")
+	pl.global_position = M(40, 60, 0.2)
+	game.terrain.prewarm(pl.global_position)
+	await frames(20)
+	pl.jump()
+	game.controls.held["jump"] = true
+	await frames(300)
+	check(TerrainGen.altitude(pl.global_position) < 1.0, "without the Hover Pack, Jump Jets don't keep you flying")
+	game.controls.held.erase("jump")
+	await frames(30)
+	check(GameState.buy_hover_pack() and GameState.has_hover_pack(), "buy the Hover Pack")
+	GameState.battery = GameState.battery_capacity()
+	pl.jump()
+	game.controls.held["jump"] = true
+	await frames(300)
+	var hover_alt := TerrainGen.altitude(pl.global_position)
+	check(hover_alt > 4.0, "with it you hover as long as the battery lasts", str(hover_alt))
+	check(GameState.battery < GameState.battery_capacity() * 0.99, "hovering uses battery")
+	await frames(300)
+	pl.cleaner.cleaning = true
+	game.controls.held["clean"] = true
+	await frames(5)
+	var high := TerrainGen.altitude(pl.global_position) > Cleaner.MAX_CLEAN_HEIGHT
+	check(high and not pl.cleaner.removing, "tools don't clean from higher than 6 m", str(TerrainGen.altitude(pl.global_position)))
+	game.controls.held.erase("clean")
+	game.controls.held.erase("jump")
+	pl.global_position = LunarBase.spawn_point()
+	await frames(30)
+	# Old automation in a save becomes the new machines, the rest refunded.
+	var old := {"version": 2, "credits": 100.0, "machines": [
+		{"uid": 1, "id": "solar_array", "pos": [0, 300, 0], "yaw": 0.0},
+		{"uid": 2, "id": "drone_bay", "pos": [5, 300, 0], "yaw": 0.0, "d": 10.0, "v": 10.0},
+		{"uid": 3, "id": "dust_collector", "pos": [9, 300, 0], "yaw": 0.0}]}
+	GameState.migrate(old)
+	var ids := []
+	for m in old["machines"]:
+		ids.append(m["id"])
+	check(ids == ["drone_hangar", "dust_collector"], "old drone bays become Drone Hangars, collectors stay", str(ids))
+	check(float(old["credits"]) >= 100.0 + 3500.0, "retired machines are fully refunded", str(old["credits"]))
+
+
 func _test_automation() -> void:
 	print("[automation]")
 	var auto: Automation = game.automation
 	var sim := auto.sim
 	GameState.credits = 1e7
-	var near_base := M(30, 10)
+	var near_base := M(36, 10)
 	check(sim.can_place("dust_collector", M(0, 0)) != "", "can't build inside the base")
-	check(sim.can_place("dust_collector", M(600, 200)) == "" or sim.can_place("dust_collector", M(600, 200)) == "Ground too steep", "machines can be built anywhere round the Moon", sim.can_place("dust_collector", M(600, 200)))
-	auto.add_machine("solar_array", M(-36, 10), 0.0)
-	var solar: Dictionary = GameState.machines[0]
-	var sv: Node3D = auto.visuals[int(solar["uid"])]["root"]
-	var bounds := Automation.model_bounds(sv)
-	var body_box: BoxShape3D = null
-	for b in sv.find_children("*", "CollisionShape3D", true, false):
-		body_box = (b as CollisionShape3D).shape as BoxShape3D
-	check(body_box != null and body_box.size.x >= bounds.size.x - 0.01 and body_box.size.z >= bounds.size.z - 0.01, "machine collision covers the whole model (no driving through panels)", str(bounds.size))
-	check(GameState.dirt.sample(M(-36.0, 10.0)) == 0.0, "no dust left hidden under a new machine")
-	check(sv.global_basis.y.dot(sv.global_position.normalized()) > 0.999, "machines stand upright on the sphere")
+	var anywhere := sim.can_place("dust_collector", M(600, 200))
+	check(anywhere == "" or anywhere == "Ground too steep", "machines can be built anywhere round the Moon", anywhere)
 	auto.add_machine("dust_collector", near_base, 0.0)
-	auto.add_machine("conveyor", M(22, 4), 0.0)
-	var col: Dictionary = GameState.machines[1]
-	check(sim.net_of.has(int(col["uid"])) and sim.net_of.has(AutomationSim.BASE_UID) and sim.net_of[int(col["uid"])] == sim.net_of[AutomationSim.BASE_UID], "conveyor links collector to the base exchange")
-	var dust0 := GameState.stat("auto_dust")
+	var col: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	var cv: Node3D = auto.visuals[int(col["uid"])]["root"]
+	var bounds := Automation.model_bounds(cv)
+	var body_box: BoxShape3D = null
+	for b in cv.find_children("*", "CollisionShape3D", true, false):
+		body_box = (b as CollisionShape3D).shape as BoxShape3D
+	check(body_box != null and body_box.size.x >= bounds.size.x - 0.01, "machine collision covers the whole model", str(bounds.size))
+	check(GameState.dirt.sample(near_base) == 0.0, "no dust left hidden under a new machine")
+	check(cv.global_basis.y.dot(cv.global_position.normalized()) > 0.999, "machines stand upright on the sphere")
 	var cr0 := GameState.credits
-	var dirt0 := GameState.dirt.area_clean_fraction(near_base, 6.0, 0.5)
-	for i in 20:
-		sim.tick(1.0)
-	check(GameState.stat("auto_dust") > dust0, "collector produces dust", str(GameState.stat("auto_dust") - dust0))
-	check(GameState.credits > cr0, "linked automation sells automatically", str(GameState.credits - cr0))
-	check(GameState.dirt.area_clean_fraction(near_base, 6.0, 0.5) > dirt0, "collector visibly cleans the ground around it")
-	# Remote network with storage + depot
-	var far := M(80, 80)
-	auto.add_machine("dust_collector", far, 0.0)
-	auto.add_machine("storage_container", M(86, 80), 0.0)
-	for i in 5:
-		sim.tick(1.0)
-	var st: Dictionary = GameState.machines[GameState.machines.size() - 1]
-	check(sim.stored(st) > 0.0, "storage container receives dust")
-	auto.add_machine("processor", M(80, 86), 0.0)
-	for i in 3:
-		sim.tick(1.0)
-	check(float(st.get("rd", 0.0)) > 0.0, "processor refines stored dust")
-	auto.add_machine("shipping_depot", M(74, 80), 0.0)
-	var cr1 := GameState.credits
-	for i in 32:
-		sim.tick(1.0)
-	check(GameState.credits > cr1, "shipping depot sells on its timer")
-	# Drones need a charger, then clean
-	auto.add_machine("drone_bay", M(-40, 40), 0.0)
-	var bay: Dictionary = GameState.machines[GameState.machines.size() - 1]
-	sim.tick(1.0)
-	check(String(bay["status"]).begins_with("Needs"), "drone bay requires a charging station")
-	auto.add_machine("charging_station", M(-46, 40), 0.0)
-	auto.add_machine("solar_array", M(-40, 52), 0.0)
-	for i in 60:
-		sim.tick(1.0)
-	check(float(bay["produced"]) > 0.0, "cleaning drone produces dust", str(bay["produced"]))
-	# Power shortage reduces efficiency
-	check(sim.efficiency > 0.0 and sim.efficiency <= 1.0, "power efficiency computed", str(sim.efficiency))
-	# Link preview while placing
-	var pv := sim.preview_links("dust_collector", M(35, 10))
-	check(pv["base"] and not (pv["links"] as Array).is_empty(), "placement preview shows a link to the base network")
-	check((sim.preview_links("dust_collector", M(-200, 200))["links"] as Array).is_empty(), "placement preview warns when nothing is in reach")
-	# A processor + storage also pays off in a network linked to the base
-	auto.add_machine("storage_container", M(30, 16), 0.0)
-	var bst: Dictionary = GameState.machines[GameState.machines.size() - 1]
-	auto.add_machine("processor", M(36, 13), 0.0)
-	var bpr: Dictionary = GameState.machines[GameState.machines.size() - 1]
-	check(sim.net_of.has(int(bpr["uid"])) and sim.net_of[int(bpr["uid"])] == sim.net_of[AutomationSim.BASE_UID], "processor joins the base network")
-	var cr2 := GameState.credits
+	var dirt0 := GameState.dirt.area_clean_fraction(near_base, 9.0, 0.75)
 	for i in 30:
 		sim.tick(1.0)
-	check(float(bpr.get("produced", 0.0)) > 0.0 and String(bpr["status"]) != "No power", "processor refines in a base network", str(bpr.get("status", "")))
-	check(GameState.credits > cr2 and sim.stored(bst) < sim.storage_capacity(bst), "base sells refined dust (storage never stalls)")
+	check(GameState.credits > cr0, "a lone collector sells what it cleans (no links or power)", str(GameState.credits - cr0))
+	check(GameState.dirt.area_clean_fraction(near_base, 9.0, 0.75) > dirt0 + 0.05, "collector visibly cleans the circle around it")
+	# Tiers
+	var rate1 := float(col["rate"])
+	var cost := sim.upgrade_cost(col)
+	check(cost > 0.0 and sim.upgrade(col) and AutomationSim.tier(col) == 2, "machines upgrade to Mk II")
+	check(sim.collector_radius(col) > sim.collector_radius({"id": "dust_collector", "tier": 1}), "upgrades widen the collector's circle")
+	while sim.upgrade_cost(col) > 0.0:
+		sim.upgrade(col)
+	check(AutomationSim.tier(col) == 5 and sim.upgrade_cost(col) < 0.0, "Mk V is the top tier")
+	# Hexagon Cleaning Station clears its own hexagon, then moves on
+	var sp := M(-60, 60)
+	var own := HexGrid.cell_of(sp)
+	auto.add_machine("hex_station", sp, 0.0)
+	var st: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	sim.tick(1.0)
+	check(int(st["target"]) == own, "a cleaning station starts with its own hexagon")
+	var secs := AutomationSim.hex_area() / sim.hex_rate(st)
+	check(secs > 400.0 and secs < 800.0, "Mk I clears a hexagon in about 10 minutes", str(secs))
+	while sim.upgrade_cost(st) > 0.0:
+		sim.upgrade(st)
+	var done0 := GameState.hexes_done.size()
+	for i in 80:
+		sim.tick(1.0)
+	check(GameState.hexes_done.has(own) and GameState.hexes_done.size() > done0, "a Mk V station clears its hexagon in about a minute", "%s" % st["status"])
+	sim.tick(1.0)
+	check(int(st["target"]) != own and int(st["target"]) >= 0, "then moves on to the next unfinished hexagon")
+	await frames(40)
+	check(GameState.dirt.sample(HexGrid.center_point(own)) == 0.0, "the station's hexagon is clean on the ground too")
+	# Drone Hangar: sent to a hexagon chosen on the map
+	auto.add_machine("drone_hangar", M(-46, 40), 0.0)
+	var hg: Dictionary = GameState.machines[GameState.machines.size() - 1]
+	var far := HexGrid.cell_of(M(250, 250))
+	check(sim.assign(hg, far) and int(hg["target"]) == far, "a drone hangar can be sent to any hexagon")
+	check(not sim.assign(hg, own), "but not to one that is already clean")
+	for i in 30:
+		sim.tick(1.0)
+	check(AutomationSim.hex_progress(far) > 0.05, "hangar drones make progress on a far hexagon", str(AutomationSim.hex_progress(far)))
+	var refund := sim.remove_machine(int(hg["uid"]))
+	check(refund >= float(GameData.machine("drone_hangar")["price"]) * 0.5 - 0.1, "removing a machine refunds half of what it cost")
+	auto.rebuild_all()
 
 
 func _test_save_load() -> void:

@@ -91,6 +91,10 @@ func _ready() -> void:
 	if veh_index >= 0 and veh_index < vehicles.size():
 		call_deferred("enter_vehicle", vehicles[veh_index])
 	_update_beacon()
+	if GameState.flags.has("automation_refund"):
+		var r := float(GameState.flags["automation_refund"])
+		GameState.flags.erase("automation_refund")
+		call_deferred("_automation_news", r)
 	if GameState.stat("play_time") < 1.0:
 		call_deferred("_intro")
 
@@ -119,6 +123,12 @@ func _make_gravity() -> void:
 	cs.shape = sh
 	a.add_child(cs)
 	add_child(a)
+
+
+func _automation_news(refund: float) -> void:
+	menu.show_dialog("AUTOMATION, SIMPLIFIED",
+		"Machines now work anywhere and sell what they clean by themselves - no power, links or storage - and upgrade from Mk I to Mk V.\n\nYour collectors carried over; drone bays became Drone Hangars and rover garages Hexagon Cleaning Stations. Solar arrays, conveyors, storage, chargers, processors and depots were retired and fully refunded: +%s CR.\n\nSee BUILD > HOW AUTOMATION WORKS." % GameState.fmt(refund))
+	_pause(true)
 
 
 func focus_node() -> Node3D:
@@ -296,10 +306,11 @@ func _set_mode(m: String) -> void:
 	controls.release_all()
 	controls.toggled = {"sprint": player.sprint_toggle} if m == "foot" else {}
 	if m == "vehicle":
+		var fly := current_vehicle != null and current_vehicle.flying
 		controls.defs["clean"]["icon"] = "vacuum"
-		controls.defs["clean"]["text"] = "VACUUM"
-		controls.defs["jump"]["icon"] = "brake"
-		controls.defs["jump"]["text"] = "BRAKE"
+		controls.defs["clean"]["text"] = "BEAM" if fly else "VACUUM"
+		controls.defs["jump"]["icon"] = "up" if fly else "brake"
+		controls.defs["jump"]["text"] = "UP" if fly else "BRAKE"
 		controls.defs["interact"]["text"] = "USE"
 	elif m == "place":
 		controls.defs["clean"]["icon"] = "check"
@@ -553,7 +564,7 @@ func _process(delta: float) -> void:
 	var charging := fp.distance_to(AutomationSim.BASE_CENTER) < charge_radius
 	if not charging:
 		for m in GameState.machines:
-			if m["id"] == "charging_station" and AutomationSim.v3(m["pos"]).distance_to(fp) < 8.0:
+			if AutomationSim.v3(m["pos"]).distance_to(fp) < 8.0:
 				charging = true
 				break
 	if charging and GameState.battery < GameState.battery_capacity():
@@ -641,20 +652,20 @@ func dust_target() -> Vector3:
 # ------------------------------------------------------------- hexagons
 
 var _hex_t := 0.0
-var _sweep := []          # [cell, chunks still to sweep, m2 swept]
+var _sweeps := []         # [cell, chunks still to sweep, m2 swept, paid by player cleaning]
 
 
-## Watches the hexagons around the player: once one is CLEAR_AT clean, the rest of it
-## is swept (one terrain chunk per frame) and a bonus is paid.
+## Watches the hexagons around the player: once one is CLEAR_AT clean (ground measured
+## plus machine work), it is finished: the rest is swept and a bonus paid.
 func _update_hexes(delta: float) -> void:
-	if not _sweep.is_empty():
-		var cell: int = _sweep[0]
-		var todo: Array = _sweep[1]
+	if not _sweeps.is_empty():
+		var job: Array = _sweeps[0]
+		var todo: Array = job[1]
 		if not todo.is_empty():
-			_sweep[2] = float(_sweep[2]) + GameState.dirt.sweep_cell(todo.pop_back(), cell)
+			job[2] = float(job[2]) + GameState.dirt.sweep_cell(todo.pop_back(), int(job[0]))
 			return
-		_hex_cleared(cell, float(_sweep[2]))
-		_sweep.clear()
+		_sweeps.pop_front()
+		_hex_bonus(int(job[0]), float(job[2]))
 	_hex_t -= delta
 	if _hex_t > 0.0:
 		return
@@ -666,9 +677,25 @@ func _update_hexes(delta: float) -> void:
 			continue
 		var f := hex_fraction(cell)
 		GameState.hex_frac[cell] = f
-		if f >= HexGrid.CLEAR_AT:
-			_sweep = [cell, HexGrid.chunks_of(cell).duplicate(), 0.0]
+		if AutomationSim.hex_progress(cell) >= HexGrid.CLEAR_AT:
+			complete_hex(cell)
 			return
+
+
+## Finishes a hexagon (from cleaning by hand or by machines): it counts as done at
+## once, chunks made later start clean, loaded ones are swept over the next frames.
+func complete_hex(cell: int) -> void:
+	if GameState.hexes_done.has(cell):
+		return
+	GameState.hexes_done.append(cell)
+	GameState.hex_frac[cell] = 1.0
+	GameState.hex_work.erase(cell)
+	GameState.dirt.swept_cells[cell] = true
+	var loaded := []
+	for k in HexGrid.chunks_of(cell):
+		if GameState.dirt.has_chunk(k):
+			loaded.append(k)
+	_sweeps.append([cell, loaded, 0.0])
 
 
 ## How much of a hexagon is clean (0..1), from points spread over it.
@@ -683,9 +710,7 @@ func hex_fraction(cell: int) -> float:
 	return float(n_clean) / pts.size()
 
 
-func _hex_cleared(cell: int, swept_m2: float) -> void:
-	GameState.hexes_done.append(cell)
-	GameState.hex_frac[cell] = 1.0
+func _hex_bonus(cell: int, swept_m2: float) -> void:
 	var c := HexGrid.center_point(cell)
 	var rinfo := GameData.region(TerrainGen.region_of(c))
 	var mult := float(rinfo["dust_mult"])
@@ -704,9 +729,9 @@ func _hex_cleared(cell: int, swept_m2: float) -> void:
 ## Fraction clean of the hexagon the player is in (for the HUD), -1 when unknown.
 func current_hex_fraction() -> float:
 	var cell := HexGrid.cell_of(focus_node().global_position)
-	if GameState.hexes_done.has(cell):
-		return 1.0
-	return float(GameState.hex_frac.get(cell, -1.0))
+	if not GameState.hex_frac.has(cell) and not GameState.hex_work.has(cell):
+		return -1.0
+	return AutomationSim.hex_progress(cell)
 
 
 # ------------------------------------------------------------- waypoint

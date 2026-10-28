@@ -20,6 +20,9 @@ var _kb_look := false
 var _bob_t := 0.0
 var _land_kick := 0.0
 var _last_ok := Vector3.INF
+var _jet_t := 0.0                 # seconds of Jump Jets used since leaving the ground
+const JET_TIME := 1.0
+const HOVER_DRAIN := 0.012        # share of the battery used per second of hovering
 var _ok_t := 0.0
 
 
@@ -146,8 +149,16 @@ func _physics_process(delta: float) -> void:
 	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 	v_up -= g * delta
 	var jump_held := (controls and controls.is_held("jump")) or Input.is_key_pressed(KEY_SPACE)
-	if not on_floor and jump_held and mv["jetpack"] and v_up < 1.5:
-		v_up += 6.0 * delta
+	if on_floor:
+		_jet_t = 0.0
+	elif jump_held and v_up < 1.5:
+		if mv["hover"] and GameState.use_battery(GameState.battery_capacity() * HOVER_DRAIN * delta):
+			# Hover Pack: hover for as long as the battery lasts.
+			v_up += 6.0 * delta
+		elif mv["jetpack"] and _jet_t < JET_TIME:
+			# Jump Jets: a short boost per jump.
+			_jet_t += delta
+			v_up += 6.0 * delta
 	velocity = v_h + up * v_up
 	var prev := global_position
 	move_and_slide()

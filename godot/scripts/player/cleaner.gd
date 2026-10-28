@@ -30,6 +30,8 @@ var _ring_mat: ShaderMaterial
 var _beam: MeshInstance3D
 var _particles: CPUParticles3D
 var _drones: Array = []
+const MAX_CLEAN_HEIGHT := 6.0
+var _high_warn_t := 0.0
 var _swarm_dt := 0.0           # drones clean in 0.1 s steps, not every frame
 var _probe_t := -1.0           # seconds of extra crash breadcrumbs left after a tool change
 var _probe_next := 0.0
@@ -194,7 +196,14 @@ func _process(delta: float) -> void:
 	var shape: String = stats.get("shape", "round")
 	var powered: bool = float(stats.get("power", 0.0)) > 0.0
 	var strength: float = stats["strength"]
-	var active := cleaning and aim_valid
+	# Tools only reach the ground from up to MAX_CLEAN_HEIGHT (Hover Pack flying).
+	var high := TerrainGen.altitude(player.global_position) > MAX_CLEAN_HEIGHT
+	if high and cleaning:
+		_high_warn_t -= delta
+		if _high_warn_t <= 0.0:
+			_high_warn_t = 4.0
+			GameState.notify.emit("Too high to clean - tools reach %d m below you" % int(MAX_CLEAN_HEIGHT), "info")
+	var active := cleaning and aim_valid and not high
 	if powered and (active or shape == "swarm"):
 		if not GameState.use_battery(float(stats["power"]) * dt * (1.0 if active else 0.4)):
 			strength *= 0.2

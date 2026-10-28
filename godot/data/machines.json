@@ -1,14 +1,8 @@
 {
-  "_comment": "Automation buildings. power: positive = consumes, negative = produces. link: network link range in metres.",
+  "_comment": "Automation buildings. They work anywhere and sell what they clean at once. Every machine upgrades Mk I-V (x1.8 output per tier). radius: collector circle (m). rate: m2 per second a hexagon machine clears at Mk I. deep_rate: collector dust per second.",
   "machines": [
-    {"id": "solar_array", "name": "Solar Array", "desc": "Generates 12 power for your machines.", "price": 3500, "power": -12, "link": 0, "color": "#1e88e5"},
-    {"id": "dust_collector", "name": "Automatic Dust Collector", "desc": "Cleans the ground around it, then extracts deep regolith forever.", "price": 5500, "power": 2, "link": 9, "radius": 6.0, "strength": 0.22, "deep_rate": 0.9, "buffer": 400, "color": "#fdd835"},
-    {"id": "storage_container", "name": "Dust Storage Container", "desc": "Stores 6,000 units for its network.", "price": 2800, "power": 0, "link": 9, "capacity": 6000, "color": "#78909c"},
-    {"id": "conveyor", "name": "Conveyor Segment", "desc": "Links machines up to 16 m apart into one network.", "price": 450, "power": 0, "link": 16, "color": "#ffb74d"},
-    {"id": "charging_station", "name": "Charging Station", "desc": "Powers drones and rovers within 45 m. Also recharges your suit.", "price": 7500, "power": 1, "link": 9, "range": 45.0, "color": "#26c6da"},
-    {"id": "drone_bay", "name": "Cleaning Drone Bay", "desc": "Launches a cleaning drone that scrubs up to 35 m away.", "price": 16000, "power": 3, "link": 9, "range": 35.0, "radius": 0.9, "strength": 3.0, "speed": 6.0, "capacity": 160, "buffer": 800, "color": "#ec407a"},
-    {"id": "rover_garage", "name": "Autonomous Rover Garage", "desc": "A self-driving rover mows dust within 60 m.", "price": 48000, "power": 5, "link": 9, "range": 60.0, "radius": 1.8, "strength": 4.0, "speed": 4.5, "capacity": 1200, "buffer": 4000, "color": "#8bc34a"},
-    {"id": "processor", "name": "Processing Station", "desc": "Refines raw dust into polished moon powder worth 3x.", "price": 32000, "power": 6, "link": 9, "rate": 8.0, "color": "#ff7043"},
-    {"id": "shipping_depot", "name": "Automated Shipping Depot", "desc": "Rockets your network's dust to Earth buyers every 30 s.", "price": 21000, "power": 2, "link": 9, "interval": 30.0, "color": "#ffffff"}
+    {"id": "dust_collector", "name": "Dust Collector", "desc": "Keeps a circle of ground around itself clean and extracts deep regolith forever. Sells everything automatically.", "price": 5500, "radius": 10.0, "deep_rate": 1.2, "color": "#fdd835"},
+    {"id": "hex_station", "name": "Hexagon Cleaning Station", "desc": "Clears the whole hexagon it stands in, then moves on to the nearest unfinished hexagon by itself. Mk I takes about 10 minutes per hexagon, Mk V about one.", "price": 40000, "rate": 5.2, "color": "#4dd0e1"},
+    {"id": "drone_hangar", "name": "Drone Hangar", "desc": "A drone squad that clears any hexagon on the Moon. Tap the hangar, then CHOOSE ON MAP - or let it pick the nearest unfinished one.", "price": 300000, "rate": 9.0, "color": "#ec407a"}
   ]
 }

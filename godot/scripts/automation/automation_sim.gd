@@ -1,37 +1,30 @@
 class_name AutomationSim
 extends RefCounted
-## Lightweight automation economy. Pure data + rules so it can run headless in tests
-## and for machines far from the player.
+## Automation economy. Pure data + rules so it can run headless in tests and for machines
+## far from the player.
 ##
-## Rules
-## - Power: solar arrays (+ the base generator) supply power; every other machine draws
-##   power. If demand exceeds supply all machines run at supply/demand efficiency.
-## - Networks: machines within link range of each other (conveyors reach further) form a
-##   network. The base Dust Exchange is a network node that buys everything instantly.
-## - Producers (collectors, drone bays, rover garages) fill an internal buffer, then push
-##   it into network storage (storage containers, depot hoppers) or straight to the base.
-## - Processors refine raw dust stored in their network (3x value). This works in base
-##   networks too: there the base sells refined dust at once and raw dust only when
-##   storage gets full, so a processor + storage pay off anywhere.
-## - Shipping depots sell the whole network's storage every interval.
-## - Drones and rovers need a Charging Station within 45 m of their home.
+## Machines just work wherever they are placed: no power, links or storage. Whatever
+## they clean is sold straight away. Every machine has tiers Mk I-V that multiply what
+## it does, so automation keeps up with the rest of the game.
+## - Dust Collector: sweeps the ground in a circle around itself and extracts a steady
+##   trickle of deep regolith.
+## - Hexagon Cleaning Station: clears a whole hexagon (first the one it stands in),
+##   then moves on to the nearest unfinished hexagon by itself.
+## - Drone Hangar: sends its drone squad to a hexagon picked on the map (or the nearest
+##   unfinished one) - anywhere on the Moon.
 
-const BASE_UID := 0
-static var BASE_POS := LunarBase.at(LunarBase.EXCHANGE_POS)
-static var BASE_CENTER := LunarBase.at(Vector3(0, 0, -2))
-const BASE_LINK := 14.0
+const MAX_TIER := 5
+const TIER_MULT := 1.8          # each tier multiplies output by this
 const NEAR_DISTANCE := 150.0
 
+static var BASE_POS := LunarBase.at(LunarBase.EXCHANGE_POS)
+static var BASE_CENTER := LunarBase.at(Vector3(0, 0, -2))
+
 var dirt: DirtMap
-var networks: Array = []        # Array of Array[uid]
-var net_of := {}                # uid -> network index
-var edges: Array = []           # [[uid_a, uid_b]] spanning-tree links (for conveyor visuals)
-var supply := 0.0
-var demand := 0.0
-var efficiency := 1.0
 var revenue_rate := 0.0         # credits / minute (smoothed)
 var production_rate := 0.0      # dust / minute (smoothed)
-var ship_events: Array = []     # uids that launched a rocket this tick
+## Called with a hexagon index when machines finish clearing it.
+var on_hex_cleared: Callable
 var _revenue_acc := 0.0
 var _prod_acc := 0.0
 var _time := 0.0
@@ -52,6 +45,13 @@ static func arr(v: Vector3) -> Array:
 	return [v.x, v.y, v.z]
 
 
+## Distance between two points along the ground (ignoring height).
+static func flat_dist(a: Vector3, b: Vector3) -> float:
+	var d := b - a
+	var up := a.normalized()
+	return (d - up * d.dot(up)).length()
+
+
 func machines() -> Array:
 	return GameState.machines
 
@@ -64,25 +64,52 @@ func info(m: Dictionary) -> Dictionary:
 	return GameData.machine(m["id"])
 
 
-func link_range(m: Dictionary) -> float:
-	return float(info(m).get("link", 0)) * (1.0 + GameState.research_bonus("link"))
+# ------------------------------------------------------------------ tiers
+
+static func tier(m: Dictionary) -> int:
+	return clampi(int(m.get("tier", 1)), 1, MAX_TIER)
 
 
-func storage_capacity(m: Dictionary) -> float:
-	match m["id"]:
-		"storage_container":
-			return float(info(m).get("capacity", 6000)) * (1.0 + GameState.research_bonus("capacity"))
-		"shipping_depot":
-			return 1500.0
-	return 0.0
+static func tier_name(t: int) -> String:
+	return "Mk " + ["I", "II", "III", "IV", "V"][clampi(t, 1, MAX_TIER) - 1]
 
 
-func buffer_capacity(m: Dictionary) -> float:
-	return float(info(m).get("buffer", 0))
+static func tier_mult(m: Dictionary) -> float:
+	return pow(TIER_MULT, tier(m) - 1)
 
 
-func stored(m: Dictionary) -> float:
-	return float(m.get("d", 0.0)) + float(m.get("rd", 0.0))
+## Credits to take a machine to its next tier, or -1 at the top tier.
+func upgrade_cost(m: Dictionary) -> float:
+	if tier(m) >= MAX_TIER:
+		return -1.0
+	return round(float(info(m)["price"]) * 0.9 * pow(2.0, tier(m) - 1))
+
+
+func upgrade(m: Dictionary) -> bool:
+	var c := upgrade_cost(m)
+	if c < 0.0 or not GameState.spend(c):
+		return false
+	m["tier"] = tier(m) + 1
+	m["spent"] = float(m.get("spent", info(m)["price"])) + c
+	Audio.play("upgrade")
+	GameState.notify.emit("%s upgraded to %s" % [info(m)["name"], tier_name(tier(m))], "upgrade")
+	GameState.machines_changed.emit()
+	return true
+
+
+## Radius of ground a Dust Collector keeps clean.
+func collector_radius(m: Dictionary) -> float:
+	return float(info(m).get("radius", 10.0)) * (1.0 + 0.25 * (tier(m) - 1)) * (1.0 + GameState.research_bonus("link"))
+
+
+## Square metres per second a hexagon machine clears.
+func hex_rate(m: Dictionary) -> float:
+	return float(info(m).get("rate", 5.0)) * tier_mult(m) * (1.0 + GameState.research_bonus("drone"))
+
+
+## Area of one hexagon (m2).
+static func hex_area() -> float:
+	return 4.0 * PI * TerrainGen.RADIUS * TerrainGen.RADIUS / maxf(HexGrid.count(), 1.0)
 
 
 # ------------------------------------------------------------------ building
@@ -96,151 +123,93 @@ func can_place(id: String, pos: Vector3) -> String:
 	if TerrainGen.flatness(pos) < 0.82:
 		return "Ground too steep"
 	for m in machines():
-		if v3(m["pos"]).distance_to(pos) < 4.0:
+		if v3(m["pos"]).distance_to(pos) < 5.0:
 			return "Too close to another machine"
 	return ""
 
 
 func add_machine(id: String, pos: Vector3, yaw: float) -> Dictionary:
-	var m := {"uid": GameState.next_uid, "id": id, "pos": arr(pos), "yaw": yaw,
-		"d": 0.0, "v": 0.0, "rd": 0.0, "rv": 0.0, "produced": 0.0, "rate": 0.0, "status": "Starting",
-		"ship_t": 0.0, "phase": 0.0}
+	var m := {"uid": GameState.next_uid, "id": id, "pos": arr(pos), "yaw": yaw, "tier": 1,
+		"spent": float(GameData.machine(id).get("price", 0)), "produced": 0.0, "earned": 0.0,
+		"rate": 0.0, "status": "Starting", "phase": 0.0, "target": -1}
 	GameState.next_uid += 1
-	if id == "drone_bay" or id == "rover_garage":
-		m["agent"] = {"p": arr(TerrainGen.surface(pos, 1.0)), "s": "idle", "t": arr(pos), "load": 0.0, "val": 0.0, "bat": 100.0, "wait": 0.0, "n": 0, "clean_t": 0.0}
 	machines().append(m)
 	rebuild()
 	return m
 
 
+## Removes a machine; refunds half of everything spent on it.
 func remove_machine(uid: int) -> float:
 	var list := machines()
 	for i in list.size():
 		if int(list[i]["uid"]) == uid:
 			var m: Dictionary = list[i]
-			var refund := float(info(m).get("price", 0)) * 0.5
+			var refund := float(m.get("spent", info(m).get("price", 0))) * 0.5
 			list.remove_at(i)
 			rebuild()
 			return refund
 	return 0.0
 
 
-## Recompute power and network connectivity. Call after any machine changes.
 func rebuild() -> void:
 	_by_uid.clear()
-	var nodes := []
 	for m in machines():
 		_by_uid[int(m["uid"])] = m
-		if link_range(m) > 0.0:
-			nodes.append(m)
-	# Union-find over nodes (+ virtual base node)
-	var uids := [BASE_UID]
-	var pos := [BASE_POS]
-	var ranges := [BASE_LINK]
-	for m in nodes:
-		uids.append(int(m["uid"]))
-		pos.append(v3(m["pos"]))
-		ranges.append(link_range(m))
-	var n := uids.size()
-	var parent := range(n)
-	var candidate_edges := []
-	for i in n:
-		for j in range(i + 1, n):
-			var d: float = (pos[i] as Vector3).distance_to(pos[j])
-			if d <= maxf(ranges[i], ranges[j]):
-				candidate_edges.append([d, i, j])
-	candidate_edges.sort_custom(func(a, b): return a[0] < b[0])
-	edges.clear()
-	for e in candidate_edges:
-		var a := _find(parent, e[1])
-		var b := _find(parent, e[2])
-		if a != b:
-			parent[a] = b
-			edges.append([uids[e[1]], uids[e[2]]])
-	var groups := {}
-	for i in n:
-		var r := _find(parent, i)
-		if not groups.has(r):
-			groups[r] = []
-		groups[r].append(uids[i])
-	networks.clear()
-	net_of.clear()
-	for r in groups:
-		var g: Array = groups[r]
-		if g.size() == 1 and g[0] == BASE_UID:
+
+
+## The hexagon a machine works on (picking the next one when needed), or -1.
+func target_of(m: Dictionary) -> int:
+	var t := int(m.get("target", -1))
+	if t >= 0 and t < HexGrid.count() and not GameState.hexes_done.has(t) and _hex_open(t):
+		return t
+	# The nearest unfinished hexagon: for a station that starts with its own.
+	t = nearest_unfinished(v3(m["pos"]).normalized())
+	m["target"] = t
+	if m["id"] == "drone_hangar":
+		m["manual"] = false
+	return t
+
+
+func _hex_open(cell: int) -> bool:
+	return GameState.region_unlocked(TerrainGen.region_dir(HexGrid.centers[cell]))
+
+
+## The unfinished hexagon (in an unlocked region) nearest to a direction, or -1.
+func nearest_unfinished(d: Vector3) -> int:
+	var done := {}
+	for c in GameState.hexes_done:
+		done[int(c)] = true
+	var best := -1
+	var bd := -2.0
+	for i in HexGrid.count():
+		if done.has(i):
 			continue
-		var idx := networks.size()
-		networks.append(g)
-		for u in g:
-			net_of[u] = idx
-	_compute_power()
+		var dd := HexGrid.centers[i].dot(d)
+		if dd > bd and _hex_open(i):
+			bd = dd
+			best = i
+	return best
 
 
-## What a machine placed at pos would connect to: {"links": [positions], "base": bool,
-## "range": metres}. Used by the placement preview.
-func preview_links(id: String, pos: Vector3) -> Dictionary:
-	var r := float(GameData.machine(id).get("link", 0)) * (1.0 + GameState.research_bonus("link"))
-	var out := {"links": [], "base": false, "range": r}
-	if r <= 0.0:
-		return out
-	if pos.distance_to(BASE_POS) <= maxf(r, BASE_LINK):
-		out["links"].append(BASE_POS)
-		out["base"] = true
-	for m in machines():
-		var mr := link_range(m)
-		if mr <= 0.0:
-			continue
-		var mp := v3(m["pos"])
-		if pos.distance_to(mp) <= maxf(r, mr):
-			out["links"].append(mp)
-			if net_of.has(int(m["uid"])) and net_of.has(BASE_UID) and net_of[int(m["uid"])] == net_of[BASE_UID]:
-				out["base"] = true
-	return out
+## Points a Drone Hangar at a hexagon (from the map).
+func assign(m: Dictionary, cell: int) -> bool:
+	if cell < 0 or GameState.hexes_done.has(cell) or not _hex_open(cell):
+		return false
+	m["target"] = cell
+	m["manual"] = true
+	return true
 
 
-func _find(parent: Array, i: int) -> int:
-	while parent[i] != i:
-		parent[i] = parent[parent[i]]
-		i = parent[i]
-	return i
+# ------------------------------------------------------------------ running
 
-
-func _compute_power() -> void:
-	supply = float(GameData.economy.get("base_power", 6))
-	demand = 0.0
-	for m in machines():
-		var p := float(info(m).get("power", 0))
-		if p < 0.0:
-			supply += -p * (1.0 + GameState.research_bonus("solar"))
-		else:
-			demand += p
-	efficiency = 1.0 if demand <= 0.0 else clampf(supply / demand, 0.0, 1.0)
-
-
-func has_charger(home: Vector3) -> bool:
-	for m in machines():
-		if m["id"] == "charging_station" and v3(m["pos"]).distance_to(home) <= float(info(m).get("range", 45.0)):
-			return true
-	return false
-
-
-# ---------------------------------------------------------------------- tick
-
-## Advance the simulation. near_uids are agents simulated per-frame elsewhere.
-func tick(dt: float, near_uids := {}) -> void:
+func tick(dt: float, _near := {}) -> void:
 	_time += dt
-	ship_events.clear()
-	_compute_power()
 	for m in machines():
 		match m["id"]:
 			"dust_collector":
 				_collector(m, dt)
-			"drone_bay", "rover_garage":
-				if not near_uids.has(int(m["uid"])):
-					update_agent(m, dt)
-	for idx in networks.size():
-		_network(networks[idx], dt)
-	# Machines not on any network keep their buffers (player can collect manually).
+			"hex_station", "drone_hangar":
+				_hex_worker(m, dt)
 	for m in machines():
 		var r := float(m.get("rate_acc", 0.0))
 		m["rate"] = lerpf(float(m.get("rate", 0.0)), r / dt * 60.0, 0.15)
@@ -251,317 +220,68 @@ func tick(dt: float, near_uids := {}) -> void:
 	_prod_acc = 0.0
 
 
-func _produce(m: Dictionary, units: float, value_per_unit: float) -> float:
-	var space := buffer_capacity(m) - float(m.get("d", 0.0))
-	var a := minf(units, maxf(space, 0.0))
-	if a <= 0.0:
-		return 0.0
-	m["d"] = float(m.get("d", 0.0)) + a
-	m["v"] = float(m.get("v", 0.0)) + a * value_per_unit
-	m["produced"] = float(m.get("produced", 0.0)) + a
-	m["rate_acc"] = float(m.get("rate_acc", 0.0)) + a
-	GameState.add_stat("auto_dust", a)
-	_prod_acc += a
-	return a
+## Sells what a machine produced straight away.
+func _sell(m: Dictionary, units: float, mult: float) -> void:
+	if units <= 0.0:
+		return
+	var value := units * mult * GameState.dust_price() * (1.0 + GameState.research_bonus("refine"))
+	GameState.add_credits(value)
+	m["produced"] = float(m.get("produced", 0.0)) + units
+	m["earned"] = float(m.get("earned", 0.0)) + value
+	m["rate_acc"] = float(m.get("rate_acc", 0.0)) + units
+	GameState.add_stat("auto_dust", units)
+	_prod_acc += units
+	_revenue_acc += value
 
 
 func _collector(m: Dictionary, dt: float) -> void:
 	var i := info(m)
-	if efficiency <= 0.0:
-		m["status"] = "No power"
-		return
-	if float(m.get("d", 0.0)) >= buffer_capacity(m) - 0.01:
-		m["status"] = "Buffer full - link it to the base, a Storage Container or a Depot"
-		return
 	var p := v3(m["pos"])
 	var rinfo := GameData.region(TerrainGen.region_of(p))
-	var thick := TerrainGen.thickness(p, float(rinfo["thickness"]))
-	var R := float(i.get("radius", 6.0))
-	# A sweeping spiral spot cleans the surface around the collector.
+	var dpm := float(GameData.economy["dust_per_m2"]) * TerrainGen.thickness(p, float(rinfo["thickness"]))
+	var R := collector_radius(m)
+	var k := tier_mult(m)
+	# A sweeping spiral of cleaning heads covers the whole circle over time.
 	m["phase"] = float(m.get("phase", 0.0)) + dt
 	var ph: float = m["phase"]
-	var rho := 0.8 + (R - 1.2) * (0.5 + 0.5 * sin(ph * 0.11))
 	var fb := TerrainGen.frame(p.normalized())
-	var spot := p + (fb.x * cos(ph * 0.9) + fb.z * sin(ph * 0.9)) * rho
-	var dpm := float(GameData.economy["dust_per_m2"]) * thick
-	var budget := (buffer_capacity(m) - float(m.get("d", 0.0))) / dpm
-	var area := dirt.stamp(DirtMap.Shape.ROUND, spot, 1.2, 0.0, Vector3.ZERO, 1.6 * efficiency * dt, budget)
-	var units := area * dpm
-	var deep := float(i.get("deep_rate", 1.0)) * (1.0 + GameState.research_bonus("deep")) * efficiency * dt
-	if units < deep:
-		m["status"] = "Deep extraction"
-		units = deep
-	else:
-		m["status"] = "Cleaning surface"
-	_produce(m, units, float(rinfo["dust_mult"]))
+	var area := 0.0
+	var heads := 1 + tier(m)
+	for h in heads:
+		var a := ph * 0.9 + h * TAU / heads
+		var rho := 1.5 + (R - 1.5) * (0.5 + 0.5 * sin(ph * 0.07 + h * 1.7))
+		var spot := p + (fb.x * cos(a) + fb.z * sin(a)) * rho
+		area += dirt.stamp(DirtMap.Shape.ROUND, spot, 1.6 + 0.3 * tier(m), 0.0, Vector3.ZERO, 2.0 * dt, 1e9)
+	var deep := float(i.get("deep_rate", 1.0)) * k * (1.0 + GameState.research_bonus("deep")) * dt
+	m["status"] = "Cleaning a %d m circle" % int(R) if area > 0.0 else "Deep extraction (circle clean)"
+	_sell(m, area * dpm + deep, float(rinfo["dust_mult"]))
 
 
-## Drone / rover behaviour. dt may be a full second for remote simulation.
-func update_agent(m: Dictionary, dt: float) -> void:
-	var a: Dictionary = m["agent"]
-	var i := info(m)
-	var home := v3(m["pos"])
-	var is_drone: bool = m["id"] == "drone_bay"
-	var bonus := 1.0 + GameState.research_bonus("drone")
-	var speed := float(i.get("speed", 5.0)) * bonus
-	var radius := float(i.get("radius", 1.0))
-	var strength := float(i.get("strength", 3.0)) * bonus
-	var capacity := float(i.get("capacity", 100.0))
-	var rng := float(i.get("range", 35.0))
-	var p := v3(a["p"])
-	if (a["t"] as Array).size() != 3:
-		# Saved before the Moon was round.
-		a["t"] = arr(home)
-		a["s"] = "idle"
-	if efficiency <= 0.0:
-		m["status"] = "No power"
+func _hex_worker(m: Dictionary, dt: float) -> void:
+	var t := target_of(m)
+	if t < 0:
+		m["status"] = "Every open hexagon is clean!"
 		return
-	if not has_charger(home):
-		m["status"] = "Needs a Charging Station within 45 m"
-		a["s"] = "idle"
-		a["p"] = arr(TerrainGen.surface(home, 1.0))
-		return
-	match a["s"]:
-		"idle":
-			if float(a["load"]) > 0.0:
-				var moved := _produce(m, float(a["load"]), float(a["val"]) / maxf(float(a["load"]), 0.0001))
-				a["val"] = float(a["val"]) * (1.0 - moved / maxf(float(a["load"]), 0.0001))
-				a["load"] = float(a["load"]) - moved
-			a["bat"] = minf(float(a["bat"]) + 25.0 * dt, 100.0)
-			a["wait"] = float(a["wait"]) - dt
-			if float(a["load"]) > 0.01:
-				m["status"] = "Buffer full - link the bay to the base, storage or a Depot"
-			elif float(a["bat"]) >= 99.0 and float(a["wait"]) <= 0.0:
-				var t := _pick_target(m, home, rng)
-				if t == Vector3.INF:
-					m["status"] = "Area clean - move it somewhere dusty"
-					a["wait"] = 8.0
-				else:
-					a["t"] = arr(t)
-					a["s"] = "out"
-					m["status"] = "Flying out" if is_drone else "Driving out"
-			else:
-				m["status"] = "Charging"
-		"out":
-			var t := v3(a["t"])
-			p = _move(p, t, speed * dt, is_drone)
-			a["bat"] = float(a["bat"]) - dt * 1.5
-			if flat_dist(p, t) < 0.6:
-				a["s"] = "clean"
-				a["clean_t"] = 0.0
-		"clean":
-			a["clean_t"] = float(a["clean_t"]) + dt
-			var ct: float = a["clean_t"]
-			var t := v3(a["t"])
-			var orbit := 1.0 + fmod(ct * 0.35, 2.5)
-			var tb := TerrainGen.frame(t.normalized())
-			var goal := t + (tb.x * cos(ct * 1.3) + tb.z * sin(ct * 1.3)) * orbit
-			p = _move(p, goal, speed * 0.4 * dt, is_drone)
-			var rinfo := GameData.region(TerrainGen.region_of(p))
-			var dpm := float(GameData.economy["dust_per_m2"]) * TerrainGen.thickness(p, float(rinfo["thickness"]))
-			var budget := (capacity - float(a["load"])) / dpm
-			var area := dirt.stamp(DirtMap.Shape.ROUND, p, radius, 0.0, Vector3.ZERO, strength * efficiency * dt, budget)
-			var units := area * dpm
-			a["load"] = float(a["load"]) + units
-			a["val"] = float(a["val"]) + units * float(rinfo["dust_mult"])
-			a["bat"] = float(a["bat"]) - dt * 3.0
-			m["status"] = "Cleaning"
-			if float(a["load"]) >= capacity - 0.01 or float(a["bat"]) < 20.0 or ct > 40.0:
-				a["s"] = "return"
-			elif ct > 4.0 and units < 0.05 * dt:
-				a["s"] = "return"
-		"return":
-			p = _move(p, home, speed * dt, is_drone)
-			a["bat"] = float(a["bat"]) - dt * 1.5
-			m["status"] = "Returning"
-			if flat_dist(p, home) < 0.8:
-				a["s"] = "idle"
-				a["wait"] = 1.0
-	a["p"] = arr(p)
+	var c := HexGrid.centers[t]
+	var rinfo := GameData.region(TerrainGen.region_dir(c))
+	var rate := hex_rate(m) * dt
+	var work := float(GameState.hex_work.get(t, 0.0)) + rate / hex_area()
+	GameState.hex_work[t] = work
+	var dpm := float(GameData.economy["dust_per_m2"]) * float(rinfo["thickness"])
+	_sell(m, rate * dpm, float(rinfo["dust_mult"]))
+	var frac := hex_progress(t)
+	m["status"] = "Clearing hexagon %d: %d%%" % [t + 1, int(frac * 100.0)]
+	if frac >= 1.0:
+		if on_hex_cleared.is_valid():
+			on_hex_cleared.call(t)
+		else:
+			GameState.hexes_done.append(t)
+		GameState.hex_work.erase(t)
+		m["target"] = -1
 
 
-## Distance between two points along the ground (ignoring height).
-static func flat_dist(a: Vector3, b: Vector3) -> float:
-	var d := b - a
-	var up := a.normalized()
-	return (d - up * d.dot(up)).length()
-
-
-func _move(p: Vector3, target: Vector3, step: float, flying: bool) -> Vector3:
-	var up := p.normalized()
-	var flat := target - p
-	flat -= up * flat.dot(up)
-	var d := flat.length()
-	var np := p
-	if d > 0.001:
-		np += flat * minf(step / d, 1.0)
-	return TerrainGen.surface(np, 2.6 if flying else 0.0)
-
-
-func _pick_target(m: Dictionary, home: Vector3, rng: float) -> Vector3:
-	var a: Dictionary = m["agent"]
-	var hb := TerrainGen.frame(home.normalized())
-	for attempt in 10:
-		a["n"] = int(a["n"]) + 1
-		var n: int = a["n"]
-		var ang := TerrainGen.hashf(int(m["uid"]) * 7 + n, n * 3, 5151) * TAU
-		var dist := 4.0 + TerrainGen.hashf(n, int(m["uid"]), 5353) * (rng - 4.0)
-		var t := TerrainGen.surface(home + (hb.x * cos(ang) + hb.z * sin(ang)) * dist)
-		if not GameState.region_unlocked(TerrainGen.region_of(t)):
-			continue
-		if t.distance_to(BASE_CENTER) < 30.0:
-			continue
-		if dirt.sample(t) > 0.35:
-			return t
-	return Vector3.INF
-
-
-func _network(net: Array, dt: float) -> void:
-	var containers := []
-	var producers := []
-	var processors := []
-	var depots := []
-	var has_base := false
-	for uid in net:
-		if uid == BASE_UID:
-			has_base = true
-			continue
-		var m: Dictionary = _by_uid.get(uid, {})
-		if m.is_empty():
-			continue
-		match m["id"]:
-			"storage_container":
-				containers.append(m)
-			"shipping_depot":
-				containers.append(m)
-				depots.append(m)
-			"dust_collector", "drone_bay", "rover_garage":
-				producers.append(m)
-			"processor":
-				processors.append(m)
-	# A base network with a processor and storage keeps raw dust for refining.
-	var refine_for_base := has_base and not processors.is_empty() and not containers.is_empty()
-	# 1) producers -> base (instant sale) or containers
-	for p in producers:
-		var d := float(p.get("d", 0.0))
-		if d <= 0.0:
-			continue
-		if has_base and not refine_for_base:
-			_sell(d, float(p.get("v", 0.0)))
-			p["d"] = 0.0
-			p["v"] = 0.0
-			continue
-		for c in containers:
-			var space := storage_capacity(c) - stored(c)
-			if space <= 0.0:
-				continue
-			var mv := minf(space, float(p["d"]))
-			var frac := mv / float(p["d"])
-			var val := float(p["v"]) * frac
-			c["d"] = float(c.get("d", 0.0)) + mv
-			c["v"] = float(c.get("v", 0.0)) + val
-			p["d"] = float(p["d"]) - mv
-			p["v"] = float(p["v"]) - val
-			if float(p["d"]) <= 0.0001:
-				break
-		# Storage full in a base network: sell the rest raw rather than stall.
-		if refine_for_base and float(p["d"]) > 0.0001:
-			_sell(float(p["d"]), float(p["v"]))
-			p["d"] = 0.0
-			p["v"] = 0.0
-	# 2) processors refine raw dust inside containers
-	for pr in processors:
-		if efficiency <= 0.0:
-			pr["status"] = "No power"
-			continue
-		var budget := float(info(pr).get("rate", 8.0)) * (1.0 + GameState.research_bonus("refine")) * efficiency * dt
-		var done := 0.0
-		for c in containers:
-			if budget <= 0.0:
-				break
-			var raw := float(c.get("d", 0.0))
-			if raw <= 0.0:
-				continue
-			var mv := minf(raw, budget)
-			var val := float(c["v"]) * mv / raw
-			c["d"] = raw - mv
-			c["v"] = float(c["v"]) - val
-			c["rd"] = float(c.get("rd", 0.0)) + mv
-			c["rv"] = float(c.get("rv", 0.0)) + val * float(GameData.economy["refined_multiplier"])
-			budget -= mv
-			done += mv
-		pr["rate_acc"] = float(pr.get("rate_acc", 0.0)) + done
-		pr["produced"] = float(pr.get("produced", 0.0)) + done
-		pr["status"] = "Refining" if done > 0.0 else ("Needs a Storage Container linked next to it" if containers.is_empty() else "Waiting for dust")
-	# 3) base flushes storage instantly; depots launch on a timer
-	if has_base:
-		for c in containers:
-			if refine_for_base:
-				# Refined dust sells straight away; raw waits for the processor unless
-				# storage is getting full.
-				if float(c.get("rd", 0.0)) > 0.0:
-					_sell(float(c["rd"]), float(c.get("rv", 0.0)))
-					c["rd"] = 0.0
-					c["rv"] = 0.0
-				if stored(c) > storage_capacity(c) * 0.8:
-					_sell(float(c.get("d", 0.0)), float(c.get("v", 0.0)))
-					c["d"] = 0.0
-					c["v"] = 0.0
-				c["status"] = "Refining for the base exchange"
-			else:
-				_flush(c)
-				c["status"] = "Linked to base exchange"
-	else:
-		var interval := 30.0 / (1.0 + GameState.research_bonus("ship"))
-		for dp in depots:
-			dp["ship_t"] = float(dp.get("ship_t", 0.0)) + dt * efficiency
-			dp["status"] = "Next launch in %ds" % int(maxf(interval - float(dp["ship_t"]), 0.0))
-			if float(dp["ship_t"]) >= interval:
-				dp["ship_t"] = 0.0
-				var total := 0.0
-				for c in containers:
-					total += stored(c)
-					_flush(c)
-				if total > 0.0:
-					ship_events.append(int(dp["uid"]))
-		for c in containers:
-			if c["id"] == "storage_container":
-				c["status"] = "Stored %d / %d" % [int(stored(c)), int(storage_capacity(c))]
-
-
-func _flush(c: Dictionary) -> void:
-	var amount := stored(c)
-	if amount <= 0.0:
-		return
-	_sell(amount, float(c.get("v", 0.0)) + float(c.get("rv", 0.0)))
-	c["d"] = 0.0
-	c["v"] = 0.0
-	c["rd"] = 0.0
-	c["rv"] = 0.0
-
-
-func _sell(amount: float, value: float) -> void:
-	var credits := value * GameState.dust_price()
-	GameState.add_credits(credits)
-	GameState.add_stat("auto_revenue", credits)
-	_revenue_acc += credits
-
-
-## Move a machine's stored dust into the player's tank. Returns amount moved.
-func collect_into_tank(m: Dictionary) -> float:
-	var space := GameState.tank_space()
-	var total := 0.0
-	for k in [["d", "v"], ["rd", "rv"]]:
-		var have := float(m.get(k[0], 0.0))
-		if have <= 0.0 or space <= 0.0:
-			continue
-		var mv := minf(have, space)
-		var val := float(m.get(k[1], 0.0)) * mv / have
-		GameState.tank_dust += mv
-		GameState.tank_value += val
-		m[k[0]] = have - mv
-		m[k[1]] = float(m.get(k[1], 0.0)) - val
-		space -= mv
-		total += mv
-	GameState.tank_changed.emit(GameState.tank_dust, GameState.tank_capacity())
-	return total
+## How far a hexagon is: what was measured on the ground plus machine work.
+static func hex_progress(cell: int) -> float:
+	if GameState.hexes_done.has(cell):
+		return 1.0
+	return minf(float(GameState.hex_frac.get(cell, 0.0)) + float(GameState.hex_work.get(cell, 0.0)), 1.0)

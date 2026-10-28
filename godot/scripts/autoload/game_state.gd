@@ -12,7 +12,7 @@ signal vehicles_changed
 signal machines_changed
 signal sold(amount: float, credits: float)
 
-const SAVE_VERSION := 2   # 2: the Moon became a real sphere
+const SAVE_VERSION := 3   # 2: the Moon became a real sphere, 3: simpler automation
 
 var dirt := DirtMap.new()
 
@@ -36,6 +36,7 @@ var next_uid := 1
 var flags := {}
 var hexes_done: Array = []       # hexagon sectors cleared (HexGrid cell indices)
 var hex_frac := {}               # cell -> fraction clean last measured (for the map)
+var hex_work := {}               # cell -> share of the hexagon cleared by machines
 var salvage_taken: Array = []
 var landmark_progress := {}
 var stats := {}
@@ -86,6 +87,7 @@ func new_game() -> void:
 	salvage_taken = []
 	hexes_done = []
 	hex_frac = {}
+	hex_work = {}
 	landmark_progress = {}
 	stats = {}
 	var sp := LunarBase.spawn_point()
@@ -106,7 +108,7 @@ func to_dict() -> Dictionary:
 		"missions_done": missions_done, "achievements_done": achievements_done,
 		"vehicles": vehicles, "machines": machines, "next_uid": next_uid,
 		"flags": flags, "salvage_taken": salvage_taken,
-		"hexes_done": hexes_done, "hex_frac": hex_frac,
+		"hexes_done": hexes_done, "hex_frac": hex_frac, "hex_work": hex_work,
 		"landmark_progress": landmark_progress, "stats": stats,
 		"player": player, "started_at": started_at,
 		"clean_chunks": dirt.clean.keys().map(func(k): return [k.x, k.y, k.z]),
@@ -152,6 +154,13 @@ func from_dict(d: Dictionary) -> void:
 	var hf: Dictionary = d.get("hex_frac", {})
 	for k in hf:
 		hex_frac[int(k)] = float(hf[k])
+	hex_work = {}
+	var hw: Dictionary = d.get("hex_work", {})
+	for k in hw:
+		hex_work[int(k)] = float(hw[k])
+	dirt.swept_cells.clear()
+	for c in hexes_done:
+		dirt.swept_cells[int(c)] = true
 	landmark_progress = d.get("landmark_progress", {})
 	stats = d.get("stats", {})
 	player = d.get("player", player)
@@ -170,8 +179,56 @@ func migrate(d: Dictionary) -> Dictionary:
 		v = 1
 	if v < 2:
 		_migrate_to_sphere(d)
+	if v < 3:
+		_migrate_automation(d)
 	d["version"] = SAVE_VERSION
 	return d
+
+
+## Version 3 automation has no power, links or storage. Collectors stay (Mk I); drone
+## bays become Drone Hangars and rover garages Hexagon Cleaning Stations (Mk I); the
+## rest is removed and fully refunded, along with any dust still held in machines.
+static func _migrate_automation(d: Dictionary) -> void:
+	var keep := {"dust_collector": "dust_collector", "drone_bay": "drone_hangar", "rover_garage": "hex_station"}
+	var refund := 0.0
+	var out := []
+	for m in d.get("machines", []):
+		if not (m is Dictionary):
+			continue
+		var old: Dictionary = GameData.machine(str(m.get("id", "")))
+		refund += (float(m.get("v", 0.0)) + float(m.get("rv", 0.0))) * float(GameData.economy["base_dust_price"])
+		if keep.has(m["id"]):
+			var nid: String = keep[m["id"]]
+			out.append({"uid": m["uid"], "id": nid, "pos": m["pos"], "yaw": m.get("yaw", 0.0), "tier": 1,
+				"spent": float(GameData.machine(nid).get("price", 0)), "produced": float(m.get("produced", 0.0)),
+				"earned": 0.0, "rate": 0.0, "status": "Starting", "phase": 0.0, "target": -1})
+		else:
+			refund += float(OLD_PRICES.get(str(m.get("id", "")), old.get("price", 0)))
+	d["machines"] = out
+	d["credits"] = float(d.get("credits", 0.0)) + refund
+	if refund > 0.0:
+		var fl: Dictionary = d.get("flags", {})
+		fl["automation_refund"] = refund
+		d["flags"] = fl
+
+
+## Prices of machines that were retired with the version 3 automation (for refunds).
+const OLD_PRICES := {"solar_array": 3500, "storage_container": 2800, "conveyor": 450,
+	"charging_station": 7500, "processor": 32000, "shipping_depot": 21000}
+
+
+func hex_world_fraction() -> float:
+	var n := HexGrid.count()
+	if n == 0:
+		return 0.0
+	var sum := float(hexes_done.size())
+	for k in hex_frac:
+		if not hexes_done.has(k):
+			sum += AutomationSim.hex_progress(k)
+	for k in hex_work:
+		if not hexes_done.has(k) and not hex_frac.has(k):
+			sum += AutomationSim.hex_progress(k)
+	return minf(sum / n, 1.0 if hexes_done.size() >= n else 0.999)
 
 
 ## Version 1 saves were made on the flat Moon: positions were (x, height, z). The round
@@ -258,7 +315,25 @@ func move_stats() -> Dictionary:
 	var b: Dictionary = lv[clampi(boots_level, 0, lv.size() - 1)]
 	var k := 1.0 + research_bonus("move")
 	return {"walk": b["walk"] * k, "sprint": b["sprint"] * k, "jump": b["jump"] * (1.0 + research_bonus("move") * 0.5),
-		"jetpack": research_bonus("jetpack") > 0.0}
+		"jetpack": research_bonus("jetpack") > 0.0, "hover": has_hover_pack()}
+
+
+const HOVER_PACK_COST := 250000
+
+
+## Sustained hovering (and cleaning from up to 6 m in the air). Drains the suit battery.
+func has_hover_pack() -> bool:
+	return bool(flags.get("hover_pack", false))
+
+
+func buy_hover_pack() -> bool:
+	if has_hover_pack() or not spend(HOVER_PACK_COST):
+		return false
+	flags["hover_pack"] = true
+	Audio.play("upgrade")
+	notify.emit("Hover Pack fitted: hold JUMP in the air to hover (uses suit battery)", "upgrade")
+	inventory_changed.emit()
+	return true
 
 
 func dust_price() -> float:
@@ -536,7 +611,7 @@ func buy_vehicle(id: String) -> bool:
 		return false
 	var slot := vehicles.size()
 	vehicles.append({"id": id, "engine": 0, "storage_lvl": 0, "clean_lvl": 0,
-		"pos": [-18.0 - slot * 0.0, 1.5, 10.0 + slot * 7.0], "yaw": PI * 0.5, "dust": 0.0, "value": 0.0, "new": true})
+		"pos": LunarBase.at_array(Vector3(-18.0, 1.5, 10.0 + slot * 7.0)), "yaw": PI * 0.5, "dust": 0.0, "value": 0.0, "new": true})
 	Audio.play("purchase")
 	notify.emit(info["name"] + " delivered to the Vehicle Bay", "purchase")
 	vehicles_changed.emit()
@@ -636,6 +711,12 @@ func mission_progress(m: Dictionary) -> Vector2:
 			if m["vehicle"] == "any":
 				return Vector2(mini(vehicles.size(), 1), 1.0)
 			return Vector2(1.0 if owns_vehicle(m["vehicle"]) else 0.0, 1.0)
+		"tier":
+			var best := 0
+			for mc in machines:
+				if mc["id"] == m["machine"]:
+					best = maxi(best, int(mc.get("tier", 1)))
+			return Vector2(best, float(m["value"]))
 		"build":
 			var n := 0
 			for mc in machines:
@@ -663,7 +744,7 @@ var _world_frac_t := 0
 func world_clean_fraction() -> float:
 	var now := Time.get_ticks_msec()
 	if _world_frac < 0.0 or now - _world_frac_t > 1000:
-		_world_frac = dirt.world_fraction()
+		_world_frac = maxf(dirt.world_fraction(), hex_world_fraction())
 		_world_frac_t = now
 	return _world_frac
 

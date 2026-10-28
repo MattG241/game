@@ -1,16 +1,13 @@
 class_name Automation
 extends Node3D
-## Visual side of automation: machine models, conveyor belts between linked machines,
-## drones/rovers (smooth per-frame motion only near the player), rocket launches and
-## the placement ghost.
+## Visual side of automation: machine models, collector sweep arms, the beams of
+## Hexagon Cleaning Stations, Drone Hangar squads over their hexagon, and the placement
+## ghost. The rules live in AutomationSim.
 
 var world: Node
 var sim: AutomationSim
-var visuals := {}      # uid -> {root, spin, gauge, rocket, agent_node}
-var _belts: Node3D
+var visuals := {}      # uid -> {root, spin, gauge, label, beam, drones}
 var _tick_t := 0.0
-var _near := {}
-var _belt_mat: ShaderMaterial
 var _t := 0.0
 
 # placement
@@ -19,17 +16,16 @@ var ghost: Node3D
 var ghost_yaw := 0.0
 var ghost_ok := false
 var ghost_reason := ""
-var ghost_link_text := ""       # "Links to the base", "NOT LINKED ...", shown while placing
-var _preview: MeshInstance3D    # link-range ring + lines to what it would connect to
+var ghost_link_text := ""       # what the machine will do, shown while placing
+var _preview: MeshInstance3D    # collector circle while placing
 var _preview_key := ""
 
 
 func setup(w: Node) -> void:
 	world = w
 	sim = AutomationSim.new(GameState.dirt)
-	_belts = Node3D.new()
-	add_child(_belts)
-	_belt_mat = Meshes.energy(Color(1.0, 0.7, 0.25), 0.6, 1.5, 12.0)
+	if w.has_method("complete_hex"):
+		sim.on_hex_cleared = Callable(w, "complete_hex")
 	rebuild_all()
 
 
@@ -39,7 +35,6 @@ func rebuild_all() -> void:
 	sim.rebuild()
 	for m in GameState.machines:
 		_add_visual(m)
-	_rebuild_belts()
 
 
 ## Combined bounding box of every mesh in a model, in the model's own space.
@@ -74,8 +69,7 @@ func _add_visual(m: Dictionary) -> void:
 	var mp := AutomationSim.v3(m["pos"])
 	root.transform = Transform3D(TerrainGen.heading_basis(mp, float(m["yaw"])), mp)
 	add_child(root)
-	# Collision matches the model's real footprint (solar arrays are much wider
-	# than the core), so vehicles and the player can't pass through any part.
+	# Collision matches the model's real footprint, so nothing passes through it.
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	var cs := CollisionShape3D.new()
@@ -89,40 +83,32 @@ func _add_visual(m: Dictionary) -> void:
 	# The ground under a machine can't be reached any more: no dust there.
 	GameState.dirt.add_cover_box(Transform3D(root.basis, root.transform * box.get_center()), sh.size.x * 0.5, sh.size.z * 0.5)
 	var info := GameData.machine(m["id"])
-	var lbl := Meshes.label(root, info["name"], Vector3(0, 5.6, 0), 40, Color(1, 0.9, 0.6), true)
+	var lbl := Meshes.label(root, info["name"], Vector3(0, box.end.y + 1.6, 0), 40, Color(1, 0.9, 0.6), true)
 	lbl.visible = false
 	built["label"] = lbl
+	var col := Color.html(info.get("color", "#ffffff"))
+	if m["id"] == "hex_station":
+		var beam := Meshes.part(self, Meshes.cyl(0.5, 1.0, 12), Meshes.energy(col, 1.0, 2.0, 6.0), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
+		beam.top_level = true
+		beam.visible = false
+		built["beam"] = beam
+	elif m["id"] == "drone_hangar":
+		var squad := Node3D.new()
+		squad.top_level = true
+		add_child(squad)
+		for i in 6:
+			squad.add_child(ToolModels.mini_drone(col, 1.4))
+		built["drones"] = squad
 	var uid := int(m["uid"])
-	if m.has("agent"):
-		var agent: Node3D
-		if m["id"] == "drone_bay":
-			agent = ToolModels.mini_drone(Color.html(info["color"]), 1.3)
-		else:
-			agent = _rover_model(Color.html(info["color"]))
-		agent.top_level = true
-		add_child(agent)
-		agent.global_position = AutomationSim.v3(m["agent"]["p"])
-		built["agent_node"] = agent
 	visuals[uid] = built
 	world.add_interactable(root.position, 3.5, func(): return _machine_text(uid), func(): world.open_machine_panel(uid), "machine_%d" % uid)
-
-
-func _rover_model(col: Color) -> Node3D:
-	var r := Node3D.new()
-	Meshes.part(r, Meshes.box(Vector3(1.6, 0.6, 2.4)), Meshes.hs(col, 0.4, 0.4), Vector3(0, 0.6, 0))
-	Meshes.part(r, Meshes.box(Vector3(3.4, 0.3, 0.8)), Meshes.hs(Color(0.2, 0.2, 0.22), 0.4, 0.6, Color(0, 0, 0), 0.0, 1.0, 0.3, 1.2), Vector3(0, 0.25, 1.4))
-	Meshes.part(r, Meshes.sphere(0.25), Meshes.glow(Color(0.3, 1.0, 0.5), 3.0), Vector3(0, 1.1, -0.6))
-	for zi in [-1, 1]:
-		for xi in [-1, 1]:
-			Meshes.part(r, Meshes.cyl(0.35, 0.3, 12), Meshes.hs(Color(0.12, 0.12, 0.12), 0.1, 0.9), Vector3(xi * 0.95, 0.35, zi * 0.8), Vector3(0, 0, PI * 0.5))
-	return r
 
 
 func _machine_text(uid: int) -> String:
 	var m := sim.get_machine(uid)
 	if m.is_empty():
 		return ""
-	return "%s - %s" % [GameData.machine(m["id"])["name"], m.get("status", "")]
+	return "%s %s - %s" % [GameData.machine(m["id"])["name"], AutomationSim.tier_name(AutomationSim.tier(m)), m.get("status", "")]
 
 
 func _remove_visual(uid: int) -> void:
@@ -130,49 +116,16 @@ func _remove_visual(uid: int) -> void:
 	if v.is_empty():
 		return
 	(v["root"] as Node).queue_free()
-	if v.has("agent_node"):
-		(v["agent_node"] as Node).queue_free()
+	for k in ["beam", "drones"]:
+		if v.has(k):
+			(v[k] as Node).queue_free()
 	visuals.erase(uid)
 	world.remove_interactable("machine_%d" % uid)
-
-
-func _rebuild_belts() -> void:
-	for c in _belts.get_children():
-		c.queue_free()
-	for e in sim.edges:
-		var a := AutomationSim.BASE_POS if e[0] == AutomationSim.BASE_UID else AutomationSim.v3(sim.get_machine(e[0]).get("pos", [0, 0, 0]))
-		var b := AutomationSim.BASE_POS if e[1] == AutomationSim.BASE_UID else AutomationSim.v3(sim.get_machine(e[1]).get("pos", [0, 0, 0]))
-		_belt(a, b)
-
-
-func _belt(a: Vector3, b: Vector3) -> void:
-	var length := a.distance_to(b)
-	if length < 0.5:
-		return
-	var segs := maxi(int(length / 6.0), 1)
-	var frame := Meshes.hs(Color(0.25, 0.26, 0.3), 0.6, 0.45, Color(0, 0, 0), 0.0, 2.0, 0.3)
-	for i in segs:
-		var p0 := TerrainGen.surface(a.lerp(b, float(i) / segs), 0.9)
-		var p1 := TerrainGen.surface(a.lerp(b, float(i + 1) / segs), 0.9)
-		var seg := Node3D.new()
-		_belts.add_child(seg)
-		var mid := (p0 + p1) * 0.5
-		var up := mid.normalized()
-		var l := p0.distance_to(p1)
-		var bar := Meshes.part(seg, Meshes.box(Vector3(0.9, 0.18, 1.0)), frame)
-		bar.look_at_from_position(mid, p1, up)
-		bar.scale = Vector3(1, 1, l)
-		var strip := Meshes.part(seg, Meshes.box(Vector3(0.6, 0.02, 1.0)), _belt_mat, Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
-		strip.look_at_from_position(mid + up * 0.11, p1 + up * 0.11, up)
-		strip.scale = Vector3(1, 1, l)
-		var leg := Meshes.part(seg, Meshes.box(Vector3(0.15, 1.0, 0.15)), frame)
-		leg.transform = Transform3D(TerrainGen.upright(mid, p1 - p0), TerrainGen.surface(mid, 0.4))
 
 
 func add_machine(id: String, pos: Vector3, yaw: float) -> void:
 	var m := sim.add_machine(id, pos, yaw)
 	_add_visual(m)
-	_rebuild_belts()
 	GameState.machines_changed.emit()
 
 
@@ -181,7 +134,6 @@ func remove_machine(uid: int) -> void:
 	var refund := sim.remove_machine(uid)
 	GameState.add_credits(refund, false)
 	GameState.notify.emit("Machine removed (+%s CR refund)" % GameState.fmt(refund), "info")
-	_rebuild_belts()
 	GameState.machines_changed.emit()
 
 
@@ -189,84 +141,50 @@ func _process(delta: float) -> void:
 	_t += delta
 	var focus: Node3D = world.focus_node()
 	var fp := focus.global_position if focus else Vector3.ZERO
-	# Determine which agents are simulated per-frame (near the player).
-	_near.clear()
-	for m in GameState.machines:
-		if m.has("agent") and AutomationSim.v3(m["agent"]["p"]).distance_to(fp) < AutomationSim.NEAR_DISTANCE:
-			_near[int(m["uid"])] = true
 	if not get_tree().paused:
-		for m in GameState.machines:
-			if _near.has(int(m["uid"])):
-				sim.update_agent(m, delta)
 		_tick_t += delta
 		if _tick_t >= 1.0:
 			_tick_t -= 1.0
-			sim.tick(1.0, _near)
-			for uid in sim.ship_events:
-				_launch(uid)
-				if visuals.has(uid) and (visuals[uid]["root"] as Node3D).global_position.distance_to(fp) < 120.0:
-					Audio.play("rocket", -6.0)
-	# Visual animation only for nearby machines.
+			sim.tick(1.0)
+	var nearest := INF
 	for uid in visuals:
 		var v: Dictionary = visuals[uid]
 		var root: Node3D = v["root"]
 		var dist := root.global_position.distance_to(fp)
+		nearest = minf(nearest, dist)
 		var m := sim.get_machine(uid)
 		if m.is_empty():
 			continue
 		(v["label"] as Label3D).visible = dist < 18.0
-		if v.has("agent_node"):
-			var an: Node3D = v["agent_node"]
-			var target := AutomationSim.v3(m["agent"]["p"])
-			an.visible = dist < 260.0
-			if an.visible:
-				var prev := an.global_position
-				an.global_position = prev.lerp(target, minf(delta * 8.0, 1.0)) if prev.distance_to(target) < 10.0 else target
-				var mv := an.global_position - prev
-				var face := mv if mv.length() > 0.01 else -an.global_basis.z
-				an.global_basis = TerrainGen.upright(an.global_position, face)
-				if an.has_node("Props"):
-					(an.get_node("Props") as Node3D).rotation.y += delta * 40.0
-		if dist > 140.0:
-			continue
-		var working: bool = m.get("status", "") in ["Cleaning surface", "Deep extraction", "Refining", "Cleaning"] or m["id"] in ["solar_array", "charging_station", "conveyor"]
 		for s in v["spin"]:
-			if m["id"] == "solar_array":
-				(s as Node3D).rotation.x = -0.55 + sin(_t * 0.05) * 0.05
-			else:
-				(s as Node3D).rotation.y += delta * (1.2 if working else 0.1)
-		if v["gauge"]:
-			var g: Node3D = v["gauge"]
-			var fill := 0.0
-			if m["id"] == "storage_container":
-				fill = sim.stored(m) / maxf(sim.storage_capacity(m), 1.0)
-			else:
-				fill = float(m.get("d", 0.0)) / maxf(sim.buffer_capacity(m), 1.0)
-			g.scale.y = clampf(fill, 0.03, 1.0)
-		if v["rocket"]:
-			var r: Node3D = v["rocket"]
-			var lt := float(m.get("launch_t", -1.0))
-			if lt >= 0.0:
-				lt += delta
-				m["launch_t"] = lt
-				r.position.y = 0.4 + lt * lt * 6.0
-				r.get_node("Flame").visible = true
-				if lt > 3.0:
-					m["launch_t"] = -1.0
-					r.position.y = 0.4
-					r.get_node("Flame").visible = false
-	# Machine hum near the player
-	var nearest := INF
-	for uid in visuals:
-		nearest = minf(nearest, (visuals[uid]["root"] as Node3D).global_position.distance_to(fp))
+			(s as Node3D).rotation.y += delta * (0.6 + 0.3 * AutomationSim.tier(m))
+		var t := int(m.get("target", -1))
+		var tp := HexGrid.center_point(t) if t >= 0 and t < HexGrid.count() else Vector3.INF
+		if v.has("beam"):
+			# A station's beam reaches out to the hexagon it is clearing.
+			var beam: MeshInstance3D = v["beam"]
+			var top := root.global_transform * Vector3(0, 7.5, 0)
+			beam.visible = tp.is_finite() and top.distance_to(tp) < 400.0 and dist < 500.0
+			if beam.visible:
+				var w := 0.25 + 0.08 * sin(_t * 9.0)
+				Meshes.span(beam, top, tp + tp.normalized() * 0.5, w)
+		if v.has("drones"):
+			# The squad circles over its hexagon, low enough to see them working.
+			var squad: Node3D = v["drones"]
+			var show := tp.is_finite() and tp.distance_to(fp) < 300.0
+			squad.visible = show
+			if show:
+				var b := TerrainGen.frame(tp.normalized())
+				var n := squad.get_child_count()
+				for i in n:
+					var d: Node3D = squad.get_child(i)
+					var a := _t * 0.5 + i * TAU / n
+					var r := 12.0 + 8.0 * sin(_t * 0.3 + i)
+					var p := TerrainGen.surface(tp + (b.x * cos(a) + b.z * sin(a)) * r, 2.5)
+					d.global_transform = Transform3D(TerrainGen.upright(p, b.z * cos(a) - b.x * sin(a)), p)
+					(d.get_node("Props") as Node3D).rotation.y += delta * 40.0
 	Audio.loop("machines", "machine_loop", nearest < 25.0, lerpf(-8.0, -30.0, clampf(nearest / 25.0, 0.0, 1.0)))
 	_update_ghost()
-
-
-func _launch(uid: int) -> void:
-	var m := sim.get_machine(uid)
-	if not m.is_empty():
-		m["launch_t"] = 0.0
 
 
 # ------------------------------------------------------------------ placement
@@ -292,7 +210,7 @@ func _update_ghost() -> void:
 	var fwd := -p.global_basis.z
 	var pos := TerrainGen.surface(p.global_position + fwd * 8.0)
 	ghost.global_transform = Transform3D(TerrainGen.heading_basis(pos, ghost_yaw), pos)
-	_update_link_preview(pos)
+	_update_preview(pos)
 	var reason := sim.can_place(placing, pos)
 	var price := float(GameData.machine(placing)["price"])
 	if reason == "" and not GameState.can_afford(price):
@@ -304,21 +222,21 @@ func _update_ghost() -> void:
 		MachineModels.ghostify(ghost, ok)
 
 
-## Draws the ghost's link range and lines to everything it would join, and explains it.
-func _update_link_preview(pos: Vector3) -> void:
-	var pv := sim.preview_links(placing, pos)
-	var links: Array = pv["links"]
-	var r: float = pv["range"]
-	if r <= 0.0:
-		ghost_link_text = "Power is shared by all machines - no link needed" if placing == "solar_array" else ""
-	elif links.is_empty():
-		ghost_link_text = "NOT LINKED - move within %d m of a machine, or bridge with Conveyors" % int(r)
-	elif pv["base"]:
-		ghost_link_text = "Links to the base Exchange network (%d)" % links.size()
-	else:
-		ghost_link_text = "Links to %d machine%s - add Storage + a Depot to sell" % [links.size(), "" if links.size() == 1 else "s"]
-	# Rebuild the lines only when something changed (position snapped to 0.5 m).
-	var key := "%d|%d|%d|%d|%d" % [roundi(pos.x * 2.0), roundi(pos.y * 2.0), roundi(pos.z * 2.0), links.size(), int(r)]
+## Explains what the machine will do here; draws a collector's circle.
+func _update_preview(pos: Vector3) -> void:
+	var r := 0.0
+	match placing:
+		"dust_collector":
+			r = sim.collector_radius({"id": placing, "tier": 1})
+			ghost_link_text = "Keeps this %d m circle clean and sells the dust" % int(r)
+		"hex_station":
+			var cell := HexGrid.cell_of(pos)
+			ghost_link_text = "Clears hexagon %d%s, then the next one" % [cell + 1, " (already clean)" if GameState.hexes_done.has(cell) else ""]
+		"drone_hangar":
+			ghost_link_text = "Drones clear any hexagon - choose it on the map after building"
+		_:
+			ghost_link_text = ""
+	var key := "%d|%d|%d|%d" % [roundi(pos.x * 2.0), roundi(pos.y * 2.0), roundi(pos.z * 2.0), int(r)]
 	if key == _preview_key and _preview:
 		return
 	_preview_key = key
@@ -336,9 +254,6 @@ func _update_link_preview(pos: Vector3) -> void:
 			for k in 2:
 				var a := TAU * float(i + k) / n
 				im.surface_add_vertex(TerrainGen.surface(pos + (fb.x * cos(a) + fb.z * sin(a)) * r, 0.3))
-		for t in links:
-			im.surface_add_vertex(TerrainGen.surface(pos, 1.2))
-			im.surface_add_vertex(TerrainGen.surface(t, 1.2))
 		im.surface_end()
 	_preview.mesh = im
 

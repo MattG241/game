@@ -29,11 +29,20 @@ var _good_t := 0.0
 var _t := 0.0
 var _haptic_t := 0.0
 var _full_warn_t := 0.0
+# Flying vehicles (the Lunar Saucer): no wheels, hovers at a height above the ground.
+var flying := false
+var _fly_speed := 0.0
+var _fly_alt := 1.2
+var _beam: MeshInstance3D
+const CRUISE_ALT := 7.0
+const MAX_ALT := 60.0
+const MAX_BEAM_ALT := 35.0
 
 
 func setup(vehicle_index: int) -> void:
 	index = vehicle_index
 	info = GameState.vehicle_stats(vehicle_index)
+	flying = bool(info.get("flying", false))
 	var sz: Array = info["size"]
 	var w: float = sz[0]
 	var h: float = sz[1]
@@ -79,6 +88,19 @@ func setup(vehicle_index: int) -> void:
 			Meshes.part(body, Meshes.cyl(h * 0.6, l * 0.5, 16), Meshes.hs(Color(0.85, 0.85, 0.9), 0.7, 0.25), Vector3(0, h * 1.15, l * 0.15), Vector3(PI * 0.5, 0, 0))
 			Meshes.part(body, Meshes.torus(h * 0.55, h * 0.66, 20), Meshes.glow(Color(0.7, 0.5, 1.0), 2.0), Vector3(0, h * 1.15, l * 0.4), Vector3(PI * 0.5, 0, 0))
 			Meshes.part(body, Meshes.box(Vector3(0.06, 1.0, 0.06)), metal, Vector3(-0.3, h + 0.5, -l * 0.25))
+		"lunar_ufo":
+			# A flying saucer: hull disc, glass dome, glowing rim and a beam emitter.
+			Meshes.part(body, Meshes.cyl(w * 0.5, h * 0.35, 40, w * 0.36), paint, Vector3(0, h * 0.62, 0))
+			Meshes.part(body, Meshes.cyl(w * 0.36, h * 0.3, 40, w * 0.5), Meshes.hs(col.darkened(0.3), 0.7, 0.3), Vector3(0, h * 0.3, 0))
+			Meshes.part(body, Meshes.sphere(w * 0.2, 24, true), Meshes.visor(), Vector3(0, h * 0.78, 0))
+			Meshes.part(body, Meshes.torus(w * 0.47, w * 0.52, 48), Meshes.glow(Color(0.4, 1.0, 0.9), 3.0), Vector3(0, h * 0.5, 0), Vector3.ZERO, Vector3.ONE, false)
+			for i in 8:
+				var a := i * TAU / 8.0
+				Meshes.part(body, Meshes.sphere(0.12), Meshes.glow(Color(1.0, 0.8, 0.3), 4.0), Vector3(cos(a) * w * 0.42, h * 0.45, sin(a) * w * 0.42), Vector3.ZERO, Vector3.ONE, false)
+			Meshes.part(body, Meshes.cyl(0.5, 0.2, 20), Meshes.glow(Color(0.5, 1.0, 0.8), 3.0), Vector3(0, h * 0.12, 0), Vector3.ZERO, Vector3.ONE, false)
+			for i in 3:
+				var a := i * TAU / 3.0
+				Meshes.part(body, Meshes.cyl(0.07, 0.9, 6), dark, Vector3(cos(a) * w * 0.3, 0.0, sin(a) * w * 0.3), Vector3(cos(a) * 0.3, 0, -sin(a) * 0.3))
 		"cleaning_truck":
 			Meshes.part(body, Meshes.box(Vector3(w, h * 0.35, l)), dark, Vector3(0, h * 0.25, 0))
 			Meshes.part(body, Meshes.box(Vector3(w, h * 0.9, l * 0.3)), paint, Vector3(0, h * 0.85, -l * 0.33))
@@ -93,7 +115,13 @@ func setup(vehicle_index: int) -> void:
 	Meshes.part(body, Meshes.box(Vector3(w * 0.8, 0.08, 0.05)), Meshes.glow(Color(1.0, 0.15, 0.1), 3.0), Vector3(0, h * 0.6, l * 0.5 + 0.03), Vector3.ZERO, Vector3.ONE, false)
 	# Cleaning deck
 	var cw: float = info["clean_width"]
-	if cw > 0.0:
+	if flying:
+		_beam = Meshes.part(self, Meshes.cyl(0.5, 1.0, 20), Meshes.energy(Color(0.4, 1.0, 0.85), 0.45, 2.0, 6.0), Vector3.ZERO, Vector3.ZERO, Vector3.ONE, false)
+		_beam.top_level = true
+		_beam.visible = false
+		gravity_scale = 0.0
+		center_of_mass = Vector3.ZERO
+	elif cw > 0.0:
 		_deck = Node3D.new()
 		_deck.position = Vector3(0, 0.25, l * 0.5 + 0.6)
 		body.add_child(_deck)
@@ -133,7 +161,7 @@ func setup(vehicle_index: int) -> void:
 	var wr: float = info["wheel_radius"]
 	var wheel_mat := Meshes.hs(Color(0.12, 0.12, 0.13), 0.1, 0.9, Color(0, 0, 0), 0.0, 8.0, 0.3)
 	var hub_mat := metal
-	for zi in [-1, 1]:
+	for zi in ([] if flying else [-1, 1]):
 		for xi in [-1, 1]:
 			var wh := VehicleWheel3D.new()
 			wh.position = Vector3(xi * (w * 0.5 + 0.05), wr * 0.9, zi * (l * 0.5 - wr * 0.9))
@@ -219,10 +247,14 @@ func set_driving(on: bool) -> void:
 		cam.current = true
 		cam_yaw = 0.0
 		_park_t = 0.0
+		_fly_alt = maxf(TerrainGen.altitude(global_position), 1.2)
 	else:
 		cleaning = false
 		throttle = 0.0
 		steer_input = 0.0
+		braking = false
+		if _beam:
+			_beam.visible = false
 		Audio.loop("engine", "", false)
 		Audio.loop("vehicle_clean", "", false)
 		if _particles:
@@ -238,6 +270,9 @@ func look(delta: Vector2) -> void:
 func _physics_process(delta: float) -> void:
 	_t += delta
 	_sanity(delta)
+	if flying:
+		_fly(delta)
+		return
 	var speed := linear_velocity.length()
 	var fwd_speed := -linear_velocity.dot(global_basis.z)
 	if driving:
@@ -389,6 +424,80 @@ func recover(message: String) -> void:
 	Diagnostics.event("vehicle recover")
 	if message != "":
 		GameState.notify.emit(message, "info")
+
+
+## Lunar Saucer flight: forward/back and turning like a car, JUMP climbs, otherwise it
+## settles back to cruising height over the ground. Parked, it lands and switches off.
+func _fly(delta: float) -> void:
+	var p := global_position
+	var up := p.normalized()
+	var alt := TerrainGen.altitude(p)
+	var fwd := -global_basis.z
+	fwd = (fwd - up * fwd.dot(up)).normalized()
+	if driving:
+		sleeping = false
+		fwd = fwd.rotated(up, steer_input * 1.7 * delta)
+		_fly_speed = move_toward(_fly_speed, throttle * float(info["max_speed"]), 14.0 * delta)
+		if braking:
+			_fly_alt = minf(_fly_alt + 9.0 * delta, MAX_ALT)
+		else:
+			_fly_alt = move_toward(_fly_alt, CRUISE_ALT, 5.0 * delta)
+		var reg := TerrainGen.region_of(p)
+		if not GameState.region_unlocked(reg):
+			_fly_speed = 0.0
+			_border_back(reg)
+			_fly_alt = CRUISE_ALT
+			return
+		Audio.loop("engine", "engine_loop", true, -10.0 + absf(throttle) * 3.0, 1.6 + absf(_fly_speed) / 40.0)
+		var moved := global_position.distance_to(_last_pos)
+		if moved < 8.0:
+			GameState.add_stat("distance_driven", moved)
+	else:
+		_fly_speed = move_toward(_fly_speed, 0.0, 10.0 * delta)
+		_fly_alt = move_toward(_fly_alt, 1.2, 4.0 * delta)
+		if alt < 1.5 and absf(_fly_speed) < 0.2:
+			_park_t += delta
+			if _park_t > 1.0:
+				freeze = true
+	var climb := clampf((_fly_alt - alt) * 2.2, -9.0, 12.0)
+	linear_velocity = fwd * _fly_speed + up * climb
+	angular_velocity = Vector3.ZERO
+	global_basis = TerrainGen.upright(p, fwd) * Basis(Vector3.FORWARD, -steer_input * 0.22) * Basis(Vector3.RIGHT, -throttle * 0.08)
+	_last_pos = global_position
+	_fly_clean(delta, alt)
+
+
+## The saucer's cleaning beam: a wide circle on the ground straight below.
+func _fly_clean(delta: float, alt: float) -> void:
+	var active := cleaning and driving and alt < MAX_BEAM_ALT
+	var removed := 0.0
+	var g := TerrainGen.surface(global_position)
+	if active:
+		var rinfo := GameData.region(TerrainGen.region_of(g))
+		var dpm := float(GameData.economy["dust_per_m2"]) * TerrainGen.thickness(g, float(rinfo["thickness"]))
+		var area := GameState.dirt.stamp(DirtMap.Shape.ROUND, g, float(info["clean_width"]) * 0.5, 0.0, Vector3.ZERO,
+			float(info["clean_strength"]) * delta, hopper_space() / dpm)
+		if area > 0.0:
+			removed = area * dpm
+			add_hopper(removed, float(rinfo["dust_mult"]))
+			GameState.record_clean(area)
+		elif hopper_space() <= 0.01:
+			_full_warn_t -= delta
+			if _full_warn_t <= 0.0:
+				_full_warn_t = 4.0
+				Audio.play("tank_full")
+				GameState.notify.emit("Saucer hopper FULL - land at the Dust Exchange", "error")
+	elif cleaning and driving:
+		_full_warn_t -= delta
+		if _full_warn_t <= 0.0:
+			_full_warn_t = 4.0
+			GameState.notify.emit("Too high for the beam - fly below %d m" % int(MAX_BEAM_ALT), "info")
+	_beam.visible = active
+	if active:
+		var r := float(info["clean_width"]) * 0.5
+		var top := global_position - global_position.normalized() * 0.3
+		_beam.global_transform = Transform3D(TerrainGen.upright(g, -global_basis.z) * Basis.from_scale(Vector3(r * 2.0, top.distance_to(g), r * 2.0)), (top + g) * 0.5)
+	Audio.loop("vehicle_clean", "vacuum_loop", active, -6.0 if removed > 0.0 else -11.0, 0.7)
 
 
 func _clean(delta: float, speed: float) -> void:

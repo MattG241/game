@@ -82,6 +82,13 @@ func _process(_d: float) -> void:
 			game.ending._t = float(_args["ending"])
 	if game and _args.has("menu") and _frames == _target - 20:
 		game.open_menu(_args["menu"])
+	if game and _args.has("machines") and _frames == 12:
+		GameState.credits = 1e7
+		game.automation.add_machine("hex_station", TerrainGen.map_ground(20, 30), 0.3)
+		game.automation.add_machine("drone_hangar", TerrainGen.map_ground(30, 18), 0.6)
+		game.automation.add_machine("dust_collector", TerrainGen.map_ground(14, 18), 0.0)
+	if game and _args.has("vehicle") and _args["vehicle"] == "lunar_ufo" and _frames > 30 and _frames < 60:
+		game.vehicles[0].braking = true
 	if game and _args.has("helpdialog") and _frames == _target - 10:
 		game.menu.show_dialog("HOW AUTOMATION WORKS", GameMenu.AUTOMATION_HELP)
 	if _frames >= _target:
