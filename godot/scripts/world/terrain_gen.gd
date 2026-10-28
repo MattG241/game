@@ -265,6 +265,29 @@ static func landmark(name: String) -> Array:
 
 
 ## Initial dust layer for a chunk (thread-safe). Bytes 0..255 per texel.
+# Ground covered by base structures has no dust: you could never see or reach it.
+# Footprints must match base.gd. (Plain code, not a const Array: this runs on worker
+# threads, where sharing a constant Array is not thread-safe.)
+const LANDER_PAD := Vector3(4.0, 30.0, 8.3)   # x, z, radius
+
+
+static func _in_rect(x: float, z: float, cx: float, cz: float, hx: float, hz: float) -> bool:
+	return absf(x - cx) < hx and absf(z - cz) < hz
+
+
+## True where a base building or landing pad sits on the ground.
+static func covered(x: float, z: float) -> bool:
+	if Vector2(x - LANDER_PAD.x, z - LANDER_PAD.y).length() < LANDER_PAD.z:
+		return true
+	return _in_rect(x, z, 0.0, -16.0, 7.2, 7.2) \
+		or _in_rect(x, z, -10.0, -16.0, 4.9, 2.4) \
+		or _in_rect(x, z, 10.0, -16.0, 4.9, 2.4) \
+		or _in_rect(x, z, 11.0, -3.6, 2.5, 2.5) \
+		or _in_rect(x, z, -11.0, -4.2, 2.4, 0.9) \
+		or _in_rect(x, z, -15.0, -18.0, 3.7, 3.7) \
+		or _in_rect(x, z, -19.0, 17.0, 5.2, 12.2)
+
+
 static func initial_dirt(key: Vector2i) -> PackedByteArray:
 	var data := PackedByteArray()
 	data.resize(MASK * MASK)
@@ -273,6 +296,7 @@ static func initial_dirt(key: Vector2i) -> PackedByteArray:
 	var r_c := Vector2(ox + CHUNK * 0.5, oz + CHUNK * 0.5).length()
 	# Near the base the ground has been "swept a little" - lighter coverage.
 	var base_k := clampf((r_c - 20.0) / 40.0, 0.0, 1.0)
+	var near_base := r_c < BASE_RADIUS + CHUNK
 	for lz in MASK:
 		var wz := oz + (lz + 0.5) * TEXEL
 		var row := lz * MASK
@@ -282,7 +306,7 @@ static func initial_dirt(key: Vector2i) -> PackedByteArray:
 			var c := _n_dirt2.get_noise_2d(wx, wz)
 			var v := 0.78 + 0.18 * n - 0.1 * c
 			v = lerpf(0.62 + 0.1 * n, v, base_k)
-			data[row + lx] = clampi(int(v * 255.0), 120, 255)
+			data[row + lx] = 0 if near_base and covered(wx, wz) else clampi(int(v * 255.0), 120, 255)
 	return data
 
 

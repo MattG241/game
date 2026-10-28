@@ -65,6 +65,13 @@ func _test_data() -> void:
 
 func _test_dirt() -> void:
 	print("[dirt map]")
+	var dm := DirtMap.new()
+	check(dm.sample(4.0, 30.0) == 0.0 and dm.sample(0.0, -16.0) == 0.0, "no hidden dust under the lander pad or buildings")
+	check(dm.sample(4.0, 45.0) > 0.0, "open ground next to the pad is still dusty")
+	var ck := Vector2i(floori(4.0 / DirtMap.CHUNK), floori(30.0 / DirtMap.CHUNK))
+	dm.get_chunk(ck).data.fill(200)
+	dm.clear_covered()
+	check(dm.sample(4.0, 30.0) == 0.0 and dm.sample(4.0, 45.0) > 0.0, "old saves lose only the dust under structures")
 	var d := DirtMap.new()
 	var x := 70.3
 	var z := 90.7

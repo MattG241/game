@@ -119,6 +119,30 @@ class DirtChunk:
 		return compressed
 
 
+## Removes dust under base structures from chunks loaded from older saves.
+func clear_covered() -> void:
+	for key in chunks:
+		var ox: float = key.x * CHUNK
+		var oz: float = key.y * CHUNK
+		if Vector2(ox + CHUNK * 0.5, oz + CHUNK * 0.5).length() > TerrainGen.BASE_RADIUS + CHUNK:
+			continue
+		var c: DirtChunk = chunks[key]
+		var changed := false
+		for lz in MASK:
+			var wz := oz + (lz + 0.5) * TEXEL
+			for lx in MASK:
+				var idx := lz * MASK + lx
+				if c.data[idx] != 0 and TerrainGen.covered(ox + (lx + 0.5) * TEXEL, wz):
+					c.total -= c.data[idx]
+					c.initial_total -= c.data[idx]
+					c.data[idx] = 0
+					changed = true
+		if changed:
+			c.modified = true
+			c.compressed_valid = false
+			visual_dirty[key] = true
+
+
 func clear() -> void:
 	chunks.clear()
 	visual_dirty.clear()

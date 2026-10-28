@@ -140,12 +140,17 @@ func load_game(slot: int) -> bool:
 		if FileAccess.file_exists(dirt_path):
 			dirt_bytes = FileAccess.get_file_as_bytes(dirt_path)
 		GameState.from_dict(d)
-		if not GameState.dirt.decode(dirt_bytes):
+		var decoded := GameState.dirt.decode(dirt_bytes)
+		if decoded:
+			GameState.dirt.clear_covered()
+		if not decoded:
 			dirt_ok = false
 			# Try the other dirt file before giving up on cleaning progress.
 			var alt: String = dir + "/dirt.bin" + (".bak" if suffix == "" else "")
 			if FileAccess.file_exists(alt):
 				dirt_ok = GameState.dirt.decode(FileAccess.get_file_as_bytes(alt))
+				if dirt_ok:
+					GameState.dirt.clear_covered()
 			if not dirt_ok:
 				GameState.dirt.clear()
 				push_warning("Cleaning data was damaged; world dust was reset.")

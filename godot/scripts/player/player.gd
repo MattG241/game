@@ -27,7 +27,8 @@ var _ok_t := 0.0
 func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1 | 4
-	floor_max_angle = deg_to_rad(52)
+	floor_max_angle = deg_to_rad(60)
+	floor_constant_speed = true   # same walking speed uphill as on the flat
 	floor_snap_length = 0.4
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.35
