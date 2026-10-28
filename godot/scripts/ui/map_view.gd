@@ -1,6 +1,8 @@
 class_name MapView
 extends Control
-## The Moon as a 3D globe you can spin (drag) and zoom (pinch / mouse wheel / buttons).
+## The Moon as a globe you can spin (drag) and zoom (pinch / mouse wheel / buttons).
+## It is painted in 2D by a small canvas shader (a sphere seen from the front): phones'
+## Compatibility renderer drew noise or nothing for a 3D globe in a sub-viewport.
 ## Shaded relief is generated from the terrain functions on a worker thread (and cached
 ## on disk); a second texture shows cleaning progress per chunk and locked regions.
 ## Markers (base, player, machines, vehicles, landmarks) are drawn over the globe.
@@ -10,7 +12,7 @@ const W := 512                      # relief texture (longitude x latitude)
 const H := 256
 const SW := 256                     # state overlay texture
 const SH := 128
-const CACHE := "user://globe_relief_v2.png"
+const CACHE := "user://globe_relief_v3.png"
 const ZOOM_MIN := 1.12
 const ZOOM_MAX := 4.2
 
@@ -22,10 +24,8 @@ static var _task := -1
 
 var world: Node
 var _font: Font
-var _vp: SubViewport
-var _cam: Camera3D
-var _globe: MeshInstance3D
-var _mat: StandardMaterial3D
+var _disc: ColorRect
+var _mat: ShaderMaterial
 var _state_img: Image
 var _state_tex: ImageTexture
 var _state_t := 0.0
@@ -37,7 +37,6 @@ var _tap_from := Vector2.INF        # where a possible tap started
 var _tap_moved := 0.0
 var _wp_button: Button
 var _overlay: Control
-var _view: TextureRect
 
 
 static func prepare() -> void:
@@ -51,6 +50,8 @@ static func prepare() -> void:
 		cached = Image.load_from_file(CACHE)
 		if cached != null and (cached.get_width() != W or cached.get_height() != H):
 			cached = null
+		if cached != null:
+			cached.convert(Image.FORMAT_RGBA8)
 	_task = WorkerThreadPool.add_task(_generate.bind(tints, cached), false, "globe")
 
 
@@ -87,7 +88,7 @@ static func _generate(tints: PackedColorArray, cached: Image) -> void:
 			var s := TerrainGen.sample_dir(pixel_dir(x, y, W, H))
 			hs[y * W + x] = s.x
 			interior[y * W + x] = s.y
-	var img := Image.create(W, H, false, Image.FORMAT_RGB8)
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
 	var px := TerrainGen.RADIUS * TAU / W
 	for y in H:
 		var lat := PI * 0.5 - (y + 0.5) / H * PI
@@ -114,44 +115,15 @@ func _ready() -> void:
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	prepare()
-	# Plain building blocks only: a custom globe shader in a stretched sub-viewport
-	# drew noise, offset from the markers, on an Adreno phone.
-	_vp = SubViewport.new()
-	_vp.own_world_3d = true
-	_vp.transparent_bg = false
-	_vp.msaa_3d = Viewport.MSAA_DISABLED
-	_vp.size = Vector2i(512, 512)
-	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	add_child(_vp)
-	_view = TextureRect.new()
-	_view.texture = _vp.get_texture()
-	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_view.stretch_mode = TextureRect.STRETCH_SCALE
-	_view.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_view)
-	_cam = Camera3D.new()
-	_cam.fov = 40.0
-	_cam.near = 0.01
-	_cam.far = 20.0
-	_vp.add_child(_cam)
-	_globe = MeshInstance3D.new()
-	_globe.mesh = _sphere(1.0)
-	_mat = StandardMaterial3D.new()
-	_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mat.albedo_color = Color(0.35, 0.36, 0.4)
-	_globe.material_override = _mat
-	_vp.add_child(_globe)
+	_disc = ColorRect.new()
+	_disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mat = ShaderMaterial.new()
+	_mat.shader = load("res://shaders/globe_2d.gdshader")
+	_disc.material = _mat
+	add_child(_disc)
 	_state_img = Image.create(SW, SH, false, Image.FORMAT_RGBA8)
 	_state_tex = ImageTexture.create_from_image(_state_img)
-	var shell := MeshInstance3D.new()
-	shell.mesh = _sphere(1.003)
-	var sm := StandardMaterial3D.new()
-	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sm.albedo_texture = _state_tex
-	shell.material_override = sm
-	_globe.add_child(shell)
+	_mat.set_shader_parameter("state", _state_tex)
 	_overlay = Control.new()
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -179,15 +151,6 @@ func _center_on_focus() -> void:
 	if world and world.has_method("focus_node"):
 		d = world.focus_node().global_position
 	_rot = _facing(d.normalized())
-
-
-static func _sphere(r: float) -> SphereMesh:
-	var sm := SphereMesh.new()
-	sm.radius = r
-	sm.height = r * 2.0
-	sm.radial_segments = 96
-	sm.rings = 48
-	return sm
 
 
 static func _facing(f: Vector3) -> Basis:
@@ -282,17 +245,16 @@ func _tap(pos: Vector2) -> void:
 ## Direction from the Moon's centre under a point of the map view, or ZERO when the
 ## point is off the globe.
 func globe_dir_at(pos: Vector2) -> Vector3:
-	var vp_pos := pos * Vector2(_vp.size) / size.max(Vector2.ONE)
-	var o := _cam.project_ray_origin(vp_pos)
-	var r := _cam.project_ray_normal(vp_pos)
-	# |o + t r| = 1
-	var b := o.dot(r)
-	var c := o.dot(o) - 1.0
-	var disc := b * b - c
-	if disc < 0.0:
+	var p := (pos - size * 0.5) / _radius()
+	var r2 := p.length_squared()
+	if r2 >= 1.0:
 		return Vector3.ZERO
-	var hit := o + r * (-b - sqrt(disc))
-	return (_rot.inverse() * hit).normalized()
+	return (_rot.inverse() * Vector3(p.x, -p.y, sqrt(1.0 - r2))).normalized()
+
+
+## Radius of the globe on screen (pixels).
+func _radius() -> float:
+	return minf(size.x, size.y) * 0.4 * 3.3 / _dist
 
 
 func _pinch_distance() -> float:
@@ -307,14 +269,13 @@ func _process(delta: float) -> void:
 		WorkerThreadPool.wait_for_task_completion(_task)
 		_task = -1
 		_relief = ImageTexture.create_from_image(_relief_img)
-	if _relief and _mat.albedo_texture == null:
-		_mat.albedo_texture = _relief
-		_mat.albedo_color = Color.WHITE
-	var want := Vector2i(maxi(int(size.x), 64), maxi(int(size.y), 64))
-	if _vp.size != want:
-		_vp.size = want
-	_globe.basis = _rot
-	_cam.position = Vector3(0, 0, _dist)
+	if _relief:
+		_mat.set_shader_parameter("relief", _relief)
+		_mat.set_shader_parameter("relief_ready", 1.0)
+	var r := _radius()
+	_disc.position = size * 0.5 - Vector2(r, r)
+	_disc.size = Vector2(r, r) * 2.0
+	_mat.set_shader_parameter("view_to_moon", _rot.inverse())
 	_state_t -= delta
 	if _state_t <= 0.0 and not _keys.is_empty():
 		_state_t = 1.0
@@ -363,10 +324,10 @@ func _update_state() -> void:
 ## Screen position of a world point on the globe surface, or Vector2.INF when it is on
 ## the far side.
 func _screen(p: Vector3, lift := 0.0) -> Vector2:
-	var g := _rot * (p.normalized() * (1.0 + lift))
-	if g.dot(_cam.position - g) <= 0.0:
+	var v := _rot * p.normalized()
+	if v.z <= 0.0:
 		return Vector2.INF
-	return _cam.unproject_position(g) * size / Vector2(_vp.size)
+	return size * 0.5 + Vector2(v.x, -v.y) * _radius() * (1.0 + lift)
 
 
 func _draw_overlay() -> void:
