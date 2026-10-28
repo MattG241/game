@@ -101,6 +101,13 @@ func stop_all_loops() -> void:
 		_loops[c].stop()
 
 
+## Plays a one-off music track on the music channel (replacing the ambient loop).
+func play_track(name: String, volume_db := 0.0) -> void:
+	_music.stream = stream(name)
+	_music.volume_db = volume_db
+	_music.play()
+
+
 func play_music(on: bool) -> void:
 	if on:
 		if not _music.playing:

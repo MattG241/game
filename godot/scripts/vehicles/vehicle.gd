@@ -31,10 +31,12 @@ var _haptic_t := 0.0
 var _full_warn_t := 0.0
 # Flying vehicles (the Lunar Saucer): no wheels, hovers at a height above the ground.
 var flying := false
+var descending := false        # saucer DOWN held
 var _fly_speed := 0.0
 var _fly_alt := 1.2
 var _beam: MeshInstance3D
 const CRUISE_ALT := 7.0
+const MIN_ALT := 2.0
 const MAX_ALT := 60.0
 const MAX_BEAM_ALT := 35.0
 
@@ -247,12 +249,13 @@ func set_driving(on: bool) -> void:
 		cam.current = true
 		cam_yaw = 0.0
 		_park_t = 0.0
-		_fly_alt = maxf(TerrainGen.altitude(global_position), 1.2)
+		_fly_alt = maxf(TerrainGen.altitude(global_position), CRUISE_ALT)
 	else:
 		cleaning = false
 		throttle = 0.0
 		steer_input = 0.0
 		braking = false
+		descending = false
 		if _beam:
 			_beam.visible = false
 		Audio.loop("engine", "", false)
@@ -438,10 +441,11 @@ func _fly(delta: float) -> void:
 		sleeping = false
 		fwd = fwd.rotated(up, steer_input * 1.7 * delta)
 		_fly_speed = move_toward(_fly_speed, throttle * float(info["max_speed"]), 14.0 * delta)
+		# UP / DOWN change the height; otherwise it stays at that height over the ground.
 		if braking:
 			_fly_alt = minf(_fly_alt + 9.0 * delta, MAX_ALT)
-		else:
-			_fly_alt = move_toward(_fly_alt, CRUISE_ALT, 5.0 * delta)
+		elif descending:
+			_fly_alt = maxf(_fly_alt - 9.0 * delta, MIN_ALT)
 		var reg := TerrainGen.region_of(p)
 		if not GameState.region_unlocked(reg):
 			_fly_speed = 0.0

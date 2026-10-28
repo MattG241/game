@@ -74,6 +74,25 @@ func _process(_d: float) -> void:
 			game.automation.add_machine("solar_array", TerrainGen.map_ground(40, 4), 0.0)
 			game.automation.add_machine("charging_station", TerrainGen.map_ground(46, 10), 0.0)
 		game.begin_placement(_args["place"])
+	if game and _args.has("film"):
+		# The finale as at the end of a long game: everything clean, real-looking stats.
+		if _frames == 4:
+			for i in GameState.regions.size():
+				GameState.regions[i] = true
+			GameState.stats["play_time"] = 5 * 3600 + 12 * 60
+			GameState.stats["m2_cleaned"] = 1130000.0
+			GameState.stats["credits_earned"] = 48250000.0
+			GameState.stats["dust_sold"] = 9200000.0
+			GameState.hexes_done.clear()
+			for c in HexGrid.count():
+				GameState.hexes_done.append(c)
+				GameState.dirt.swept_cells[c] = true
+			for key in GameState.dirt.chunks.keys():
+				for c in HexGrid.candidates(key):
+					GameState.dirt.sweep_cell(key, c)
+		if _frames == 12:
+			GameState.missions_done.append("m_clean_moon")
+			game._lander_action()
 	if game and _args.has("ending"):
 		if _frames == 10:
 			GameState.missions_done.append("m_clean_moon")

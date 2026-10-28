@@ -68,6 +68,7 @@ func _ready() -> void:
 	await _test_round_moon_and_ending()
 	await _test_save_load()
 	await _test_diagnostics()
+	await _test_finale()
 	print("=== %d passed, %d failed ===" % [passed, failures])
 	SaveManager.delete_slot(3)
 	get_tree().quit(failures)
@@ -555,24 +556,48 @@ func _test_round_moon_and_ending() -> void:
 	game.terrain.prewarm(p.global_position)
 	await frames(5)
 	GameState.regions = saved_regions
-	# Ending
 	check(not game.can_fly_home(), "lander won't leave before the Moon is clean")
+
+
+## Last: flying home ends the game for good.
+func _test_finale() -> void:
+	print("[finale]")
+	game = get_tree().get_first_node_in_group("world")
+	if game == null:
+		boot.start_game(3)
+		await frames(10)
+		game = get_tree().get_first_node_in_group("world")
+	game.menu.close()
 	GameState.missions_done.append("m_clean_moon")
 	game._lander_action()
-	check(game.ending != null and not game.hud.visible, "lander lift-off cinematic starts")
+	check(game.ending != null and not game.hud.visible, "the lift-off cinematic starts")
 	await frames(5)
-	game.ending._t = Ending.LIFT_AT + 4.0
+	check(SaveManager.is_complete(SaveManager.current_slot), "flying home completes the save")
+	game.ending._t = Ending.T_COUNT + 2.5
 	await frames(3)
-	check(TerrainGen.altitude(game.base.lander.global_position) > 10.0, "lander climbs into the sky", str(TerrainGen.altitude(game.base.lander.global_position)))
-	game.ending._t = Ending.FADE_AT + 2.0
+	check(game.ending._count.text != "", "a countdown runs before lift-off", game.ending._count.text)
+	game.ending._t = Ending.T_LIFT + 4.0
 	await frames(3)
-	check(GameState.flags.get("went_home", false) and GameState.missions_done.has("m_go_home"), "end screen: your work here is done")
+	check(TerrainGen.altitude(game.base.lander.global_position) > 10.0, "the lander climbs into the sky", str(TerrainGen.altitude(game.base.lander.global_position)))
+	game.ending._t = Ending.T_CLIMB + 9.0
+	await frames(3)
+	check(game.ending._globe != null and game.ending._globe.visible and not game.terrain.visible, "the whole Moon shows as a globe below", str(TerrainGen.altitude(game.base.lander.global_position)))
+	check(game.ending._stats.text.contains("Hexagons"), "your stats appear during the climb")
+	game.ending._t = Ending.T_TITLES + 2.0
+	await frames(3)
+	var keep := false
+	for b in game.ending._screen.find_children("*", "Button", true, false):
+		if (b as Button).text.contains("KEEP"):
+			keep = true
+	check(game.ending._screen != null and game.ending._credits != null and not keep, "end titles roll, with no way to keep cleaning")
+	check(GameState.flags.get("went_home", false) and GameState.missions_done.has("m_go_home"), "your work here is done")
 	game.ending.finish()
-	await frames(2)
-	check(game.ending == null and game.hud.visible and TerrainGen.altitude(game.base.lander.global_position) < 1.0, "keep cleaning returns to the game")
-	GameState.missions_done.erase("m_clean_moon")
-	GameState.missions_done.erase("m_go_home")
-	GameState.flags.erase("went_home")
+	await frames(5)
+	check(get_tree().get_first_node_in_group("world") == null and str(boot.current.get_script().resource_path).ends_with("main_menu.gd"), "the game returns to the main menu")
+	boot.start_game(SaveManager.current_slot)
+	await frames(5)
+	check(get_tree().get_first_node_in_group("world") == null, "a finished game can't be continued")
+	check(SaveManager.latest_slot() != SaveManager.current_slot, "CONTINUE no longer offers the finished game")
 
 
 func _test_waypoint_and_finder() -> void:

@@ -239,6 +239,9 @@ func _on_pressed(id: String) -> void:
 				"jump":
 					if current_vehicle:
 						current_vehicle.braking = true
+				"down":
+					if current_vehicle:
+						current_vehicle.descending = true
 				"exit":
 					exit_vehicle()
 				"interact":
@@ -271,6 +274,8 @@ func _on_released(id: String) -> void:
 		player.cleaner.cleaning = false
 	if id == "jump" and current_vehicle:
 		current_vehicle.braking = false
+	if id == "down" and current_vehicle:
+		current_vehicle.descending = false
 
 
 func _input(event: InputEvent) -> void:
@@ -306,7 +311,8 @@ func _desktop_mouse_cleaning() -> bool:
 
 func _set_mode(m: String) -> void:
 	mode = m
-	controls.mode = m
+	# The saucer gets its own button set (UP and DOWN).
+	controls.mode = "fly" if m == "vehicle" and current_vehicle and current_vehicle.flying else m
 	controls.release_all()
 	controls.toggled = {"sprint": player.sprint_toggle} if m == "foot" else {}
 	if m == "vehicle":

@@ -116,6 +116,11 @@ func _show_main() -> void:
 	_panel.add_child(sub)
 	_panel.add_child(UIKit.spacer(false))
 	var latest := SaveManager.latest_slot()
+	for s in range(1, SaveManager.SLOTS + 1):
+		if SaveManager.is_complete(s):
+			var pt := int(SaveManager.slot_info(s)["play_time"])
+			_panel.add_child(UIKit.label("MOON CLEANED  -  you finished in %dh %02dm" % [pt / 3600, (pt / 60) % 60], 20, UIKit.GOOD, true))
+			break
 	if latest > 0:
 		_panel.add_child(UIKit.accent_button("CONTINUE", func(): boot.start_game(latest), Vector2(420, 64), 26))
 		_panel.add_child(UIKit.button("NEW GAME", _show_new, Vector2(420, 58), 24))
@@ -168,6 +173,9 @@ func _slot_text(slot: int) -> String:
 	var info := SaveManager.slot_info(slot)
 	if info.is_empty():
 		return "SLOT %d  -  empty" % slot
+	if info.get("complete", false):
+		var pt := int(info["play_time"])
+		return "SLOT %d  -  MOON CLEANED  -  game complete\nFinished in %dh %02dm  -  %s CR earned" % [slot, pt / 3600, (pt / 60) % 60, GameState.fmt_short(info.get("earned", 0.0))]
 	var when := Time.get_datetime_string_from_unix_time(int(info["saved_at"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60, true)
 	return "SLOT %d  -  %s CR  -  %s m2 cleaned  -  %d missions\n%s  -  played %d min" % [slot, GameState.fmt_short(info["credits"]), GameState.fmt_short(info["m2"]), info["missions"], when, int(info["play_time"] / 60.0)]
 
@@ -203,7 +211,7 @@ func _show_load() -> void:
 		any = any or has
 		var b := UIKit.button(_slot_text(slot), func(): boot.start_game(slot), Vector2(0, 90), 20)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.disabled = not has
+		b.disabled = not has or SaveManager.is_complete(slot)
 		v.add_child(b)
 	if not any:
 		v.add_child(UIKit.label("No saves yet - start a New Game.", 20, UIKit.MUTED))

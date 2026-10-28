@@ -38,7 +38,7 @@ func latest_slot() -> int:
 	var best_t := -1
 	for s in range(1, SLOTS + 1):
 		var info := slot_info(s)
-		if not info.is_empty() and int(info.get("saved_at", 0)) > best_t:
+		if not info.is_empty() and not info.get("complete", false) and int(info.get("saved_at", 0)) > best_t:
 			best_t = int(info.get("saved_at", 0))
 			best = s
 	return best
@@ -54,7 +54,14 @@ func slot_info(slot: int) -> Dictionary:
 	var st: Dictionary = d.get("stats", {})
 	return {"saved_at": int(d.get("saved_at", 0)), "credits": float(d.get("credits", 0)),
 		"m2": float(st.get("m2_cleaned", 0)), "play_time": float(st.get("play_time", 0)),
-		"missions": (d.get("missions_done", []) as Array).size()}
+		"missions": (d.get("missions_done", []) as Array).size(),
+		"complete": bool((d.get("flags", {}) as Dictionary).get("went_home", false)),
+		"earned": float(st.get("credits_earned", 0))}
+
+
+## True when the game in a slot has been finished (flown home): it can't be continued.
+func is_complete(slot: int) -> bool:
+	return bool(slot_info(slot).get("complete", false))
 
 
 func _read_json(path: String) -> Dictionary:

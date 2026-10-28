@@ -11,17 +11,18 @@ const JOY_RADIUS := 95.0
 
 ## id -> {icon, text, anchor ("br" bottom-right / "tr" top-right / "bl"), offset, r, modes}
 var defs := {
-	"clean": {"icon": "brush", "text": "CLEAN", "anchor": "br", "offset": Vector2(-215, -185), "r": 88, "modes": ["foot", "vehicle", "place"]},
-	"jump": {"icon": "up", "text": "JUMP", "anchor": "br", "offset": Vector2(-78, -290), "r": 54, "modes": ["foot", "vehicle"]},
-	"interact": {"icon": "hand", "text": "USE", "anchor": "br", "offset": Vector2(-400, -95), "r": 60, "modes": ["foot", "vehicle", "place"]},
+	"clean": {"icon": "brush", "text": "CLEAN", "anchor": "br", "offset": Vector2(-215, -185), "r": 88, "modes": ["foot", "vehicle", "fly", "place"]},
+	"jump": {"icon": "up", "text": "JUMP", "anchor": "br", "offset": Vector2(-78, -290), "r": 54, "modes": ["foot", "vehicle", "fly"]},
+	"down": {"icon": "down", "text": "DOWN", "anchor": "br", "offset": Vector2(-205, -335), "r": 46, "modes": ["fly"]},
+	"interact": {"icon": "hand", "text": "USE", "anchor": "br", "offset": Vector2(-400, -95), "r": 60, "modes": ["foot", "vehicle", "fly", "place"]},
 	"sprint": {"icon": "run", "text": "SPRINT", "anchor": "br", "offset": Vector2(-80, -125), "r": 50, "modes": ["foot"]},
-	"exit": {"icon": "exit", "text": "EXIT", "anchor": "br", "offset": Vector2(-80, -125), "r": 50, "modes": ["vehicle"]},
+	"exit": {"icon": "exit", "text": "EXIT", "anchor": "br", "offset": Vector2(-80, -125), "r": 50, "modes": ["vehicle", "fly"]},
 	"switch": {"icon": "swap", "text": "TOOL", "anchor": "br", "offset": Vector2(-385, -265), "r": 50, "modes": ["foot", "place"]},
-	"menu": {"icon": "menu", "text": "", "anchor": "tr", "offset": Vector2(-52, 52), "r": 36, "modes": ["foot", "vehicle", "place"]},
-	"map": {"icon": "map", "text": "", "anchor": "tr", "offset": Vector2(-140, 52), "r": 36, "modes": ["foot", "vehicle"]},
-	"missions": {"icon": "flag", "text": "", "anchor": "tr", "offset": Vector2(-228, 52), "r": 36, "modes": ["foot", "vehicle"]},
+	"menu": {"icon": "menu", "text": "", "anchor": "tr", "offset": Vector2(-52, 52), "r": 36, "modes": ["foot", "vehicle", "fly", "place"]},
+	"map": {"icon": "map", "text": "", "anchor": "tr", "offset": Vector2(-140, 52), "r": 36, "modes": ["foot", "vehicle", "fly"]},
+	"missions": {"icon": "flag", "text": "", "anchor": "tr", "offset": Vector2(-228, 52), "r": 36, "modes": ["foot", "vehicle", "fly"]},
 	"build": {"icon": "build", "text": "", "anchor": "tr", "offset": Vector2(-316, 52), "r": 36, "modes": ["foot"]},
-	"shop": {"icon": "shop", "text": "", "anchor": "tr", "offset": Vector2(-404, 52), "r": 36, "modes": ["foot", "vehicle"]},
+	"shop": {"icon": "shop", "text": "", "anchor": "tr", "offset": Vector2(-404, 52), "r": 36, "modes": ["foot", "vehicle", "fly"]},
 }
 
 var mode := "foot"
@@ -337,6 +338,9 @@ func _draw_icon(icon: String, c: Vector2, s: float, col: Color) -> void:
 		"up":
 			draw_polyline(PackedVector2Array([c + Vector2(-s * 0.7, s * 0.1), c + Vector2(0, -s * 0.7), c + Vector2(s * 0.7, s * 0.1)]), col, w * 1.3, true)
 			draw_line(c + Vector2(0, -s * 0.6), c + Vector2(0, s * 0.8), col, w * 1.3, true)
+		"down":
+			draw_polyline(PackedVector2Array([c + Vector2(-s * 0.7, -s * 0.1), c + Vector2(0, s * 0.7), c + Vector2(s * 0.7, -s * 0.1)]), col, w * 1.3, true)
+			draw_line(c + Vector2(0, s * 0.6), c + Vector2(0, -s * 0.8), col, w * 1.3, true)
 		"hand":
 			draw_circle(c + Vector2(0, s * 0.2), s * 0.45, col)
 			for i in 4:

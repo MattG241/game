@@ -63,6 +63,10 @@ func show_menu() -> void:
 
 func start_game(load_slot: int) -> void:
 	# load_slot <= 0 means new game in slot -load_slot
+	if load_slot > 0 and SaveManager.is_complete(load_slot):
+		# A finished game is over: it can't be continued.
+		show_menu()
+		return
 	if load_slot > 0:
 		if not SaveManager.load_game(load_slot):
 			GameState.new_game()
