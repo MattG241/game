@@ -33,6 +33,7 @@ var _drones: Array = []
 var _swarm_dt := 0.0           # drones clean in 0.1 s steps, not every frame
 var _probe_t := -1.0           # seconds of extra crash breadcrumbs left after a tool change
 var _probe_next := 0.0
+var _trace_on := false         # per-frame crash breadcrumbs (emitter tools while cleaning)
 var _last_stamp := Vector3.INF
 var _time := 0.0
 var _haptic_t := 0.0
@@ -64,6 +65,7 @@ func _ready() -> void:
 	_particles = _make_particles()
 	add_child(_particles)
 	GameState.tool_changed.connect(_on_tool_changed)
+	RenderingServer.frame_post_draw.connect(func(): _trace("drawn"))
 	_on_tool_changed(GameState.equipped)
 
 
@@ -179,6 +181,10 @@ func _process(delta: float) -> void:
 	if not enabled or player == null or camera == null or not visible:
 		return
 	_time += delta
+	# Beam and swarm tools have crashed natively on some phones a few seconds into a
+	# continuous clean: while they are in use, log each step of every frame.
+	_trace_on = bool(_rig.get("emitter", false)) and cleaning
+	_trace("aim")
 	_update_aim()
 	var dt := delta
 	removing = false
@@ -199,11 +205,14 @@ func _process(delta: float) -> void:
 	var rinfo := GameData.region(region)
 	if active:
 		thickness = TerrainGen.thickness(aim_point, float(rinfo["thickness"]))
+		_trace("stamp")
 		removed_area += _stamp_stroke(shape, strength, dt, thickness)
 	if shape == "swarm":
+		_trace("swarm")
 		removed_area += _update_swarm(delta, strength * 0.6)
 		if thickness == 1.0:
 			thickness = float(rinfo["thickness"])
+	_trace("dust")
 	if removed_area > 0.0:
 		removing = true
 		var units := removed_area * float(GameData.economy["dust_per_m2"]) * thickness
@@ -226,9 +235,21 @@ func _process(delta: float) -> void:
 		rate = lerpf(rate, _removed_accum / _rate_t, 0.6)
 		_removed_accum = 0.0
 		_rate_t = 0.0
+	_trace("rig")
 	_update_rig(delta, active)
+	_trace("fx")
 	_update_effects(active)
 	_probe(delta, active)
+	if _trace_on:
+		var snd: AudioStreamPlayer = Audio._loops.get("tool")
+		_trace("end aim %.1fm beam %s particles %s sound %.2fs dirty %d" % [
+			aim_point.distance_to(camera.global_position), str(_beam.visible), str(_particles.emitting),
+			snd.get_playback_position() if snd and snd.playing else -1.0, dirt.visual_dirty.size()])
+
+
+func _trace(stage: String) -> void:
+	if _trace_on:
+		Diagnostics.mark("f%d %s" % [Engine.get_process_frames() % 100000, stage])
 
 
 func _update_aim() -> void:
