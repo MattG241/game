@@ -178,6 +178,19 @@ func _test_dirt() -> void:
 
 func _test_menu() -> void:
 	print("[main menu]")
+	# After a crash the first screen is a plain 2D one with COPY CRASH LOG.
+	Diagnostics.previous_crashed = true
+	var rb: Node = Boot.new()
+	add_child(rb)
+	await frames(3)
+	var copy_found := false
+	for b in rb.find_children("*", "Button", true, false):
+		if (b as Button).text == "COPY CRASH LOG":
+			copy_found = true
+	check(copy_found and rb.current == null, "after a crash, a plain recovery screen offers the crash log first")
+	rb.queue_free()
+	await frames(2)
+	Diagnostics.previous_crashed = false
 	boot = Boot.new()
 	add_child(boot)
 	await frames(5)

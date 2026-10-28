@@ -22,7 +22,9 @@ func _ready() -> void:
 	_terrain = Terrain.new()
 	add_child(_terrain)
 	_terrain.focus = _focus
+	Diagnostics.mark("menu terrain prewarm")
 	_terrain.prewarm(_focus.position)
+	Diagnostics.mark("menu terrain ready")
 	_cam = Camera3D.new()
 	_cam.fov = 60
 	_cam.far = 2600
