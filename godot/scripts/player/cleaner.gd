@@ -52,7 +52,7 @@ func _ready() -> void:
 	pm.size = Vector2(2, 2)
 	_ring.mesh = pm
 	_ring_mat = ShaderMaterial.new()
-	_ring_mat.shader = load("res://shaders/brush_ring.gdshader")
+	_ring_mat.shader = Meshes.world_shader("res://shaders/brush_ring.gdshader")
 	_ring.material_override = _ring_mat
 	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_ring)

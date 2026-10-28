@@ -8,12 +8,31 @@ static var _shader_energy: Shader
 static var _rock_meshes: Array = []
 
 
+static var _shaders := {}
+
+
+## Loads a world shader. With the curved horizon off (Settings, or automatically after
+## a crash before the first frame was drawn) the bend code is left out entirely, so a
+## phone GPU driver that can't handle it never has to compile it.
+static func world_shader(path: String) -> Shader:
+	if _shaders.has(path):
+		return _shaders[path]
+	var sh: Shader = load(path)
+	if not bool(Settings.get_value("curved_horizon", true)):
+		var flat := Shader.new()
+		flat.code = sh.code.replace('#include "res://shaders/bend.gdshaderinc"',
+			"vec3 bend_vertex(vec3 v, mat4 m) { return v; }")
+		sh = flat
+	_shaders[path] = sh
+	return sh
+
+
 static func hs(color: Color, metallic := 0.25, rough := 0.5, emit := Color(0, 0, 0), emit_strength := 0.0, panel := 1.6, grime := 0.3, stripes := 0.0) -> ShaderMaterial:
 	var key := "%s|%.2f|%.2f|%s|%.2f|%.2f|%.2f|%.2f" % [color.to_html(), metallic, rough, emit.to_html(), emit_strength, panel, grime, stripes]
 	if _mats.has(key):
 		return _mats[key]
 	if _shader_hs == null:
-		_shader_hs = load("res://shaders/hardsurface.gdshader")
+		_shader_hs = world_shader("res://shaders/hardsurface.gdshader")
 	var m := ShaderMaterial.new()
 	m.shader = _shader_hs
 	m.set_shader_parameter("paint", color)
@@ -33,7 +52,7 @@ static func glow(color: Color, strength := 2.0) -> ShaderMaterial:
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/glow.gdshader")
+	m.shader = world_shader("res://shaders/glow.gdshader")
 	m.set_shader_parameter("color", color)
 	m.set_shader_parameter("strength", strength)
 	_mats[key] = m
@@ -45,7 +64,7 @@ static func plain(color: Color, metallic := 0.0, rough := 0.6) -> ShaderMaterial
 	if _mats.has(key):
 		return _mats[key]
 	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/plain.gdshader")
+	m.shader = world_shader("res://shaders/plain.gdshader")
 	m.set_shader_parameter("albedo", color)
 	m.set_shader_parameter("metallic", metallic)
 	m.set_shader_parameter("roughness", rough)
@@ -57,7 +76,7 @@ static func visor() -> ShaderMaterial:
 	if _mats.has("visor"):
 		return _mats["visor"]
 	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/plain.gdshader")
+	m.shader = world_shader("res://shaders/plain.gdshader")
 	m.set_shader_parameter("albedo", Color(0.85, 0.55, 0.15))
 	m.set_shader_parameter("metallic", 1.0)
 	m.set_shader_parameter("roughness", 0.08)
@@ -68,7 +87,7 @@ static func visor() -> ShaderMaterial:
 
 static func energy(color: Color, intensity := 1.0, speed := 1.0, bands := 6.0) -> ShaderMaterial:
 	if _shader_energy == null:
-		_shader_energy = load("res://shaders/energy.gdshader")
+		_shader_energy = world_shader("res://shaders/energy.gdshader")
 	var m := ShaderMaterial.new()
 	m.shader = _shader_energy
 	m.set_shader_parameter("color", color)

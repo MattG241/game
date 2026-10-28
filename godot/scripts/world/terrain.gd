@@ -32,7 +32,7 @@ func _ready() -> void:
 	for r in GameData.regions:
 		_tints.append(Color.html(r["tint"]))
 	_mat_template = ShaderMaterial.new()
-	_mat_template.shader = load("res://shaders/terrain.gdshader")
+	_mat_template.shader = Meshes.world_shader("res://shaders/terrain.gdshader")
 	var nt := NoiseTexture2D.new()
 	nt.width = 256
 	nt.height = 256

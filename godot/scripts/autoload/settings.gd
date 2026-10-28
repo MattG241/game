@@ -31,11 +31,18 @@ var values := {
 	"music_volume": 0.6,
 	"sfx_volume": 0.9,
 	"perf_overlay": false,
+	"curved_horizon": true,
 }
 
 
 func _ready() -> void:
 	load_settings()
+	# The game crashed before it ever drew a frame: most likely the GPU driver choked
+	# on a shader. Fall back to plain shaders (no curved horizon) so it can start.
+	if Diagnostics.previous_crashed and not Diagnostics.previous_drew_frame:
+		values["curved_horizon"] = false
+		save_settings()
+		Diagnostics.safe_graphics_enabled = true
 	apply()
 
 

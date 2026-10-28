@@ -123,7 +123,10 @@ func _show_main() -> void:
 	_panel.add_child(UIKit.button("CREDITS", _show_credits, Vector2(420, 58), 24))
 	_panel.add_child(UIKit.button("EXIT", func(): get_tree().quit(), Vector2(420, 58), 24))
 	if Diagnostics.previous_crashed:
-		var warn := UIKit.label("The game closed unexpectedly last time. Settings > Copy crash log, then paste it to the developer.", 17, UIKit.ACCENT)
+		var txt := "The game closed unexpectedly last time. Settings > Copy crash log, then paste it to the developer."
+		if Diagnostics.safe_graphics_enabled:
+			txt += " Safe graphics are now on (curved horizon off) - you can switch it back in Settings."
+		var warn := UIKit.label(txt, 17, UIKit.ACCENT)
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_panel.add_child(warn)
 	_panel.add_child(UIKit.label("v%s   plays offline - no pay-to-win" % ProjectSettings.get_setting("application/config/version"), 16, UIKit.MUTED))

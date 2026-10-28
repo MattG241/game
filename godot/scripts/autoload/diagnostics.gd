@@ -13,6 +13,8 @@ const PREVIOUS := DIR + "/previous_session.txt"
 const FREEZE_MS := 3000
 
 var previous_crashed := false
+var previous_drew_frame := true   # the crashed session got as far as drawing a frame
+var safe_graphics_enabled := false
 var _t := 0.0
 var _last_event := "start"
 # Freeze watchdog: a background thread notices when the main thread stops ticking.
@@ -37,6 +39,10 @@ func _ready() -> void:
 			pf.close()
 		if not last.begins_with("END") and not last.begins_with("PAUSED") and lines.size() > 1:
 			previous_crashed = true
+			# Only a crash of this same build counts (an older build's crash says
+			# nothing about this one's shaders).
+			var same_build := lines[0].contains(" %s " % ProjectSettings.get_setting("application/config/version"))
+			previous_drew_frame = old.contains("first frame drawn") or not same_build
 			var f := FileAccess.open(LAST_CRASH, FileAccess.WRITE)
 			if f:
 				f.store_string(old)
@@ -47,6 +53,7 @@ func _ready() -> void:
 			OS.get_model_name(), OS.get_name(), OS.get_processor_count(), Time.get_datetime_string_from_system()])
 		f.close()
 	_heartbeat_ms = Time.get_ticks_msec()
+	RenderingServer.frame_post_draw.connect(_on_first_frame, CONNECT_ONE_SHOT)
 	_watchdog = Thread.new()
 	_watchdog.start(_watch)
 
@@ -63,6 +70,10 @@ func _watch() -> void:
 		elif stalled < FREEZE_MS and _frozen:
 			_frozen = false
 			_append("UNFROZE after stall")
+
+
+func _on_first_frame() -> void:
+	mark("first frame drawn")
 
 
 ## Record a notable moment (menu opened, vehicle entered...) in the next breadcrumb.
