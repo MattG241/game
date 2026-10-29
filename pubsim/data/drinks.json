@@ -1,5 +1,5 @@
 [
-  {"id": "stout", "name": "Kilbrack Stout", "short": "Stout", "serve": "stout", "glass": "pint",
+  {"id": "stout", "name": "Galagers Irish Stout", "short": "Galagers", "serve": "stout", "glass": "pint",
    "price": 5.2, "unit_cost": 1.4, "stock_unit": "keg", "units_per_stock": 80, "stock_cost": 112, "start_stock": 1,
    "unlock": "", "alcohol": true, "color": [0.05, 0.02, 0.015], "foam": [0.93, 0.86, 0.72],
    "desc": "The house stout. Two-part pour: tilt to 45°, fill to three-quarters, let it settle, top up."},
@@ -15,7 +15,7 @@
    "price": 5.6, "unit_cost": 1.8, "stock_unit": "case", "units_per_stock": 24, "stock_cost": 43, "start_stock": 1,
    "unlock": "drinks_fridge", "alcohol": true, "color": [0.9, 0.7, 0.25], "foam": [0.98, 0.97, 0.9],
    "desc": "Bottled cider over ice. Scoop ice, open the bottle, pour down the side of the glass."},
-  {"id": "zero", "name": "Kilbrack Zero", "short": "Zero Stout", "serve": "cider", "glass": "pint",
+  {"id": "zero", "name": "Galagers Zero", "short": "Galagers Zero", "serve": "cider", "glass": "pint",
    "price": 4.6, "unit_cost": 1.2, "stock_unit": "case", "units_per_stock": 24, "stock_cost": 29, "start_stock": 1,
    "unlock": "drinks_fridge", "alcohol": false, "ice": false, "color": [0.07, 0.03, 0.02], "foam": [0.9, 0.83, 0.7],
    "desc": "Alcohol-free stout in a widget can. No ice: open and pour down the side of the glass."},

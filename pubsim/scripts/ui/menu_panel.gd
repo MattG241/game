@@ -490,12 +490,12 @@ func _activity(title_t: String, desc: String, btn: String, cb: Callable, enabled
 func _activities() -> void:
 	var w: World = hud.world
 	var best := "No attempts yet." if GameState.best_split_mm < 0.0 else "Best: %.1f mm from the line in %d attempts." % [GameState.best_split_mm, int(GameState.stats["split_attempts"])]
-	_activity("Split the Knot", "One gulp from a full pint: stop with the line between the stout and the head exactly on the bar through the Kilbrack Knot on the glass. Purely virtual practice. " + best, "Play", w.start_split)
+	_activity("Split the G", "One gulp from a full pint: stop with the line between the stout and the head exactly on the bar through the middle of the big G on the Galagers glass. Purely virtual practice. " + best, "Play", w.start_split)
 	var has_board := GameState.has_upgrade("dartboard")
 	_activity("Darts: 301", "A friendly game against %s. Drag to aim, let go to throw; the aim drifts, so time it. Wins %d of %d." % [w.darts_opponent_name(), int(GameState.stats["darts_wins"]), int(GameState.stats["darts_games"])],
 		"Play", w.start_darts, has_board, "Buy the Dartboard & Oche upgrade first.")
 	var closed := w.pub_closed_for_you()
-	_activity("A pint by the fire", "Sit in the armchair and enjoy a pint at your own pace. %s" % ("The pub's closed, so it's a Kilbrack Stout." if closed else "You're working, so it's an alcohol-free Kilbrack Zero."), "Sit down", w.start_relax)
+	_activity("A pint by the fire", "Sit in the armchair and enjoy a pint at your own pace. %s" % ("The pub's closed, so it's a Galagers Irish Stout." if closed else "You're working, so it's an alcohol-free Galagers Zero."), "Sit down", w.start_relax)
 
 
 # ------------------------------------------------------------------ settings
@@ -575,6 +575,8 @@ func _settings() -> void:
 	_toggle("High-contrast prompts", "high_contrast")
 	_toggle("Show performance overlay", "show_fps")
 	_text(content, "Game", 26, UITheme.GOLD)
+	_choice("How busy the bar gets", "difficulty", [["relaxed", "Relaxed"], ["balanced", "Balanced"], ["busier", "Busier"]])
+	_text(content, "Orders are paced to how quickly you actually serve. Relaxed keeps you about 45% busy, Balanced about 60%, Busier about 80% with longer queues. The pub can be full of people either way; only some of them are ordering at once.", 18, UITheme.MUTED)
 	_choice("Real minutes per pub day", "day_length", [[6, "6"], [10, "10"], [15, "15"], [20, "20"]])
 
 

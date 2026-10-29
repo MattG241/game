@@ -26,6 +26,9 @@ var info := {
 var _title_font: Font
 
 
+const BRAND := "res://assets/brand/"
+
+
 func build(parent: Node3D) -> Dictionary:
 	root = Node3D.new()
 	root.name = "Pub"
@@ -199,6 +202,18 @@ func _bar() -> void:
 	# tips jar
 	MeshKit.cyl(g, 0.06, 0.055, 0.14, PubLayout.TILL_POS + Vector3(-0.38, 0.07, 0.05), MeshKit.color_mat(Color(0.8, 0.9, 0.9, 0.35), 0.05))
 	MeshKit.label(g, "TIPS", PubLayout.TILL_POS + Vector3(-0.38, 0.08, 0.112), 28, Color(0.95, 0.85, 0.5), Vector3.ZERO, _title_font)
+	# GALAGERS rubber drip mat under the taps and bar mats at the serving spots
+	var flat := Vector3(-PI / 2, 0, 0)
+	MeshKit.quad(g, Vector2(0.72, 0.27), Vector3(-1.75, top + 0.026, PubLayout.TAP_Z - 0.08), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.8), flat)
+	var mat_m := MeshKit.print_mat(BRAND + "galagers_keg.png", 0.0, 0.85)
+	for x in PubLayout.BAR_SPOT_X:
+		if absf(x - PubLayout.TILL_POS.x) < 0.5:
+			continue
+		MeshKit.quad(g, Vector2(0.44, 0.22), Vector3(x + 0.05, top + 0.002, zf - 0.17), mat_m, flat)
+	var coaster := MeshKit.print_mat(BRAND + "galagers_coaster.png", 0.0, 0.9)
+	for i in PubLayout.BAR_SPOT_X.size():
+		var x: float = PubLayout.BAR_SPOT_X[i]
+		MeshKit.quad(g, Vector2(0.095, 0.095), Vector3(x + 0.36, top + 0.003, zf - 0.12), coaster, Vector3(-PI / 2, i * 0.7, 0))
 
 
 func _stool(g: Node3D, p: Vector3) -> void:
@@ -239,10 +254,15 @@ func _stout_tap(g: Node3D) -> void:
 	t.add_child(pivot)
 	MeshKit.cyl(pivot, 0.012, 0.016, 0.06, Vector3(0, 0.03, 0), MeshKit.mat("brass"), 8)
 	MeshKit.cyl(pivot, 0.022, 0.03, 0.2, Vector3(0, 0.16, 0), MeshKit.mat("black_paint"), 12)
-	var badge := MeshKit.cyl(pivot, 0.04, 0.04, 0.012, Vector3(0, 0.2, -0.032), MeshKit.color_mat(Color(0.92, 0.86, 0.68), 0.4), 20, Vector3(PI / 2, 0, 0))
+	# GALAGERS badge on both faces of the handle, in a polished brass bezel
+	var badge := MeshKit.cyl(pivot, 0.046, 0.046, 0.014, Vector3(0, 0.2, 0.0), MeshKit.mat("brass"), 24, Vector3(PI / 2, 0, 0))
 	badge.name = "Badge"
-	var lb := MeshKit.label(pivot, "K", Vector3(0, 0.2, -0.04), 40, Color(0.08, 0.05, 0.03), Vector3(0, PI, 0), _title_font)
-	lb.pixel_size = 0.0012
+	var bm := MeshKit.print_mat(BRAND + "galagers_badge.png", 0.0, 0.35)
+	MeshKit.quad(pivot, Vector2(0.086, 0.086), Vector3(0, 0.2, -0.0075), bm, Vector3(0, PI, 0))
+	MeshKit.quad(pivot, Vector2(0.086, 0.086), Vector3(0, 0.2, 0.0075), bm)
+	# black collar and chrome cap on the brass font
+	MeshKit.cyl(t, 0.043, 0.043, 0.03, Vector3(0, 0.30, 0.02), MeshKit.mat("black_paint"), 16)
+	MeshKit.cyl(t, 0.02, 0.02, 0.012, Vector3(0, 0.425, 0.02), MeshKit.mat("chrome"), 12)
 	info["taps"]["stout"] = {"root": t, "handle": pivot, "nozzle": t.position + Vector3(0, 0.30, -0.195), "glass": t.position + Vector3(0, 0.0, -0.195)}
 
 
@@ -288,8 +308,19 @@ func _back_bar() -> void:
 	for sx in [x0 + 0.25, cx - 0.4 - (len - 0.6) / 2.0, cx - 0.4 + (len - 0.6) / 2.0]:
 		MeshKit.box(g, Vector3(0.06, 1.6, 0.32), Vector3(sx, 1.8, PubLayout.ROOM_MIN.y + 0.28), MeshKit.mat("oak_y"))
 	MeshKit.box(g, Vector3(len - 0.4, 0.2, 0.36), Vector3(cx - 0.4, 2.7, PubLayout.ROOM_MIN.y + 0.28), MeshKit.mat("oak"))
-	var sign := MeshKit.label(g, "Kilbrack · Est. 1887", Vector3(cx - 0.4, 2.7, PubLayout.ROOM_MIN.y + 0.47), 64, Color(0.95, 0.8, 0.45), Vector3.ZERO, _title_font)
-	sign.pixel_size = 0.002
+	# illuminated GALAGERS sign over the back bar, with its own warm glow
+	var sign_pos := Vector3(cx - 0.4, 2.72, PubLayout.ROOM_MIN.y + 0.47)
+	MeshKit.box(g, Vector3(1.08, 0.56, 0.05), sign_pos + Vector3(0, 0, -0.03), MeshKit.mat("brass_dull"))
+	var sign := MeshKit.quad(g, Vector2(1.0, 0.5), sign_pos, MeshKit.print_mat(BRAND + "galagers_sign.png", 1.1, 0.3))
+	sign.name = "GalagersSign"
+	sign.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var glow := OmniLight3D.new()
+	glow.position = sign_pos + Vector3(0, -0.1, 0.35)
+	glow.light_color = Color(1.0, 0.78, 0.45)
+	glow.light_energy = 0.35
+	glow.omni_range = 1.8
+	g.add_child(glow)
+	info["brand_sign"] = sign
 	_bottles(g, Vector3(cx - 0.4, 0, PubLayout.ROOM_MIN.y + 0.28), len - 0.9)
 	# glass rack on the back counter (washed glasses stand here upside down)
 	var rack := Node3D.new()
@@ -442,6 +473,10 @@ func _table_round(g: Node3D, p: Vector3, seats: int) -> void:
 	sb.add_child(cs)
 	sb.position = Vector3(0, 0.4, 0)
 	t.add_child(sb)
+	var coaster := MeshKit.print_mat(BRAND + "galagers_coaster.png", 0.0, 0.9)
+	for i in 2:
+		var ca := TAU * (i + 0.3) / 2.0 + p.x
+		MeshKit.quad(t, Vector2(0.095, 0.095), Vector3(sin(ca) * 0.22, 0.7665, cos(ca) * 0.22), coaster, Vector3(-PI / 2, ca, 0))
 	for i in seats:
 		var a := TAU * i / seats + 0.4
 		var dir := Vector3(sin(a), 0, cos(a))
@@ -628,6 +663,16 @@ func _decor() -> void:
 		MeshKit.box(nb, Vector3(0.3, 0.2, 0.004), np, MeshKit.mat("paper"), Vector3(0, 0, (i - 1.5) * 0.04))
 		var lb := MeshKit.label(nb, notes[i], np + Vector3(0, 0, 0.004), 20, Color(0.15, 0.12, 0.1))
 		lb.pixel_size = 0.0008
+	# GALAGERS posters in oak frames on the front wall, and an etched brand mirror on the right wall
+	for ps in [[BRAND + "galagers_poster_pint.png", Vector3(-6.0, 1.95, PubLayout.ROOM_MAX.y - 0.14)],
+			[BRAND + "galagers_poster_tune.png", Vector3(5.3, 1.95, PubLayout.ROOM_MAX.y - 0.14)]]:
+		var pp: Vector3 = ps[1]
+		MeshKit.box(g, Vector3(0.58, 0.83, 0.025), pp + Vector3(0, 0, 0.012), MeshKit.mat("oak_y"))
+		MeshKit.quad(g, Vector2(0.5, 0.75), pp - Vector3(0, 0, 0.002), MeshKit.print_mat(str(ps[0]), 0.0, 0.7), Vector3(0, PI, 0))
+	var mp := Vector3(PubLayout.ROOM_MAX.x - 0.14, 1.88, -1.55)
+	MeshKit.box(g, Vector3(0.03, 0.54, 1.3), mp + Vector3(0.012, 0, 0), MeshKit.mat("oak_y"))
+	MeshKit.box(g, Vector3(0.01, 0.46, 1.22), mp, MeshKit.mat("mirror"))
+	MeshKit.quad(g, Vector2(1.16, 0.435), mp - Vector3(0.007, 0, 0), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.2), Vector3(0, -PI / 2, 0))
 	# chalkboard (upgrade)
 	var cb := Node3D.new()
 	cb.position = Vector3(1.9, 1.7, PubLayout.ROOM_MAX.y - 0.16)
@@ -635,7 +680,7 @@ func _decor() -> void:
 	g.add_child(cb)
 	MeshKit.box(cb, Vector3(0.9, 1.1, 0.03), Vector3.ZERO, MeshKit.mat("chalk"))
 	MeshKit.box(cb, Vector3(0.96, 1.16, 0.02), Vector3(0, 0, -0.01), MeshKit.mat("oak_y"))
-	var cl := MeshKit.label(cb, "Tonight\n~\nKilbrack Stout\nperfectly poured\n\nTrad & tunes\ncoming soon", Vector3(0, 0, 0.02), 34, Color(0.95, 0.95, 0.9), Vector3.ZERO, _title_font)
+	var cl := MeshKit.label(cb, "Tonight\n~\nGalagers Irish Stout\nperfectly poured\n\nTrad & tunes\ncoming soon", Vector3(0, 0, 0.02), 34, Color(0.95, 0.95, 0.9), Vector3.ZERO, _title_font)
 	cl.pixel_size = 0.0016
 	info["chalkboard_label"] = cl
 	_tag("chalkboard", cb)
@@ -801,10 +846,20 @@ func _cellar() -> void:
 		MeshKit.torus(keg, 0.18, 0.21, Vector3(0, 0.02, 0), MeshKit.mat("steel_keg"))
 		MeshKit.cyl(keg, 0.04, 0.04, 0.06, Vector3(0, 0.63, 0), MeshKit.mat("black_paint"), 10)
 		MeshKit.cyl(keg, 0.01, 0.01, 1.6, Vector3(-0.15, 1.4, 0), MeshKit.color_mat(Color(0.8, 0.8, 0.8, 0.6), 0.2), 6)
-		var lb := MeshKit.label(keg, GameData.drink(id).get("short", id), Vector3(0.21, 0.35, 0), 30, Color(0.95, 0.9, 0.8), Vector3(0, PI / 2, 0))
+		if id == "stout":
+			MeshKit.quad(keg, Vector2(0.3, 0.15), Vector3(0.203, 0.35, 0), MeshKit.print_mat(BRAND + "galagers_keg.png", 0.0, 0.5), Vector3(0, PI / 2, 0))
+		else:
+			MeshKit.label(keg, GameData.drink(id).get("short", id), Vector3(0.21, 0.35, 0), 30, Color(0.95, 0.9, 0.8), Vector3(0, PI / 2, 0))
 		info["keg_nodes"][id] = keg
 		if id != "stout":
 			_tag(GameData.drink(id).get("unlock", ""), keg)
+	# stacked GALAGERS bottle crates
+	var crate_print := MeshKit.print_mat(BRAND + "galagers_sign.png", 0.0, 0.8)
+	for i in 3:
+		var cp := Vector3(-4.3, 0.15 + i * 0.3, -5.6) if i < 2 else Vector3(-4.3, 0.15, -6.05)
+		MeshKit.box(g, Vector3(0.6, 0.3, 0.4), cp, MeshKit.mat("pale_wood"), Vector3(0, i * 0.05, 0))
+		MeshKit.quad(g, Vector2(0.4, 0.2), cp + Vector3(0.302, 0, 0), crate_print, Vector3(0, PI / 2 + i * 0.05, 0))
+	MeshKit.solid(g, Vector3(0.65, 0.6, 0.9), Vector3(-4.3, 0.3, -5.8))
 	# spare stock pile
 	var pile := Node3D.new()
 	pile.position = PubLayout.STOCK_PILE
@@ -830,7 +885,10 @@ func _exterior() -> void:
 	info["facade_label"] = name_l
 	for sx in [-4.75, 4.75]:
 		MeshKit.box(g, Vector3(0.3, 3.1, 0.2), Vector3(sx, 1.55, PubLayout.ROOM_MAX.y + 0.18), MeshKit.mat("green_paint"))
-	MeshKit.label(g, "Kilbrack Stout · Fine Ales · Trad Music", Vector3(0, 2.3, PubLayout.ROOM_MAX.y + 0.27), 40, Color(0.9, 0.85, 0.7), Vector3.ZERO)
+	MeshKit.label(g, "Fine Ales · Trad Music", Vector3(0, 2.3, PubLayout.ROOM_MAX.y + 0.27), 40, Color(0.9, 0.85, 0.7), Vector3.ZERO)
+	for sx in [-2.05, 2.05]:
+		MeshKit.box(g, Vector3(0.84, 0.44, 0.04), Vector3(sx, 2.3, PubLayout.ROOM_MAX.y + 0.27), MeshKit.mat("black_paint"))
+		MeshKit.quad(g, Vector2(0.78, 0.39), Vector3(sx, 2.3, PubLayout.ROOM_MAX.y + 0.292), MeshKit.print_mat(BRAND + "galagers_sign.png", 0.9, 0.3))
 	# hanging sign with a shamrock
 	var hs := Node3D.new()
 	hs.position = Vector3(1.4, 2.6, PubLayout.ROOM_MAX.y + 0.7)

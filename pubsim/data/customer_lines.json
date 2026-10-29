@@ -2,11 +2,11 @@
   "first_names": ["Ann", "Brian", "Clodagh", "Dara", "Emer", "Fergal", "Gráinne", "Hugh", "Íde", "Jim", "Kate", "Lorcan", "Maeve", "Niall", "Orla", "Peadar", "Róisín", "Seamus", "Tara", "Úna", "Vincent", "Áine", "Colm", "Deirdre", "Eoin", "Fiona", "Gearóid", "Hannah", "Ivan", "Joanne", "Kevin", "Laura", "Mick", "Nuala", "Oisín", "Pat", "Rachel", "Sorcha", "Tadhg", "Yvonne"],
   "visitor_types": ["local", "tourist", "worker", "student", "couple", "fan"],
   "order": {
-    "stout": ["A pint of Kilbrack, please.", "Pint of stout when you're ready.", "One stout, please."],
+    "stout": ["A pint of Galagers, please.", "Pint of stout when you're ready.", "One stout, please."],
     "lager": ["Pint of lager, please.", "A cold lager, please."],
     "ale": ["Pint of the red ale, please.", "Is the Red Fox on? I'll have one."],
     "cider": ["Cider over ice, please.", "A cider, please."],
-    "zero": ["Have you an alcohol-free stout?", "A Kilbrack Zero, please."],
+    "zero": ["Have you an alcohol-free stout?", "A Galagers Zero, please."],
     "whiskey": ["A whiskey, please. No ice.", "Ballyfinn, please."],
     "soft": ["Just a lemonade, please.", "Lemonade for me, I'm driving."]
   },

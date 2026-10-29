@@ -8,7 +8,7 @@ and have tests.
 - **Phase 2:** more drinks with distinct serving mechanics (lager tilt-and-straighten, hand-pulled ale,
   bottled cider over ice, whiskey optic, soda gun), queue polish, more upgrades, glasswasher.
 - **Phase 3:** live trad music nights with booking, musicians and crowd draw; bodhrán rhythm game;
-  darts against regulars; the "Split the Knot" precision drinking challenge; your own after-shift pint.
+  darts against regulars; the "Split the G" precision drinking challenge; your own after-shift pint.
 - **Phase 4:** staff hiring (bartender, glass collector), food (toasties, stew), furniture placement
   with snap points, room expansions, events, objectives.
 - **Phase 5:** performance tuning on device, polish, save migration.

@@ -15,6 +15,10 @@ var pour: Node
 var drink_scene: DrinkScene
 var darts: DartsGame
 var live: LiveMusic
+var dispatcher := OrderDispatcher.new()
+var _spawn_gap := 0.0
+var max_active_seen := 0
+var run_time := 0.0          # seconds of play in this session (game time)
 var _award_t := 2.0
 var _celebration_pending: Array = []
 var env: Environment
@@ -383,7 +387,7 @@ func start_darts() -> void:
 func _split_prompt() -> String:
 	if not player.has_hands_free():
 		return ""
-	return "Try the Split the Knot challenge"
+	return "Try the Split the G challenge"
 
 
 func start_split(championship := false) -> void:
@@ -394,7 +398,7 @@ func start_split(championship := false) -> void:
 
 func _champ_prompt() -> String:
 	if live and live.championship_open and not live.championship_done and player.has_hands_free():
-		return "Enter the Split the Knot championship (€50 prize)"
+		return "Enter the Split the G championship (€50 prize)"
 	return ""
 
 
@@ -403,7 +407,7 @@ func _fireside_prompt() -> String:
 		return ""
 	if pub_closed_for_you():
 		return "Sit by the fire with your own pint"
-	return "Sit by the fire with a Kilbrack Zero"
+	return "Sit by the fire with a Galagers Zero"
 
 
 func pub_closed_for_you() -> bool:
@@ -590,13 +594,54 @@ func _maybe_spawn(dt: float) -> void:
 	if _first_customer_timer > 0.0:
 		_first_customer_timer -= dt
 		if _first_customer_timer <= 0.0:
+			dispatcher.force_next = true
 			spawn_customer()
 		return
-	if customers.size() >= max_customers():
+	_spawn_gap -= dt
+	if GameState.phase != "open" or _spawn_gap > 0.0:
 		return
-	var per_sec := arrival_rate_per_hour() / GameState.seconds_per_game_hour()
-	if _rng.randf() < per_sec * dt:
-		spawn_customer()
+	# keep the room as lively as the hour and reputation suggest, without flooding the bar:
+	# arrivals mostly sit and chat; the dispatcher decides when each of them orders
+	var music := live.arrival_mult() if live else 1.0
+	var target := dispatcher.target_population(GameState.hour, music, max_customers())
+	if customers.size() >= target or dispatcher.pending.size() >= 4:
+		return
+	_spawn_gap = _rng.randf_range(10.0, 22.0)
+	spawn_customer()
+
+
+## Orders currently being dealt with at the bar (walking up, waiting to order, waiting for a drink).
+func active_orders() -> int:
+	var n := 0
+	for c in customers:
+		if c.ordering and c.state in ["walk", "wait_order", "wait_drink", "queue"]:
+			n += 1
+	return n
+
+
+func _dispatch(dt: float) -> void:
+	var a := active_orders()
+	max_active_seen = maxi(max_active_seen, a)
+	var c = dispatcher.tick(dt, a, live != null and live.playing)
+	if c != null:
+		send_to_bar(c)
+
+
+func send_to_bar(c: Customer) -> void:
+	var spot := request_bar_spot(c)
+	if spot < 0:
+		dispatcher.add_pending(c)
+		return
+	if c.seat >= 0:
+		release_seat(c.seat)
+		c.seat = -1
+	c.go_to_bar(spot, bar_spot_pos(spot))
+
+
+func customer_wants_order(c: Customer) -> void:
+	c.state = "mingle"
+	c.mingle_t = 0.0
+	dispatcher.add_pending(c)
 
 
 func spawn_customer(force_regular := "") -> Customer:
@@ -615,7 +660,7 @@ func spawn_customer(force_regular := "") -> Customer:
 		look = r.get("look", {})
 		c.regular_id = reg
 		c.display_name = r["name"]
-		c.patience_max = 80.0 * float(r.get("patience", 1.0))
+		c.patience_max = dispatcher.patience_for(float(r.get("patience", 1.0)))
 		c.tip_mult = float(r.get("tip", 1.0))
 		_regulars_today[reg] = true
 	else:
@@ -623,7 +668,7 @@ func spawn_customer(force_regular := "") -> Customer:
 		c.display_name = names[_rng.randi() % names.size()]
 		var types: Array = GameData.customer_lines.get("visitor_types", ["local"])
 		c.visitor = types[_rng.randi() % types.size()]
-		c.patience_max = _rng.randf_range(60.0, 90.0) * (1.2 if c.visitor == "tourist" else 1.0)
+		c.patience_max = dispatcher.patience_for(_rng.randf_range(0.9, 1.1) * (1.2 if c.visitor == "tourist" else 1.0))
 		c.tip_mult = _rng.randf_range(0.7, 1.3) * (1.3 if c.visitor == "tourist" else 1.0)
 	c.patience = c.patience_max
 	c.budget = 1 + int(_rng.randf() < 0.45) + int(_rng.randf() < 0.2)
@@ -655,23 +700,15 @@ func customer_choose(c: Customer) -> void:
 		GameState.today["walkouts"] = int(GameState.today["walkouts"]) + 1
 		c.leave()
 		return
-	var spot := request_bar_spot(c)
-	if spot >= 0:
-		c.bar_spot = spot
-		c.walk_to(bar_spot_pos(spot), "wait_order")
-		return
-	var q := -1
-	for i in queue_slots.size():
-		if queue_slots[i] == null:
-			q = i
-			break
-	if q >= 0:
-		queue_slots[q] = c
-		c.queue_slot = q
-		c.walk_to(PubLayout.QUEUE_POS[q], "queue")
+	# find somewhere to sit (or stand) and wait to be called up to order
+	var s := request_seat(c)
+	if s >= 0:
+		c.seat = s
+		var sd: Dictionary = seat_info(s)
+		c.start_mingling(sd["pos"], sd["yaw"])
 	else:
-		c.say("Too busy for me tonight.", 2.5)
-		c.leave()
+		c.start_mingling(standing_spot(c), 0.0)
+	dispatcher.add_pending(c)
 
 
 func request_bar_spot(c: Customer) -> int:
@@ -859,6 +896,8 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 	var tip := snappedf(price * tip_rate, 0.1)
 	GameState.earn(price, "sales")
 	GameState.earn(tip, "tips")
+	if c.order_time >= 0.0:
+		OrderDispatcher.record_service(run_time - c.order_time)
 	GameState.today["served"] = int(GameState.today["served"]) + 1
 	GameState.today["satisfaction_sum"] = float(GameState.today["satisfaction_sum"]) + sat
 	GameState.today["quality_sum"] = float(GameState.today["quality_sum"]) + q
@@ -995,6 +1034,7 @@ func _wipe(s: Node3D) -> void:
 
 # ------------------------------------------------------------------ day flow
 func _process(delta: float) -> void:
+	run_time += delta
 	if GameState.phase != "prep":
 		var gh := delta / GameState.seconds_per_game_hour()
 		GameState.hour += gh
@@ -1014,6 +1054,7 @@ func _process(delta: float) -> void:
 				if c.state != "walk":
 					c.leave()
 		_maybe_spawn(delta)
+		_dispatch(delta)
 	# settle every pint in the building
 	var settle_s := float(GameData.econ("settle_seconds", 12.0))
 	for g in settle_slots:

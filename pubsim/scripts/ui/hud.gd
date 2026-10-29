@@ -450,7 +450,7 @@ func enter_drink_mode(ds: DrinkScene) -> void:
 	drink_btn.visible = true
 	if ds.mode == "split":
 		var best := "" if GameState.best_split_mm < 0.0 else "  Your best: %.1f mm." % GameState.best_split_mm
-		drink_label.text = "Split the Knot: hold to take ONE gulp. Let go when you think the line between the stout and the head will sit exactly on the bar through the knot.%s" % best
+		drink_label.text = "Split the G: hold to take ONE gulp. Let go when you think the line between the stout and the head will sit exactly halfway through the G.%s" % best
 	else:
 		drink_label.text = "Your own pint by the fire. Hold to sip, at your own pace."
 
@@ -466,7 +466,7 @@ func set_drink_text(t: String) -> void:
 
 func show_split_result(res: Dictionary) -> void:
 	drink_result.text = "%s\n%s" % [res["verdict"], res["where"]]
-	drink_label.text = "Score %d%s\n%s" % [res["score"], "  ·  New personal best!" if res["best"] else "", res["reaction"]]
+	drink_label.text = "Score %d / 100%s   (best %d)\n%s" % [res["score"], "  ·  New personal best!" if res["best"] else "", int(res.get("best_score", res["score"])), res["reaction"]]
 	drink_retry.visible = true
 	drink_btn.visible = false
 
@@ -604,19 +604,48 @@ func refresh() -> void:
 func refresh_orders() -> void:
 	for ch in orders_box.get_children():
 		ch.queue_free()
-	var shown := 0
+	var d := world.dispatcher
+	var caps: Array = d.caps()
+	var active := world.active_orders()
+	var waiting: Array = []
 	for c in world.customers:
-		if c.state not in ["wait_order", "wait_drink"] or shown >= 5:
-			continue
-		shown += 1
+		if c.state in ["wait_order", "wait_drink"]:
+			waiting.append(c)
+	# longest-waiting first: that's who to serve next
+	waiting.sort_custom(func(a, b): return a.patience_frac() < b.patience_frac())
+	if GameState.phase == "prep" and waiting.is_empty():
+		return
+	var head := PanelContainer.new()
+	head.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.08, 0.2, 0.12, 0.9), Color(0.75, 0.6, 0.3), 10, 2))
+	head.custom_minimum_size = Vector2(250, 0)
+	var hv := VBoxContainer.new()
+	hv.add_theme_constant_override("separation", 0)
+	head.add_child(hv)
+	hv.add_child(UITheme.label("Orders %d / %d" % [active, int(caps[1])], 22, UITheme.GOLD))
+	var status := ""
+	if active >= int(caps[1]):
+		status = "Bar full: new orders paused"
+	elif not d.pending.is_empty():
+		var secs := int(d.seconds_to_next(world.live != null and world.live.playing))
+		status = "Next order in ~%ds (%d waiting)" % [maxi(secs, 1), d.pending.size()] if secs > 1 else "Someone's coming up"
+	elif GameState.phase == "open":
+		status = "Quiet: nobody waiting to order"
+	if status != "":
+		hv.add_child(UITheme.label(status, 17, UITheme.MUTED))
+	orders_box.add_child(head)
+	var shown := 0
+	for c in waiting:
+		if shown >= 4:
+			break
 		var p := PanelContainer.new()
-		p.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.92, 0.88, 0.76, 0.92), Color(0.4, 0.3, 0.15), 10, 2))
+		var first: bool = shown == 0
+		p.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.95, 0.9, 0.76, 0.95) if first else Color(0.86, 0.82, 0.7, 0.88), UITheme.GOLD if first else Color(0.4, 0.3, 0.15), 10, 3 if first else 2))
 		p.custom_minimum_size = Vector2(250, 0)
 		var vb := VBoxContainer.new()
 		vb.add_theme_constant_override("separation", 2)
 		p.add_child(vb)
 		var what: String = GameData.drink(c.drink_id).get("short", "?") if c.order_taken else "wants to order"
-		var l := UITheme.label("%s: %s" % [c.display_name, what], 20, Color(0.15, 0.1, 0.05))
+		var l := UITheme.label("%s%s: %s" % ["Next: " if first else "", c.display_name, what], 20, Color(0.15, 0.1, 0.05))
 		l.add_theme_constant_override("outline_size", 0)
 		vb.add_child(l)
 		var bar := ColorRect.new()
@@ -624,6 +653,7 @@ func refresh_orders() -> void:
 		bar.color = Color(0.85, 0.25, 0.2).lerp(Color(0.2, 0.6, 0.3), c.patience_frac())
 		vb.add_child(bar)
 		orders_box.add_child(p)
+		shown += 1
 
 
 # ------------------------------------------------------------------ pour mode

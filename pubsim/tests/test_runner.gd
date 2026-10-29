@@ -277,9 +277,12 @@ func _test_loop() -> void:
 	check(GameState.phase == "open", "pub opens")
 	var ok := await _wait_until(func(): return w.customers.size() > 0, 6.0)
 	check(ok, "a customer arrives after opening")
-	var c: Customer = w.customers[0] if ok else null
-	ok = await _wait_until(func(): return c != null and c.state == "wait_order", 40.0)
-	check(ok, "customer walks in and waits at the bar (state %s)" % (c.state if c else "none"))
+	ok = await _wait_until(func(): return w.customers.any(func(x): return x.state == "wait_order"), 40.0)
+	var c: Customer = null
+	for x in w.customers:
+		if x.state == "wait_order":
+			c = x
+	check(ok and c != null, "a customer walks in and comes up to the bar to order")
 	if not ok:
 		return
 	check(w._customer_prompt(c).begins_with("Take"), "prompt to take the order")
@@ -421,6 +424,7 @@ func _test_loop() -> void:
 	check(main.world.info["upgrade_show"]["lamps"][0].visible, "purchased upgrade still visible after reload")
 	await _test_minigames(main.world)
 	await _test_music(main.world)
+	await _test_queue_balance()
 
 
 func _test_minigames(w: World) -> void:
@@ -480,14 +484,20 @@ func _test_minigames(w: World) -> void:
 	await _frames(40)
 	check(not dg.active and w.player.input_enabled, "leaving darts returns control")
 
-	_log("== Integration: Split the Knot ==")
+	_log("== Integration: Split the G ==")
 	w.player.global_position = Vector3(0.9, 0, -0.9)
 	w.player.rotation.y = 0.0
 	await _frames(3)
 	w.start_split()
 	await _frames(45)
 	var ds := w.drink_scene
-	check(ds.active and main.hud.drink_root.visible, "Split the Knot starts")
+	check(ds.active and main.hud.drink_root.visible, "Split the G starts")
+	check(absf(DrinkScene.target_y() - float(GameData.brand["g_center_y"])) < 0.00001 and DrinkScene.target_y() > 0.05, "the target is the measured centre of the G on the glass (%.2f mm up)" % (DrinkScene.target_y() * 1000.0))
+	# the printed G must face the camera: the print's G angle, turned by the glass yaw, points at the camera
+	var g_ang := float(GameData.brand["g_center_angle"])
+	var g_dir := ds.glass.global_transform.basis * Vector3(sin(g_ang), 0, cos(g_ang))
+	var to_cam := (w.close_cam.global_position - ds.glass.global_position) * Vector3(1, 0, 1)
+	check(g_dir.normalized().dot(to_cam.normalized()) > 0.97, "the glass is turned so the G faces you")
 	var body0 := ds.glass.contents.body
 	await _frames(30)
 	check(is_equal_approx(ds.glass.contents.body, body0), "nothing is drunk until you hold")
@@ -496,11 +506,13 @@ func _test_minigames(w: World) -> void:
 	ds.release()
 	var after_short := ds.glass.contents.body
 	check(after_short < body0 - 0.05, "holding drinks continuously (%.3f -> %.3f)" % [body0, after_short])
-	await _wait_until(func(): return ds.state == "replay", 5.0)
+	await _wait_until(func(): return ds.state == "reveal", 4.0)
+	check(ds.state == "reveal" and not main.hud.drink_retry.visible, "a slow-motion replay plays before the result")
+	await _wait_until(func(): return ds.state == "replay", 8.0)
 	var err := ds.error_mm()
 	var res: Dictionary = ds._result
 	check(ds.state == "replay" and res.has("score"), "result shown after the gulp")
-	check(is_equal_approx(float(res["error_mm"]), err), "score measures the liquid line against the knot (%.1f mm)" % err)
+	check(is_equal_approx(float(res["error_mm"]), err), "score measures the liquid line against the G (%.1f mm)" % err)
 	check(GameState.best_split_mm >= 0.0, "best score recorded")
 	# a longer gulp drinks more: skill, not chance
 	ds.retry()
@@ -509,11 +521,11 @@ func _test_minigames(w: World) -> void:
 	await _frames(int(3.4 * 60))
 	ds.release()
 	check(ds.glass.contents.body < after_short, "a longer hold goes further down the glass")
-	await _wait_until(func(): return ds.state == "replay", 5.0)
+	await _wait_until(func(): return ds.state == "replay", 8.0)
 	# a perfect stop scores 100
-	ds.glass.contents.body = (DrinkScene.TARGET_Y - PintGlass.BASE) / ds.glass.inner_height
+	ds.glass.contents.body = (DrinkScene.target_y() - PintGlass.BASE) / ds.glass.inner_height
 	ds._score()
-	check(int(ds._result["score"]) == 100 and str(ds._result["verdict"]) == "Split the Knot!", "stopping exactly on the line splits the knot")
+	check(int(ds._result["score"]) == 100 and str(ds._result["verdict"]) == "Split the G!", "stopping exactly on the line splits the G")
 	ds.end()
 	await _frames(40)
 	check(not ds.active and w.player.input_enabled, "leaving the challenge returns control")
@@ -777,3 +789,130 @@ func _test_music(w: World) -> void:
 	old["today"].erase("live_event")
 	GameState.from_dict(old)
 	check(GameState.bookings.is_empty() and GameState.today.has("live_event"), "older saves without music data load with defaults")
+
+
+# ------------------------------------------------------------------ queue balance playtests
+## A simulated solo bartender: takes each order a few seconds after the customer reaches the bar
+## and hands over a well-poured pint `service` seconds later, one order at a time.
+func _bot_session(seconds: float, service: float, difficulty := "balanced", day := 1, rep := 20.0) -> Dictionary:
+	main.quit_to_title()
+	await _frames(3)
+	GameState.set_setting("difficulty", difficulty)
+	main.start_new("career", "Playtest")
+	await _frames(10)
+	GameState.day = day
+	GameState.reputation = rep
+	GameState.tutorial["done"] = true
+	var w: World = main.world
+	w.dispatcher = OrderDispatcher.new()
+	w._sign_action()
+	var t := 0.0
+	var busy_until := -1.0
+	var current: Customer = null
+	var busy_time := 0.0
+	var served := 0
+	var max_active := 0
+	var max_people := 0
+	var waits: Array = []
+	var arrived_at := {}
+	var dt := 1.0 / 60.0
+	while t < seconds:
+		await get_tree().process_frame
+		t += dt
+		if GameState.hour >= 23.4:
+			GameState.hour = 19.0  # keep trading so the session covers the full span
+		var a := w.active_orders()
+		max_active = maxi(max_active, a)
+		max_people = maxi(max_people, w.customers.size())
+		for c in w.customers:
+			if c.state == "wait_order" and not arrived_at.has(c):
+				arrived_at[c] = t
+		if current != null and (not is_instance_valid(current) or current.state != "wait_drink"):
+			current = null
+			busy_until = -1.0
+		if current == null:
+			# next customer in line: the one who has waited longest
+			var best: Customer = null
+			for c in w.customers:
+				if c.state == "wait_order" and float(arrived_at.get(c, t)) <= t - 2.0:
+					if best == null or float(arrived_at[c]) < float(arrived_at[best]):
+						best = c
+			if best != null:
+				w._customer_action(best)
+				current = best
+				busy_until = t + service
+		else:
+			busy_time += dt
+			if t >= busy_until:
+				var g := PintGlass.new()
+				var con := g.contents
+				con.drink_id = current.drink_id
+				con.serve = str(GameData.drink(current.drink_id).get("serve", "stout"))
+				if con.serve == "stout":
+					con.stage = 3
+					con.first_pour_level = 0.75
+					con.angle_sum = 45.0
+					con.angle_vol = 1.0
+					con.topup_cascade = 0.05
+					con.body = 0.88
+					con.foam = 0.13
+				else:
+					con.body = 0.9
+					con.foam = 0.09
+				w.add_child(g)
+				w.rack_clean = maxi(0, w.rack_clean - 1)
+				var res: Dictionary = w.serve_customer(current, g)
+				if res.get("ok", false):
+					served += 1
+					waits.append(t - float(arrived_at.get(current, t)))
+					arrived_at.erase(current)
+				current = null
+				# wash whatever is lying around between customers
+				for lg in w.loose_glasses.duplicate():
+					w.loose_glasses.erase(lg)
+					lg.queue_free()
+					w.rack_clean += 1
+	var avg_wait := 0.0
+	for x in waits:
+		avg_wait += float(x)
+	avg_wait /= maxf(1.0, waits.size())
+	var res2 := {"served": served, "max_active": max_active, "walkouts": int(GameState.today["walkouts"]) + int(GameState.stats.get("walkouts_hist", 0)),
+		"utilisation": busy_time / seconds, "avg_wait": avg_wait, "max_wait": waits.max() if not waits.is_empty() else 0.0, "max_people": max_people,
+		"intervals": _diffs(w.dispatcher.released_times), "caps": w.dispatcher.caps(), "interval": w.dispatcher.order_interval(),
+		"service_ema": OrderDispatcher.service_time()}
+	return res2
+
+
+func _diffs(arr: Array) -> Array:
+	var out := []
+	for i in range(1, arr.size()):
+		out.append(snappedf(float(arr[i]) - float(arr[i - 1]), 0.1))
+	return out
+
+
+func _test_queue_balance() -> void:
+	_log("== Playtest: queue balance (simulated solo bartender) ==")
+	GameState.stats["service_time_ema"] = OrderDispatcher.DEFAULT_SERVICE
+	var r := await _bot_session(900.0, 55.0)
+	_log("    balanced, day 1, 55 s per pint, 15 min: served %d, max orders waiting %d (caps %s), walk-outs %d, busy %d%%, wait at bar avg %.0f s / max %.0f s, peak people %d" % [r["served"], r["max_active"], str(r["caps"]), r["walkouts"], int(r["utilisation"] * 100), r["avg_wait"], r["max_wait"], r["max_people"]])
+	_log("    order release gaps (s): %s" % str(r["intervals"]))
+	check(r["max_active"] <= 3, "first-day queue never exceeds 3 orders")
+	check(r["walkouts"] == 0, "nobody walks out on a careful solo bartender")
+	check(r["utilisation"] >= 0.35 and r["utilisation"] <= 0.75, "bartender is busy but not swamped (%d%%)" % int(r["utilisation"] * 100))
+	check(int(r["served"]) >= 8, "steady trade: %d pints in 15 minutes" % r["served"])
+	var min_gap := 999.0
+	for g in r["intervals"]:
+		min_gap = minf(min_gap, float(g))
+	check(min_gap >= 25.0, "no burst catch-up: orders are spaced at least 25 s apart (min %.0f s)" % min_gap)
+	# a slower player: the dispatcher learns their pace
+	GameState.stats["service_time_ema"] = OrderDispatcher.DEFAULT_SERVICE
+	var slow := await _bot_session(900.0, 95.0)
+	_log("    balanced, day 1, 95 s per pint: served %d, max waiting %d, walk-outs %d, busy %d%%, learned service %.0f s, interval %.0f s" % [slow["served"], slow["max_active"], slow["walkouts"], int(slow["utilisation"] * 100), slow["service_ema"], slow["interval"]])
+	check(slow["max_active"] <= 3 and slow["walkouts"] == 0, "a slow, careful player is never overwhelmed")
+	check(float(slow["service_ema"]) > 80.0, "the game measures the player's real serving time")
+	# later on, with reputation and the Busier setting, it gets genuinely busy
+	GameState.stats["service_time_ema"] = 45.0
+	var late := await _bot_session(600.0, 45.0, "busier", 9, 60.0)
+	_log("    busier, day 9, rep 60, 45 s per pint: served %d, max waiting %d (caps %s), busy %d%%, walk-outs %d" % [late["served"], late["max_active"], str(late["caps"]), int(late["utilisation"] * 100), late["walkouts"]])
+	check(int(late["caps"][1]) > 3 and float(late["utilisation"]) > float(r["utilisation"]), "demand grows with progression and the Busier setting")
+	GameState.set_setting("difficulty", "balanced")

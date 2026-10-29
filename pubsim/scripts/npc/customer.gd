@@ -29,6 +29,9 @@ var drink_left := 0.0
 var drink_rate := 0.008
 var speed := 1.25
 var music_enjoy := 0.0
+var ordering := false        # sent up to the bar by the order dispatcher
+var mingle_t := 0.0
+var order_time := -1.0      # world.run_time when the order was taken
 var instrument := ""
 var music_style := ""
 var _react_anim := 0.0       # >0 while cheering / laughing
@@ -242,6 +245,12 @@ func _process(delta: float) -> void:
 			_drinking(delta)
 		"musician":
 			_play_anim(delta)
+		"mingle":
+			# in the pub, chatting, not yet ordering: no patience is lost here
+			_idle_anim(delta)
+			mingle_t += delta
+			if mingle_t > 300.0:
+				leave()
 		"audience":
 			_audience_anim(delta)
 		_:
@@ -298,6 +307,11 @@ func _arrive() -> void:
 			_place_glass_on_table()
 		"audience":
 			state = "audience"
+		"mingle":
+			state = "mingle"
+			if seat >= 0:
+				rotation.y = _seat_yaw
+				_set_seated(true)
 		"exit":
 			state = "gone"
 			left_pub.emit(self)
@@ -368,6 +382,7 @@ func _walk_out() -> void:
 
 func take_order() -> String:
 	order_taken = true
+	order_time = world.run_time
 	state = "wait_drink"
 	patience = minf(patience_max, patience + patience_max * 0.15)
 	var line: String = world.order_line(self)
@@ -377,6 +392,7 @@ func take_order() -> String:
 
 ## Called by the world when the player hands over a drink.
 func receive_drink(g: PintGlass) -> void:
+	ordering = false
 	glass = g
 	if g.get_parent():
 		g.get_parent().remove_child(g)
@@ -490,19 +506,31 @@ func _finish_drink() -> void:
 		glass = null
 	_arms[1].rotation = Vector3.ZERO
 	if drinks_had < budget and world.can_reorder(self):
-		var s := seat
-		seat = -1
-		if s >= 0:
-			world.release_seat(s)
 		order_taken = false
 		patience = patience_max
 		drink_id = world.pick_drink(self)
-		world.customer_choose(self)
+		world.customer_wants_order(self)
 	else:
 		leave()
 
 
+## Sit or stand somewhere and wait for the dispatcher to call us up to order.
+func start_mingling(pos: Vector3, yaw: float) -> void:
+	mingle_t = 0.0
+	_seat_yaw = yaw
+	walk_to(pos, "mingle")
+
+
+func go_to_bar(spot: int, pos: Vector3) -> void:
+	ordering = true
+	bar_spot = spot
+	patience = patience_max
+	order_taken = false
+	walk_to(pos, "wait_order")
+
+
 func leave() -> void:
+	ordering = false
 	if bar_spot >= 0:
 		world.release_bar_spot(self)
 		bar_spot = -1

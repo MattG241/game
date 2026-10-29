@@ -77,6 +77,12 @@ func _build() -> void:
 	_shell = MeshInstance3D.new()
 	_shell.mesh = _shell_mesh if kind == "pint" else _tumbler_shell
 	_shell_mat = MeshKit.shader_mat("res://assets/shaders/glass.gdshader", {"emblem": 1.0 if kind == "pint" else 0.0})
+	var brand := GameData.brand
+	if kind == "pint" and not brand.is_empty():
+		_shell_mat.set_shader_parameter("print_tex", load(brand["glass_texture"]))
+		_shell_mat.set_shader_parameter("print_y0", float(brand["print_y0"]))
+		_shell_mat.set_shader_parameter("print_y1", float(brand["print_y1"]))
+		_shell_mat.set_shader_parameter("print_half_angle", float(brand["print_half_angle"]))
 	_shell.material_override = _shell_mat
 	_shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_shell)
@@ -158,6 +164,10 @@ func update_visual() -> void:
 	_liq_mat.set_shader_parameter("lace_top", lace_top)
 	_liq_mat.set_shader_parameter("cascade_strength", 1.0)
 	_shell_mat.set_shader_parameter("dirt", dirt)
+	# a fresh cold pint mists the glass; it fades as the drink warms and is drunk
+	var cold := clampf(1.0 - c.age / 240.0, 0.0, 1.0) if c.total() > 0.05 else 0.0
+	_shell_mat.set_shader_parameter("cold", cold)
+	_shell_mat.set_shader_parameter("fill_y", BASE + clampf(c.liquid_level(), 0.0, 1.0) * inner_height)
 	var over := c.total() - 1.0
 	_dome.visible = over > 0.002 and c.foam > 0.01 and up.y > 0.97
 	if _dome.visible:

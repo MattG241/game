@@ -70,6 +70,28 @@ func _ready() -> void:
 	w.player.rotation.y = PI
 	w.player.camera.rotation.x = 0.05
 	await _shot("08_street")
+	# GALAGERS branding: back bar sign and taps from the customer side, and a fresh pint close up
+	w.player.global_position = Vector3(-1.2, 0, -0.6)
+	w.player.rotation.y = 0.0
+	w.player.camera.rotation.x = 0.12
+	await _shot("20_brand_backbar")
+	var hero := PintGlass.new()
+	w.add_child(hero)
+	hero.global_position = Vector3(-0.3, PubLayout.BAR_TOP, -1.95)
+	hero.rotation.y = DrinkScene.g_yaw()
+	hero.contents.drink_id = "stout"
+	hero.contents.body = 0.86
+	hero.contents.foam = 0.16
+	var cam: Camera3D = w.close_cam
+	cam.global_transform = Transform3D(Basis(), Vector3(-0.3, PubLayout.BAR_TOP + 0.11, -1.62)).looking_at(Vector3(-0.42, PubLayout.BAR_TOP + 0.085, -1.95), Vector3.UP)
+	cam.current = true
+	await _wait(0.6)
+	await _shot("21_galagers_pint")
+	cam.global_transform = Transform3D(Basis(), Vector3(-1.6, PubLayout.BAR_TOP + 0.55, -1.55)).looking_at(Vector3(-1.6, PubLayout.BAR_TOP + 0.5, -2.06), Vector3.UP)
+	await _wait(0.3)
+	await _shot("22_tap_badge")
+	hero.queue_free()
+	w.player.camera.current = true
 	GameState.upgrades["dartboard"] = 1
 	GameState.upgrades_changed.emit()
 	w.start_darts()
@@ -90,7 +112,9 @@ func _ready() -> void:
 	await _shot("12_split_drinking")
 	await _wait(1.9)
 	w.drink_scene.release()
-	await _wait(3.5)
+	await _wait(2.6)
+	await _shot("13a_split_slowmo")
+	await _wait(2.2)
 	await _shot("13_split_result")
 	w.drink_scene.end()
 	await _wait(0.6)

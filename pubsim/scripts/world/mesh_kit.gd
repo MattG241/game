@@ -316,6 +316,33 @@ static func quad(parent: Node, size: Vector2, pos: Vector3, material: Material, 
 	return mi
 
 
+static var _prints := {}
+
+
+## A printed or painted graphic (GALAGERS badges, signs, posters...). Transparent PNGs use alpha
+## scissor so they stay cheap and sort correctly; glow > 0 makes it a lit sign.
+static func print_mat(path: String, glow := 0.0, rough := 0.55) -> StandardMaterial3D:
+	var key := "%s|%.2f|%.2f" % [path, glow, rough]
+	if _prints.has(key):
+		return _prints[key]
+	var m := StandardMaterial3D.new()
+	var tex: Texture2D = load(path)
+	m.albedo_texture = tex
+	m.roughness = rough
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if tex and tex.get_image() and tex.get_image().detect_alpha() != Image.ALPHA_NONE:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = 0.4
+	if glow > 0.0:
+		# a backlit sign: unshaded so it reads as lit from within (emission textures render flat
+		# white in the Compatibility renderer used on Android)
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var k := clampf(glow, 0.2, 1.0)
+		m.albedo_color = Color(k, k, k)
+	_prints[key] = m
+	return m
+
+
 static func label(parent: Node, text: String, pos: Vector3, size := 48, color := Color(0.95, 0.9, 0.75), rot := Vector3.ZERO, font: Font = null) -> Label3D:
 	var l := Label3D.new()
 	l.text = text

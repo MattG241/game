@@ -1,12 +1,13 @@
 class_name DrinkScene
 extends Node
 ## Two optional drinking activities (virtual only):
-##  - "split": the Split-the-Knot precision challenge. One held gulp, then a measured replay.
+##  - "split": the Split-the-G precision challenge. One held gulp, then a measured replay.
 ##  - "relax": an after-shift pint by the fire; hold to sip, at your own pace.
 
 signal finished(result: Dictionary)
 
-const TARGET_Y := 0.098          # emblem centre on the glass (metres from its base)
+const FALLBACK_TARGET_Y := 0.098  # used only if data/brand.json is missing
+const REVEAL_TIME := 2.4          # slow-motion replay of the gulp, zoomed onto the G
 const SPLIT_POS := Vector3(0.9, PubLayout.BAR_TOP, -1.95)
 
 var world: Node
@@ -26,6 +27,20 @@ var _anchor: Node3D
 var _sips := 0
 var _relax_cam_pos := Vector3.ZERO
 var championship := false
+var _gulp_start_body := 0.0
+var _final_body := 0.0
+var _reveal_t := -1.0
+
+
+## Height of the exact centre of the capital G printed on the glass (metres from its base),
+## measured from the rendered artwork by tools/gen_brand.py and stored in data/brand.json.
+static func target_y() -> float:
+	return float(GameData.brand.get("g_center_y", FALLBACK_TARGET_Y))
+
+
+## Turn the glass so the G faces the camera (the print wraps around the glass).
+static func g_yaw() -> float:
+	return -float(GameData.brand.get("g_center_angle", 0.0))
 
 
 func begin(m: String, drink := "stout") -> void:
@@ -53,8 +68,8 @@ func begin(m: String, drink := "stout") -> void:
 	var target: Transform3D
 	if mode == "split":
 		_anchor.global_position = SPLIT_POS
-		glass.rotation.y = 0.0
-		target = Transform3D(Basis(), SPLIT_POS + Vector3(0.0, 0.1, 0.38)).looking_at(SPLIT_POS + Vector3(0, 0.095, 0), Vector3.UP)
+		_pose_split_glass()
+		target = _split_cam()
 		_build_line()
 	else:
 		# by the fire, in the left armchair
@@ -72,6 +87,17 @@ func begin(m: String, drink := "stout") -> void:
 	world.hud.enter_drink_mode(self)
 
 
+func _split_cam() -> Transform3D:
+	var ty := target_y()
+	return Transform3D(Basis(), SPLIT_POS + Vector3(0.0, ty + 0.012, 0.36)).looking_at(SPLIT_POS + Vector3(0, ty + 0.004, 0), Vector3.UP)
+
+
+func _pose_split_glass() -> void:
+	# yaw first (G towards the camera), then tilt towards the drinker in the bar's frame
+	glass.transform.basis = Basis(Vector3.BACK, _tilt * 0.9) * Basis(Vector3.UP, g_yaw())
+	glass.position = Vector3(-_tilt * 0.06, _tilt * 0.12, _tilt * 0.12)
+
+
 func _build_line() -> void:
 	_line = MeshInstance3D.new()
 	var qm := QuadMesh.new()
@@ -85,13 +111,14 @@ func _build_line() -> void:
 	_line.material_override = m
 	_line.visible = false
 	world.add_child(_line)
-	_line.global_position = SPLIT_POS + Vector3(0, TARGET_Y, 0.048)
+	_line.global_position = SPLIT_POS + Vector3(0, target_y(), 0.048)
 
 
 func press() -> void:
 	if state == "ready" or (mode == "relax" and state == "between"):
 		holding = true
 		hold_t = 0.0
+		_gulp_start_body = glass.contents.body
 		state = "drinking"
 
 
@@ -131,8 +158,7 @@ func _process(delta: float) -> void:
 				release()
 	_tilt = move_toward(_tilt, want_tilt, delta * 2.5)
 	if mode == "split":
-		glass.rotation.z = -_tilt * 0.9
-		glass.position = Vector3(-_tilt * 0.06, _tilt * 0.12, _tilt * 0.12)
+		_pose_split_glass()
 	else:
 		glass.position = Vector3(0.12, -0.32, -0.42).lerp(Vector3(0.02, -0.2, -0.3), _tilt)
 		glass.rotation.x = _tilt * 0.55
@@ -140,6 +166,16 @@ func _process(delta: float) -> void:
 		_settle_t -= delta
 		if _settle_t <= 0.0:
 			_score()
+	elif state == "reveal":
+		# slow-motion replay: the line glides down to where you stopped, right in front of the G
+		_reveal_t += delta
+		var k := clampf((_reveal_t - 0.5) / (REVEAL_TIME - 0.5), 0.0, 1.0)
+		k = 1.0 - pow(1.0 - k, 3.0)
+		c.body = lerpf(_gulp_start_body, _final_body, k)
+		if _reveal_t >= REVEAL_TIME:
+			c.body = _final_body
+			state = "replay"
+			world.hud.show_split_result(_result)
 	world.hud.update_drink_ui(self)
 
 
@@ -148,17 +184,20 @@ func boundary_y() -> float:
 
 
 func error_mm() -> float:
-	return (boundary_y() - TARGET_Y) * 1000.0
+	return (boundary_y() - target_y()) * 1000.0
 
 
 func _score() -> void:
-	state = "replay"
+	state = "reveal"
+	_reveal_t = 0.0
+	_final_body = glass.contents.body
+	_gulp_start_body = maxf(_gulp_start_body, _final_body)
 	var err := error_mm()
 	var ae := absf(err)
 	var score := clampi(int(round(100.0 - maxf(0.0, ae - 1.0) * 12.0)), 0, 100)
 	var verdict := ""
 	if ae <= 1.0:
-		verdict = "Split the Knot!"
+		verdict = "Split the G!"
 	elif ae <= 3.0:
 		verdict = "So close!"
 	elif err > 0.0:
@@ -172,11 +211,15 @@ func _score() -> void:
 	var best := GameState.best_split_mm < 0.0 or ae < GameState.best_split_mm
 	if best:
 		GameState.best_split_mm = ae
+	GameState.stats["split_best_score"] = maxi(int(GameState.stats.get("split_best_score", 0)), score)
+	if ae <= 1.0:
+		GameState.stats["split_perfects"] = int(GameState.stats.get("split_perfects", 0)) + 1
 	var reactions_good := ["Packie: \"Textbook. I'd frame that.\"", "Nora: \"Well now. Somebody's been practising.\"", "The whole bar cheers!"]
-	var reactions_bad := ["Eamon: \"Ah, the knot wins again.\"", "Declan: \"Give it another go, chief.\"", "Aoife: \"Closer than I ever got!\""]
+	var reactions_bad := ["Eamon: \"Ah, the G wins again.\"", "Declan: \"Give it another go, chief.\"", "Aoife: \"Closer than I ever got!\""]
 	var react: String = (reactions_good if ae <= 3.0 else reactions_bad)[randi() % 3]
-	Sfx.play("cheer" if ae <= 3.0 else "groan", -6.0)
-	_result = {"error_mm": err, "score": score, "verdict": verdict, "where": where, "best": best, "reaction": react}
+	_result = {"error_mm": err, "score": score, "verdict": verdict, "where": where, "best": best, "reaction": react,
+		"best_score": int(GameState.stats["split_best_score"])}
+	_crowd_react(ae)
 	if championship:
 		championship = false
 		world.live.championship_done = true
@@ -186,16 +229,33 @@ func _score() -> void:
 			_result["reaction"] = "Championship won! 50 euro prize and the whole pub on its feet."
 		else:
 			_result["reaction"] = "Not this year. The championship goes to Packie, again."
-	# close-up replay: zoom onto the line and show it
+	# close-up slow-motion replay: the glass settles upright, the camera pushes in on the G, the
+	# target line appears through its centre and the liquid line glides down to where you stopped
+	_tilt = 0.0
+	_pose_split_glass()
+	glass.contents.body = _gulp_start_body
 	_line.visible = true
 	var cam: Camera3D = world.close_cam
-	var zoom := Transform3D(Basis(), SPLIT_POS + Vector3(0.0, TARGET_Y, 0.16)).looking_at(SPLIT_POS + Vector3(0, TARGET_Y, 0), Vector3.UP)
+	var ty := target_y()
+	var zoom := Transform3D(Basis(), SPLIT_POS + Vector3(0.0, ty + 0.004, 0.15)).looking_at(SPLIT_POS + Vector3(0, ty, 0), Vector3.UP)
 	if _cam_tween:
 		_cam_tween.kill()
 	_cam_tween = world.create_tween()
-	_cam_tween.tween_property(cam, "global_transform", zoom, 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	world.hud.show_split_result(_result)
+	_cam_tween.tween_property(cam, "global_transform", zoom, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	world.hud.set_drink_text("Slow-motion replay...")
 	finished.emit(_result)
+
+
+func _crowd_react(ae: float) -> void:
+	var tag := "split_success" if ae <= 1.0 else ("split_near" if ae <= 3.0 else "split_fail")
+	# a beat of anticipation, then the bar reacts (cheer for a split, groans for a miss)
+	var t := world.get_tree().create_timer(REVEAL_TIME * 0.85)
+	t.timeout.connect(func():
+		if not active:
+			return
+		Sfx.play("cheer" if ae <= 3.0 else "groan", -6.0)
+		if world.has_method("crowd_voice"):
+			world.crowd_voice(tag))
 
 
 func retry() -> void:
@@ -207,7 +267,8 @@ func retry() -> void:
 	state = "ready"
 	_tilt = 0.0
 	var cam: Camera3D = world.close_cam
-	var target := Transform3D(Basis(), SPLIT_POS + Vector3(0.0, 0.1, 0.38)).looking_at(SPLIT_POS + Vector3(0, 0.095, 0), Vector3.UP)
+	_pose_split_glass()
+	var target := _split_cam()
 	if _cam_tween:
 		_cam_tween.kill()
 	_cam_tween = world.create_tween()

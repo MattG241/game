@@ -69,7 +69,7 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   night ends with *One More Round* sung by the whole pub.
 - **Jukebox** by the front window (and the *Jukebox* menu tab): browse all 20 songs by category, play any,
   pause/resume, skip, set music volume, switch Automatic / My choice.
-- **Darts** (301 against a regular), **Split the Knot** challenge, a **pint by the fire**.
+- **Darts** (301 against a regular), **Split the G** challenge, a **pint by the fire**.
 - **Awards** with prize money, and celebration cards for big renovations.
 
 ## The soundtrack: who plays what
@@ -87,12 +87,12 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
 | 10 | The Old Country Jig | Live act: Irish dancing night; customers dance |
 | 11 | The Fiddler's Table | Live act: trio seated round a table, best on quieter nights |
 | 12 | The Big Night | Live act: the biggest event, needs sound system and reputation 50, best Saturday |
-| 13 | Split the G | The Split the Knot challenge (fades back to pub music after) |
+| 13 | Split the G | The Split the G challenge (fades back to pub music after) |
 | 14 | Perfect Pint | A 9-second excerpt over the music when you serve a pint scoring 92+ (not more than once every 75s), with cheers |
 | 15 | The Pub Gets Bigger | Celebration card after major renovations (€200+) |
 | 16 | Champions of the Pub | Award cards (reputation and career milestones) |
 | 17 | One More Round | Sung live as the finale of an especially good night (atmosphere 45+, 6+ customers, happy crowd); customers gather at the stage and raise their glasses |
-| 18 | Mind the Line | Live act: the Split the Knot Championship night (enter for a €50 prize) |
+| 18 | Mind the Line | Live act: the Split the G Championship night (enter for a €50 prize) |
 | 19 | The Pub on the Corner | End-of-day accounts on milestone days (days 1, 3, 7, 14...) and after a singalong night |
 | 20 | The Landlord's Lament | Live act: comedy singalong night; the crowd laughs and cheers |
 

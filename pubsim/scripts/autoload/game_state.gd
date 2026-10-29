@@ -65,6 +65,7 @@ var settings: Dictionary = {
 	"show_fps": false,
 	"subtitles": true,
 	"high_contrast": false,
+	"difficulty": "balanced",
 	"music_mode": "auto",
 	"music_playlist": "all",
 	"music_manual_id": "",
@@ -104,8 +105,8 @@ func _reset() -> void:
 		"pints_poured": 0, "perfect_pints": 0, "served": 0, "walkouts": 0,
 		"revenue": 0.0, "tips": 0.0, "best_pour": 0, "days": 0, "glasses_washed": 0,
 		"spills_cleaned": 0, "darts_wins": 0, "darts_games": 0, "events_hosted": 0,
-		"split_attempts": 0, "kegs_changed": 0, "own_pints": 0, "rhythm_best": 0,
-		"food_served": 0, "quiz_nights": 0,
+		"split_attempts": 0, "split_best_score": 0, "split_perfects": 0, "kegs_changed": 0, "own_pints": 0, "rhythm_best": 0,
+		"food_served": 0, "quiz_nights": 0, "service_time_ema": 55.0, "service_samples": 0,
 	}
 	for d in GameData.drinks:
 		var id: String = d["id"]
