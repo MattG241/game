@@ -4,6 +4,8 @@ extends Node
 signal cash_changed(value: float)
 signal message(text: String, kind: String)
 signal upgrades_changed
+signal upgrade_bought(id: String)
+signal award_earned(id: String)
 signal stock_changed
 signal settings_changed
 signal day_changed
@@ -39,6 +41,9 @@ var history: Array = []
 var best_split_mm := -1.0
 var tutorial: Dictionary = {}
 var in_game := false
+var live_atmosphere := 0.0      # live music playing right now (not saved)
+var live_stay := 0.0            # customers linger longer during a performance
+var live_tips := 0.0            # and tip a little more
 
 var settings: Dictionary = {
 	"look_sensitivity": 1.0,
@@ -60,6 +65,9 @@ var settings: Dictionary = {
 	"show_fps": false,
 	"subtitles": true,
 	"high_contrast": false,
+	"music_mode": "auto",
+	"music_playlist": "all",
+	"music_manual_id": "",
 	"invert_look": false,
 }
 
@@ -113,7 +121,7 @@ func _reset_today() -> void:
 		"sales": 0.0, "tips": 0.0, "cogs": 0.0, "stock_spend": 0.0, "upgrade_spend": 0.0,
 		"rent": 0.0, "utilities": 0.0, "wages": 0.0, "event_fees": 0.0, "other": 0.0,
 		"served": 0, "walkouts": 0, "satisfaction_sum": 0.0, "quality_sum": 0.0,
-		"pours": 0, "wasted_units": 0.0, "complaints": 0,
+		"pours": 0, "wasted_units": 0.0, "complaints": 0, "live_event": "", "live_rating": 0.0, "prizes": 0.0,
 	}
 
 
@@ -265,6 +273,7 @@ func buy_upgrade(id: String) -> bool:
 	spend(float(u["cost"]), "upgrade_spend")
 	upgrades[id] = day
 	upgrades_changed.emit()
+	upgrade_bought.emit(id)
 	message.emit("Purchased: %s" % u["name"], "good")
 	return true
 
@@ -286,7 +295,7 @@ func glasses_total() -> int:
 
 
 func atmosphere() -> float:
-	return clampf(20.0 + get_mod("atmosphere"), 0.0, 100.0)
+	return clampf(20.0 + get_mod("atmosphere") + live_atmosphere, 0.0, 100.0)
 
 
 # ------------------------------------------------------------------ time
@@ -311,6 +320,9 @@ func seconds_per_game_hour() -> float:
 
 
 func start_day() -> void:
+	live_atmosphere = 0.0
+	live_stay = 0.0
+	live_tips = 0.0
 	hour = 15.5
 	phase = "prep"
 	_reset_today()
@@ -353,7 +365,7 @@ func end_day() -> Dictionary:
 	spend(rent, "rent", true)
 	spend(utilities, "utilities", true)
 	spend(wages, "wages", true)
-	var income := float(today["sales"]) + float(today["tips"])
+	var income := float(today["sales"]) + float(today["tips"]) + float(today.get("prizes", 0.0))
 	var expenses := float(today["stock_spend"]) + float(today["upgrade_spend"]) + float(today["rent"]) \
 		+ float(today["utilities"]) + float(today["wages"]) + float(today["event_fees"]) + float(today["other"])
 	var served := int(today["served"])
@@ -364,13 +376,16 @@ func end_day() -> Dictionary:
 		rep_change += (avg_sat - 55.0) / 12.0 * clampf(served / 6.0, 0.3, 2.0)
 	rep_change -= int(today["walkouts"]) * 0.6
 	rep_change += get_mod("rep_gain")
+	# a well-received live night gets the town talking
+	if str(today.get("live_event", "")) != "":
+		rep_change += float(today.get("live_rating", 0.5)) * 2.5
 	reputation = clampf(reputation + rep_change, 0.0, 100.0)
 	var summary := {
 		"day": day, "weekday": weekday_name(), "sales": today["sales"], "tips": today["tips"],
 		"cogs": today["cogs"], "stock_spend": today["stock_spend"], "upgrade_spend": today["upgrade_spend"],
 		"rent": today["rent"], "utilities": today["utilities"], "wages": today["wages"],
 		"event_fees": today["event_fees"], "other": today["other"], "income": income, "expenses": expenses,
-		"profit": income - expenses, "gross_margin": float(today["sales"]) - float(today["cogs"]),
+		"profit": income - expenses, "prizes": today.get("prizes", 0.0), "live_event": today.get("live_event", ""), "gross_margin": float(today["sales"]) - float(today["cogs"]),
 		"served": served, "walkouts": today["walkouts"], "avg_satisfaction": avg_sat, "avg_quality": avg_q,
 		"reputation": reputation, "rep_change": rep_change, "wasted": today["wasted_units"], "cash": cash,
 	}

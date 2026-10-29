@@ -95,5 +95,40 @@
       "atmosphere": 4,
       "stay_mult": 0.1
     }
+  },
+  {
+    "id": "snug_stage",
+    "name": "Snug Corner Stage",
+    "cost": 320,
+    "stage": 3,
+    "category": "Entertainment",
+    "desc": "Clear out the junk in the corner and build a low stage with stools for musicians. Unlocks trad sessions, singalongs and band nights.",
+    "effects": {
+      "atmosphere": 4
+    }
+  },
+  {
+    "id": "sound_system",
+    "name": "Small Sound System",
+    "cost": 380,
+    "stage": 3,
+    "category": "Entertainment",
+    "requires": "snug_stage",
+    "desc": "Two speakers and a little mixing desk. Music nights draw a bigger crowd.",
+    "effects": {
+      "event_draw": 0.3,
+      "utilities": 2
+    }
+  },
+  {
+    "id": "jukebox",
+    "name": "Restore the Jukebox",
+    "cost": 150,
+    "stage": 2,
+    "category": "Entertainment",
+    "desc": "Re-gild the old jukebox by the window and fix its lights and speaker. A glowing centrepiece that lifts the room.",
+    "effects": {
+      "atmosphere": 5
+    }
   }
 ]

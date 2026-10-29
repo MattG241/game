@@ -31,6 +31,8 @@ func _ready() -> void:
 	_test_economy()
 	_log("== Unit: save / load / backup ==")
 	_test_save()
+	_log("== Unit: soundtrack data and selection ==")
+	_test_music_data()
 	_log("== Integration: the first playable loop ==")
 	await _test_loop()
 	_log("")
@@ -213,6 +215,16 @@ func _frames(n: int) -> void:
 func _wait_until(cond: Callable, max_seconds: float) -> bool:
 	var frames := int(max_seconds * 60)
 	for i in frames:
+		if cond.call():
+			return true
+		await get_tree().process_frame
+	return cond.call()
+
+
+## Waits on the wall clock (audio playback runs in real time even when frames are fixed-step).
+func _wait_real(cond: Callable, max_seconds: float) -> bool:
+	var deadline := Time.get_ticks_msec() + int(max_seconds * 1000)
+	while Time.get_ticks_msec() < deadline:
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -408,6 +420,7 @@ func _test_loop() -> void:
 	check(main.world != null and GameState.has_upgrade("lamps"), "continuing restores the pub")
 	check(main.world.info["upgrade_show"]["lamps"][0].visible, "purchased upgrade still visible after reload")
 	await _test_minigames(main.world)
+	await _test_music(main.world)
 
 
 func _test_minigames(w: World) -> void:
@@ -517,3 +530,250 @@ func _test_minigames(w: World) -> void:
 	ds.end()
 	await _frames(40)
 	check(w.player.input_enabled, "back on your feet after the pint")
+
+
+# ------------------------------------------------------------------ soundtrack
+const EXPECTED_TITLES := ["Welcome to The Local", "First Pint of the Day", "A Quiet Tuesday", "Rain on the Windows",
+	"The Friday Crowd", "Last Orders", "Fiddles by the Fire", "The Galway Reel", "The Wild Session",
+	"The Old Country Jig", "The Fiddler's Table", "The Big Night", "Split the G", "Perfect Pint",
+	"The Pub Gets Bigger", "Champions of the Pub", "One More Round", "Mind the Line",
+	"The Pub on the Corner", "The Landlord's Lament"]
+
+
+func _test_music_data() -> void:
+	var md := MusicDirector
+	check(md.track_list.size() == 20, "20 soundtrack entries")
+	var all_ok := true
+	var len_ok := true
+	for i in 20:
+		var t: Dictionary = md.track_list[i]
+		if int(t["number"]) != i + 1 or str(t["title"]) != EXPECTED_TITLES[i]:
+			all_ok = false
+			_log("    wrong entry %d: %s" % [i + 1, t.get("title")])
+		var s: AudioStream = load(t["file"])
+		if not (s is AudioStreamMP3):
+			all_ok = false
+			_log("    %s did not import as MP3" % t["file"])
+		elif absf(s.get_length() - float(t["duration"])) > 1.5:
+			len_ok = false
+			_log("    %s length %.1f vs %.1f" % [t["file"], s.get_length(), float(t["duration"])])
+	check(all_ok, "all 20 tracks numbered and titled correctly and import as MP3 streams")
+	check(len_ok, "every track's imported length matches the original recording")
+	var cats := {}
+	for t in md.track_list:
+		cats[t["category"]] = int(cats.get(t["category"], 0)) + 1
+	check(cats.get("atmosphere") == 6 and cats.get("live") == 6 and cats.get("challenge") == 4 and cats.get("vocal") == 4, "tracks grouped into the four categories")
+	# every live and vocal performance track is used by a bookable act or the finale
+	var used := {"t17": true}
+	for ev in GameData.events:
+		used[ev["track"]] = true
+	var missing := []
+	for id in ["t07", "t08", "t09", "t10", "t11", "t12", "t18", "t20", "t17"]:
+		if not used.has(id):
+			missing.append(id)
+	check(missing.is_empty(), "every live/vocal performance track has a job %s" % str(missing))
+	# selection rules
+	var ctx: Dictionary = md.context
+	var saved := ctx.duplicate()
+	md.mode = "auto"
+	ctx["screen"] = "menu"
+	check(md._pick_for(md.current_situation()) == "t01", "menu plays Welcome to The Local")
+	ctx["screen"] = "world"
+	ctx["live"] = false
+	ctx["phase"] = "prep"
+	ctx["hour"] = 15.5
+	ctx["customers"] = 0
+	ctx["weather"] = "clear"
+	var pool: Dictionary = md.pub_pool()
+	check(_top(pool) == "t02", "opening up plays First Pint of the Day")
+	ctx["phase"] = "open"
+	ctx["hour"] = 18.5
+	ctx["customers"] = 3
+	ctx["capacity_frac"] = 0.2
+	ctx["weekday"] = 1
+	check(_top(md.pub_pool()) == "t03", "quiet trading plays A Quiet Tuesday")
+	ctx["weather"] = "rain"
+	ctx["hour"] = 20.0
+	check(_top(md.pub_pool()) == "t04", "a rainy evening favours Rain on the Windows")
+	ctx["weather"] = "clear"
+	ctx["customers"] = 10
+	ctx["capacity_frac"] = 0.7
+	check(_top(md.pub_pool()) == "t05", "a busy bar plays The Friday Crowd")
+	ctx["phase"] = "last_orders"
+	check(md._pick_for(md.current_situation()) == "t06", "last orders plays Last Orders")
+	ctx["screen"] = "summary"
+	ctx["milestone"] = true
+	check(md._pick_for(md.current_situation()) == "t19", "milestone nights end with The Pub on the Corner")
+	ctx["milestone"] = false
+	ctx["screen"] = "world"
+	ctx["phase"] = "open"
+	ctx["live"] = true
+	check(md.current_situation() == "live" and md._pick_for("live") == "", "background music steps aside for live musicians")
+	ctx["live"] = false
+	md.start_override("t13", "minigame")
+	check(md._pick_for(md.current_situation()) == "t13", "the Split challenge plays Split the G")
+	md.clear_override()
+	for k in saved.keys():
+		ctx[k] = saved[k]
+
+
+func _top(pool: Dictionary) -> String:
+	var best := ""
+	var bw := -1.0
+	for k in pool.keys():
+		if float(pool[k]) > bw:
+			bw = float(pool[k])
+			best = k
+	return best
+
+
+func _test_music(w: World) -> void:
+	_log("== Integration: soundtrack in the pub ==")
+	var md := MusicDirector
+	md.set_mode("auto")
+	GameState.phase = "open"
+	GameState.hour = 17.0
+	await _frames(int(4.5 * 60))
+	check(md.current_id in ["t02", "t03", "t04", "t05"], "pub background music playing (%s)" % md.title_of(md.current_id))
+	check(md._players[md._active].playing, "the background track is actually playing")
+	check(md.audible_players() <= 1, "never two full-volume songs at once")
+	# let the song end naturally: the next one is chosen and crossfaded in
+	var first := md.current_id
+	var p: AudioStreamPlayer = md._players[md._active]
+	p.seek(p.stream.get_length() - 2.0)
+	await _frames(int(1.0 * 60))
+	check(md.current_id != "" and (md.current_id != first or md._players[md._active] != p), "a finished song hands over to the next")
+	await _frames(int(3.5 * 60))
+	check(md.audible_players() <= 1, "crossfade completes with a single song")
+	# last orders
+	GameState.hour = 23.6
+	await _frames(int(6.0 * 60))
+	check(md.current_id == "t06", "Last Orders plays at closing time")
+	GameState.phase = "open"
+	GameState.hour = 19.0
+	# Split the G during the challenge, then back to pub music
+	w.start_split()
+	await _frames(int(3.5 * 60))
+	check(md.current_id == "t13", "Split the G plays during the challenge")
+	w.drink_scene.end()
+	await _frames(int(4.0 * 60))
+	check(md.current_id != "t13" and md.override_id() == "", "music returns to the pub after the challenge (%s)" % md.title_of(md.current_id))
+	# perfect pint excerpt
+	md._stinger_cooldown = 0.0
+	check(md.play_stinger("t14"), "Perfect Pint excerpt plays")
+	check(md._stinger.playing and absf(md._stinger.get_playback_position() - 17.5) < 1.0, "the excerpt starts at the celebratory section")
+	check(not md.play_stinger("t14"), "the excerpt can't spam on every pint")
+	await _frames(int(10.0 * 60))
+	check(not md._stinger.playing, "the excerpt stops after a few seconds rather than playing the whole song")
+	# jukebox: every track plays
+	var played := 0
+	for t in md.track_list:
+		md.play_track(t["id"])
+		await _frames(20)
+		var ap: AudioStreamPlayer = md._players[md._active]
+		if md.current_id == t["id"] and ap.playing and ap.stream == md.stream(t["id"]):
+			played += 1
+	check(played == 20, "the jukebox plays all 20 songs (%d)" % played)
+	await _frames(int(3.5 * 60))
+	check(md.audible_players() <= 1, "switching tracks rapidly still leaves one song audible")
+	md.toggle_pause()
+	check(md._players[md._active].stream_paused, "pause works")
+	md.toggle_pause()
+	check(not md._players[md._active].stream_paused, "resume works")
+	md.set_playlist("live")
+	md.play_track("t07")
+	md.skip()
+	check(md.current_id == "t08", "skip moves to the next song in the chosen category")
+	md.set_playlist("all")
+	GameState.set_setting("vol_music", 0.3)
+	var bus := AudioServer.get_bus_index("Music")
+	check(absf(AudioServer.get_bus_volume_db(bus) - linear_to_db(0.3)) < 0.01, "music volume slider changes the music bus only")
+	check(absf(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Effects")) - linear_to_db(float(GameState.settings["vol_effects"]))) < 0.01, "effects volume is independent")
+	GameState.set_setting("vol_music", 0.0)
+	check(AudioServer.is_bus_mute(bus), "music can be turned off without muting effects")
+	check(not AudioServer.is_bus_mute(AudioServer.get_bus_index("Effects")), "effects still on with music off")
+	GameState.set_setting("vol_music", 0.8)
+	var saved_settings: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(GameState.SETTINGS_PATH))
+	check(saved_settings.get("music_mode") == "manual" and float(saved_settings.get("vol_music")) == 0.8, "audio preferences are saved")
+	md.set_mode("auto")
+	# live musicians
+	_log("== Integration: live music ==")
+	GameState.cash = 1000.0
+	GameState.hour = 19.0
+	var live := w.live
+	check(live.can_book(GameState.day, "galway_reel") != "", "stage acts need the snug stage")
+	check(LiveMusic.effectiveness(GameData.events_by_id["galway_reel"], 5) == 1.0 and LiveMusic.effectiveness(GameData.events_by_id["galway_reel"], 1) < 1.0, "weekend acts work best at the weekend")
+	check(live.book(GameState.day, "fiddles_fire"), "book Fiddles by the Fire for tonight")
+	var cash_after := GameState.cash
+	check(is_equal_approx(cash_after, 1000.0 - 35.0), "booking fee charged")
+	var base_rate := w.arrival_rate_per_hour()
+	GameState.hour = 20.05
+	await _frames(10)
+	check(live.playing and live.musicians.size() == 1, "the fiddler arrives and starts playing")
+	check(w.arrival_rate_per_hour() > base_rate * 1.1, "live music draws more customers (%.1f -> %.1f per hour)" % [base_rate, w.arrival_rate_per_hour()])
+	check(GameState.live_atmosphere > 0.0 and w.drink_speed_mult() < 1.0, "live music lifts atmosphere and customers linger")
+	await _frames(int(2.5 * 60))
+	check(live.player3d.playing and live.now_playing == "t07", "Fiddles by the Fire plays from the musician")
+	check(live.player3d.global_position.distance_to(Vector3(-5.2, 1.3, 2.2)) < 0.1, "music comes from the fireside where the fiddler sits")
+	await _frames(int(4.5 * 60))
+	check(md.situation == "live" and md.audible_players() == 0, "background music fades out while the band plays (no second copy)")
+	w.player.global_position = Vector3(-5.0, 0, -7.0)
+	await _frames(3)
+	check(live.player3d.attenuation_filter_cutoff_hz < 2000.0, "the band sounds muffled from the cellar")
+	w.player.global_position = Vector3(-3.0, 0, 1.0)
+	await _frames(3)
+	check(live.player3d.attenuation_filter_cutoff_hz > 10000.0, "and clear back in the bar")
+	# the end of a tune: applause, next tune
+	live.player3d.seek(live.player3d.stream.get_length() - 0.5)
+	await _wait_real(func(): return live.now_playing != "" and live.now_playing != "t07", 10.0)
+	check(live.now_playing != "" and live.now_playing != "t07", "after applause the band plays another tune (%s)" % md.title_of(live.now_playing))
+	# a brilliant night earns One More Round
+	GameState.upgrades["fireplace"] = 1
+	GameState.upgrades["lamps"] = 1
+	GameState.upgrades["paint"] = 1
+	GameState.today["served"] = 5
+	GameState.today["satisfaction_sum"] = 400.0
+	for i in 6:
+		w.spawn_customer()
+	await _frames(5)
+	check(live.finale_due(), "a full, happy pub calls for the singalong")
+	var rep0 := GameState.reputation
+	live.player3d.seek(live.player3d.stream.get_length() - 0.5)
+	await _wait_real(func(): return live.now_playing == "t17", 10.0)
+	check(live.now_playing == "t17", "One More Round is sung")
+	live._on_song_finished()
+	check(GameState.reputation > rep0 and bool(GameState.today.get("singalong", false)), "the singalong lifts reputation")
+	# the event ends after its last song
+	GameState.hour = 23.05
+	await _frames(5)
+	live.player3d.seek(live.player3d.stream.get_length() - 0.5)
+	await _wait_real(func(): return not live.playing, 10.0)
+	check(not live.playing and live.musicians.is_empty(), "the musicians finish their song and take a bow")
+	GameState.hour = 21.0
+	await _frames(int(4.0 * 60))
+	check(md.situation != "live" and md.current_id != "", "background music returns after the band (%s / %s / live %s / phase %s)" % [md.title_of(md.current_id), md.situation, str(md.context["live"]), GameState.phase])
+	check(live.cancel(GameState.day) == false, "can't cancel an act that already played")
+	check(live.book(GameState.day + 2, "fiddlers_table") and live.cancel(GameState.day + 2), "future bookings can be cancelled")
+	# renovations and awards get their own music
+	GameState.cash = 2000.0
+	GameState.buy_upgrade("snug_stage")
+	await _frames(10)
+	check(md.current_id == "t15" and main.hud.celebration.visible, "a major renovation plays The Pub Gets Bigger")
+	main.hud.dismiss_celebration()
+	await _frames(int(4.0 * 60))
+	check(md.current_id != "t15", "dismissing the celebration returns to the pub's music")
+	GameState.objectives_done.erase("best_on_street")
+	GameState.reputation = 36.0
+	w._check_awards()
+	await _frames(10)
+	check("best_on_street" in GameState.objectives_done and md.current_id == "t16", "awards play Champions of the Pub")
+	check(md._players[md._active].get_playback_position() > 14.0, "the award music starts at its big moment")
+	main.hud.dismiss_celebration()
+	await _frames(int(4.0 * 60))
+	check(live.can_book(GameState.day + 1, "galway_reel") == "", "the stage unlocks weekend sessions")
+	# saves from before the soundtrack still load
+	var old := GameState.to_dict()
+	old.erase("bookings")
+	old["today"].erase("live_event")
+	GameState.from_dict(old)
+	check(GameState.bookings.is_empty() and GameState.today.has("live_event"), "older saves without music data load with defaults")

@@ -44,6 +44,8 @@ func build(parent: Node3D) -> Dictionary:
 	_exterior()
 	_upgrade_extras()
 	_darts_corner()
+	_stage()
+	_jukebox()
 	return info
 
 
@@ -927,6 +929,73 @@ func _darts_corner() -> void:
 	lamp.spot_range = 2.0
 	lamp.spot_angle = 30.0
 	g.add_child(lamp)
+
+
+# ------------------------------------------------------------------ music
+func _stage() -> void:
+	var g := _group("Stage")
+	_tag("snug_stage", g)
+	var c := PubLayout.STAGE_POS
+	MeshKit.solid_box(g, Vector3(2.5, 0.22, 2.1), Vector3(c.x + 0.05, 0.11, c.z + 0.05), MeshKit.mat("floor"))
+	MeshKit.box(g, Vector3(2.52, 0.04, 2.12), Vector3(c.x + 0.05, 0.22, c.z + 0.05), MeshKit.mat("oak_z"))
+	MeshKit.box(g, Vector3(0.04, 0.2, 2.1), Vector3(c.x - 1.2, 0.1, c.z + 0.05), MeshKit.mat("brass"))
+	# stools for the players
+	for i in 5:
+		var spread := (i / 4.0 - 0.5) * 1.8
+		var sp := c + Vector3(spread * 0.5 + 0.15, 0.22, spread)
+		MeshKit.cyl(g, 0.17, 0.17, 0.05, sp + Vector3(0, 0.46, 0), MeshKit.mat("oak"), 14)
+		MeshKit.cyl(g, 0.03, 0.03, 0.44, sp + Vector3(0, 0.22, 0), MeshKit.mat("oak_y"), 8)
+	# hanging sign
+	var l := MeshKit.label(g, "The Snug", c + Vector3(1.2, 2.3, 0.05), 64, Color(0.95, 0.8, 0.45), Vector3(0, -PI / 2.0, 0), _title_font)
+	l.pixel_size = 0.0022
+	MeshKit.box(g, Vector3(0.03, 0.4, 1.2), c + Vector3(1.24, 2.3, 0.05), MeshKit.mat("green_paint"))
+	var spot := SpotLight3D.new()
+	spot.position = c + Vector3(-1.4, 2.9, 0)
+	spot.rotation_degrees = Vector3(-55, -90, 0)
+	spot.light_color = Color(1.0, 0.82, 0.55)
+	spot.light_energy = 1.6
+	spot.spot_range = 4.0
+	spot.spot_angle = 40.0
+	g.add_child(spot)
+	# speakers (sound system upgrade)
+	var sp_g := _group("Speakers")
+	_tag("sound_system", sp_g)
+	for side in [-1, 1]:
+		var p := c + Vector3(0.6, 0.22, side * 1.0)
+		MeshKit.cyl(sp_g, 0.02, 0.02, 1.0, p + Vector3(0, 0.5, 0), MeshKit.mat("iron"), 6)
+		MeshKit.box(sp_g, Vector3(0.3, 0.45, 0.3), p + Vector3(0, 1.2, 0), MeshKit.mat("black_paint"), Vector3(0, -PI / 4.0 * side, 0))
+		MeshKit.cyl(sp_g, 0.09, 0.09, 0.02, p + Vector3(-0.15, 1.15, 0), MeshKit.color_mat(Color(0.15, 0.15, 0.15), 0.8), 16, Vector3(0, 0, PI / 2.0))
+
+
+func _jukebox() -> void:
+	# the old jukebox is always there (it plays the pub's music); restoring it lights it up
+	var g := _group("Jukebox")
+	var p := PubLayout.JUKEBOX_POS
+	g.position = p
+	g.rotation.y = PI / 2.0  # faces +x into the room
+	MeshKit.solid(g, Vector3(0.75, 1.5, 0.5), Vector3(0, 0.75, 0))
+	MeshKit.box(g, Vector3(0.75, 1.1, 0.5), Vector3(0, 0.55, 0), MeshKit.mat("oak"))
+	MeshKit.cyl(g, 0.375, 0.375, 0.5, Vector3(0, 1.1, 0), MeshKit.mat("oak"), 20, Vector3(PI / 2.0, 0, 0))
+	var dull := Node3D.new()
+	g.add_child(dull)
+	MeshKit.box(dull, Vector3(0.6, 0.35, 0.02), Vector3(0, 0.95, 0.255), MeshKit.color_mat(Color(0.35, 0.28, 0.2), 0.6))
+	MeshKit.torus(dull, 0.33, 0.37, Vector3(0, 1.1, 0.24), MeshKit.mat("brass_dull"), Vector3(PI / 2.0, 0, 0))
+	_tag("jukebox", dull, false)
+	var lit := Node3D.new()
+	g.add_child(lit)
+	MeshKit.box(lit, Vector3(0.6, 0.35, 0.02), Vector3(0, 0.95, 0.255), MeshKit.color_mat(Color(1.0, 0.6, 0.2), 0.3, 0.0, 1.6))
+	for i in 5:
+		MeshKit.box(lit, Vector3(0.05, 0.5, 0.02), Vector3(-0.24 + i * 0.12, 0.45, 0.255), MeshKit.color_mat(Color.from_hsv(i * 0.18, 0.8, 1.0), 0.3, 0.0, 1.2))
+	MeshKit.torus(lit, 0.33, 0.37, Vector3(0, 1.1, 0.24), MeshKit.color_mat(Color(1.0, 0.75, 0.3), 0.3, 0.0, 1.5), Vector3(PI / 2.0, 0, 0))
+	var lt := OmniLight3D.new()
+	lt.position = Vector3(0, 1.0, 0.6)
+	lt.light_color = Color(1.0, 0.6, 0.3)
+	lt.light_energy = 0.6
+	lt.omni_range = 2.0
+	lit.add_child(lt)
+	_tag("jukebox", lit)
+	var l := MeshKit.label(g, "JUKEBOX", Vector3(0, 1.32, 0.26), 30, Color(0.95, 0.85, 0.6), Vector3.ZERO, _title_font)
+	l.pixel_size = 0.0016
 
 
 # ------------------------------------------------------------------ upgrade-only extras

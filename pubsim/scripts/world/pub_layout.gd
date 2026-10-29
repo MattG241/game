@@ -42,5 +42,6 @@ const STOCK_PILE := Vector3(-4.6, 0.0, -7.8)
 const FIREPLACE := Vector3(-7.0, 0.0, 2.2)
 const DARTBOARD := Vector3(6.85, 1.73, 0.4)
 const OCHE_X := 4.6
-const STAGE_POS := Vector3(5.6, 0.0, 3.7)
+const STAGE_POS := Vector3(5.7, 0.0, 3.75)
+const JUKEBOX_POS := Vector3(-6.45, 0.0, 4.4)
 const PLAYER_START := Vector3(-0.6, 0.0, -3.2)

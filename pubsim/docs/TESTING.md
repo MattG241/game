@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit plus integration tests, 113 checks at version 0.1.
+`tests/test_runner.gd`: unit plus integration tests, 204 checks.
 
 | Spec test | Status | How |
 | --- | --- | --- |
@@ -21,9 +21,22 @@
 | 14 Upgrades remove cash and change systems/visuals | Automated: pass | lamps become visible and the lights brighter |
 | 15 Prices/expenses/profit | Automated: pass | rent, utilities, income totals |
 | 16 Save/load | Automated: pass | including corrupted-save recovery from the backup |
-| 17 Precision drinking mini-game | Not built yet | planned |
-| 18 Darts | Not built yet | planned |
-| 19 Music events | Not built yet | planned (music tracks exist) |
+| 17 Precision drinking mini-game | Automated: pass | hold drinks, longer holds go further, exact stop scores 100 |
+| 18 Darts | Automated: pass | board geometry, scoring, AI turn, bust, checkout |
+| 19 Music events | Automated: pass | booking and fees, musicians spawn, draw/atmosphere/stay effects, set list, One More Round, end of night |
+
+## Soundtrack (automated, headless with Godot's dummy audio driver)
+- All 20 files retrieved; SHA-256 matches the supplied manifest; all import as MP3 with the right lengths and titles.
+- Selection rules: menu, opening, quiet, rain, busy, last orders, milestone summary, live, Split the G.
+- Real playback: background track plays; a finished song hands over; crossfades never leave two songs audible;
+  Last Orders at closing; Split the G during the challenge then back; Perfect Pint excerpt starts at 17.5s,
+  stops after a few seconds and can't spam; the jukebox plays all 20; pause, resume, skip within a category;
+  music/effects volume independent; music off without muting effects; preferences saved.
+- Live: background fades out under the band; music source at the musicians; muffled from the cellar;
+  next tune after applause; singalong finale lifts reputation; band stops after its last song; music returns;
+  renovation plays The Pub Gets Bigger; awards play Champions of the Pub from its big moment; older saves load.
+- **Not verified:** how the mix actually sounds. Excerpt start points and gains came from loudness analysis,
+  not listening. Please report anything too loud, too quiet or cut badly.
 | 20 Touch-only controls | Automated (router) + design | no keyboard needed anywhere |
 | 21 APK exports and is downloadable | CI | signed arm64 APK, signature verified, published as a Release |
 | 22 Android launch / orientation / background-resume | **Not run**: no Android device or emulator available to the developer | please report |

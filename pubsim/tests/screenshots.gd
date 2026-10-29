@@ -102,6 +102,67 @@ func _ready() -> void:
 	w.drink_scene.release()
 	w.drink_scene.end()
 	await _wait(0.6)
+	# live music: fiddler by the fire
+	GameState.cash = 3000.0
+	GameState.hour = 19.0
+	w.live.book(GameState.day, "fiddles_fire")
+	GameState.hour = 20.1
+	await _wait(2.0)
+	w.player.global_position = Vector3(-2.6, 0, 2.0)
+	w.player.rotation.y = deg_to_rad(80)
+	w.player.camera.rotation.x = -0.15
+	await _shot("15_fiddler_by_fire")
+	w.live.stop_now()
+	# a band on the stage with dancers
+	for u in ["snug_stage", "sound_system", "jukebox", "booths"]:
+		GameState.upgrades[u] = 1
+	GameState.upgrades_changed.emit()
+	await _wait(0.3)
+	main.hud.dismiss_celebration()
+	GameState.bookings.erase(str(GameState.day))
+	w.live.event_id = "old_country_jig"
+	w.live.finished_tonight = false
+	for a in GameData.awards:
+		GameState.objectives_done.append(a["id"])
+	GameState.reputation = 40.0
+	for c in w.customers:
+		if c.state == "wait_drink" or c.state == "wait_order":
+			c.leave()
+	for i in 6:
+		w.spawn_customer()
+	await _wait(1.0)
+	w.live._start(GameData.events_by_id["old_country_jig"])
+	await _wait(4.0)
+	# hand drinks out so a crowd can gather
+	for c in w.customers:
+		if c.glass == null and c.state in ["wait_order", "wait_drink", "queue", "walk"]:
+			var pg := PintGlass.new()
+			pg.contents.drink_id = "stout"
+			pg.contents.body = 0.8
+			pg.contents.foam = 0.1
+			c.glass = pg
+			c._right_hand.add_child(pg)
+			c.state = "stand_drink"
+			c.global_position = Vector3(randf_range(1.0, 3.0), 0, randf_range(1.5, 4.0))
+	w.live._gather_audience("dance", 6)
+	await _wait(4.0)
+	main.hud.dismiss_celebration()
+	w.player.global_position = Vector3(0.6, 0, 1.2)
+	w.player.rotation.y = deg_to_rad(-62)
+	w.player.camera.rotation.x = -0.1
+	await _shot("16_stage_band_dancers")
+	w.live.stop_now()
+	w.celebrate("The pub gets bigger!", "Snug Corner Stage\nA low stage for musicians.", "t15")
+	await _wait(0.5)
+	await _shot("17_celebration")
+	main.hud.dismiss_celebration()
+	main.hud.open_menu("music")
+	await _wait(0.5)
+	await _shot("18_jukebox")
+	main.hud.menu.show_tab("events")
+	await _wait(0.3)
+	await _shot("19_events")
+	main.hud.close_menu()
 	main.hud.open_menu("upgrades")
 	await _wait(0.3)
 	await _shot("09_menu")

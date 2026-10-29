@@ -14,6 +14,9 @@ var hud: Node
 var pour: Node
 var drink_scene: DrinkScene
 var darts: DartsGame
+var live: LiveMusic
+var _award_t := 2.0
+var _celebration_pending: Array = []
 var env: Environment
 var close_cam: Camera3D
 var nav_region: NavigationRegion3D
@@ -85,6 +88,13 @@ func _ready() -> void:
 	_fire_audio.position = PubLayout.FIREPLACE + Vector3(0.5, 0.5, 0)
 	add_child(_fire_audio)
 	_update_lighting(true)
+	live = LiveMusic.new()
+	live.name = "LiveMusic"
+	live.world = self
+	add_child(live)
+	GameState.upgrade_bought.connect(_on_upgrade_bought)
+	MusicDirector.set_screen("world")
+	MusicDirector.context["milestone"] = false
 	await get_tree().physics_frame
 	_nav_ready = true
 
@@ -150,6 +160,8 @@ func _make_interactables() -> void:
 	I.make(self, Vector3(PubLayout.OCHE_X + 0.4, 1.3, PubLayout.DARTBOARD.z), "darts", _darts_prompt, func(): start_darts(), 0.0, 2.4)
 	I.make(self, DrinkScene.SPLIT_POS + Vector3(0, 0.2, 0.25), "split", _split_prompt, func(): start_split(), 0.0, 1.8)
 	I.make(self, Vector3(-6.0, 0.9, 0.9), "fireside", _fireside_prompt, func(): start_relax(), 0.0, 2.0)
+	I.make(self, PubLayout.JUKEBOX_POS + Vector3(0.3, 1.0, 0), "jukebox", func(): return "Choose the music (jukebox)" if player.has_hands_free() else "", func(): hud.open_menu("music"), 0.0, 2.2)
+	I.make(self, PubLayout.STAGE_POS + Vector3(-1.4, 1.2, 0), "championship", _champ_prompt, func(): start_split(true), 0.0, 2.4)
 
 
 func _hint(text: String) -> String:
@@ -374,9 +386,16 @@ func _split_prompt() -> String:
 	return "Try the Split the Knot challenge"
 
 
-func start_split() -> void:
+func start_split(championship := false) -> void:
 	if not in_minigame():
+		drink_scene.championship = championship and live and live.championship_open and not live.championship_done
 		drink_scene.begin("split", "stout")
+
+
+func _champ_prompt() -> String:
+	if live and live.championship_open and not live.championship_done and player.has_hands_free():
+		return "Enter the Split the Knot championship (€50 prize)"
+	return ""
 
 
 func _fireside_prompt() -> String:
@@ -489,7 +508,7 @@ func patience_drain() -> float:
 
 
 func drink_speed_mult() -> float:
-	return 1.0 / (1.0 + GameState.get_mod("stay_mult"))
+	return 1.0 / (1.0 + GameState.get_mod("stay_mult") + GameState.live_stay)
 
 
 func line(kind: String) -> String:
@@ -563,7 +582,8 @@ func arrival_rate_per_hour() -> float:
 		wm += GameState.get_mod("rain_bonus")
 	var rep := 0.55 + GameState.reputation / 45.0
 	var arr := 1.0 + GameState.get_mod("arrival_mult")
-	return float(GameData.econ("base_arrivals_per_hour", 7.0)) * curve * float(wd[GameState.weekday()]) * wm * rep * arr
+	var music := live.arrival_mult() if live else 1.0
+	return float(GameData.econ("base_arrivals_per_hour", 7.0)) * curve * float(wd[GameState.weekday()]) * wm * rep * arr * music
 
 
 func _maybe_spawn(dt: float) -> void:
@@ -835,7 +855,7 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 		tip_rate = 0.12
 	elif q >= 60:
 		tip_rate = 0.05
-	tip_rate *= c.tip_mult * (1.0 + GameState.get_mod("tips_mult")) * (0.6 + wait_score * 0.4) * (0.5 + fair * 0.5)
+	tip_rate *= c.tip_mult * (1.0 + GameState.get_mod("tips_mult") + GameState.live_tips) * (0.6 + wait_score * 0.4) * (0.5 + fair * 0.5)
 	var tip := snappedf(price * tip_rate, 0.1)
 	GameState.earn(price, "sales")
 	GameState.earn(tip, "tips")
@@ -865,6 +885,8 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 	if tip > 0.0:
 		Sfx.play("coins", -6.0)
 	GameState.vibrate(25)
+	if q >= 92:
+		_perfect_pint_reaction(c)
 	res["ok"] = true
 	res["price"] = price
 	res["tip"] = tip
@@ -876,6 +898,65 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 		hud.refresh_orders()
 	_tutorial_event("served")
 	return res
+
+
+func _perfect_pint_reaction(served_to: Customer) -> void:
+	# the Perfect Pint excerpt plays over the music (not more than once every so often), and the bar cheers
+	var played := MusicDirector.play_stinger("t14")
+	Sfx.play("cheer", -6.0 if played else -3.0)
+	for c in customers:
+		if c != served_to and c.global_position.distance_to(served_to.global_position) < 7.0 and randf() < 0.7:
+			c.cheer()
+	notify("A perfect pint! The bar raises a glass.", "good")
+
+
+func _on_upgrade_bought(id: String) -> void:
+	var u := GameData.upgrade(id)
+	# substantial renovations get a proper moment with The Pub Gets Bigger
+	if float(u.get("cost", 0)) >= 200.0:
+		celebrate("The pub gets bigger!", "%s\n%s" % [u["name"], u.get("desc", "")], "t15")
+
+
+func celebrate(title: String, body: String, track: String) -> void:
+	if hud == null:
+		return
+	MusicDirector.start_override(track, "feature")
+	hud.show_celebration(title, body, track)
+
+
+func _check_awards() -> void:
+	for a in GameData.awards:
+		var id: String = a["id"]
+		if id in GameState.objectives_done:
+			continue
+		var met := false
+		if a.has("rep"):
+			met = GameState.reputation >= float(a["rep"])
+		elif a.has("stat"):
+			met = float(GameState.stats.get(a["stat"], 0)) >= float(a["at"])
+		if met:
+			GameState.objectives_done.append(id)
+			GameState.earn(float(a.get("cash", 0)), "prizes")
+			GameState.award_earned.emit(id)
+			celebrate("Award: %s" % a["name"], "%s\nPrize: €%d" % [a["desc"], int(a.get("cash", 0))], "t16")
+			return
+
+
+func _update_music_context() -> void:
+	var ctx := MusicDirector.context
+	ctx["screen"] = "summary" if hud and hud.menu.visible and hud.menu._summary_mode else "world"
+	ctx["phase"] = GameState.phase
+	ctx["hour"] = GameState.hour
+	ctx["weekday"] = GameState.weekday()
+	ctx["weather"] = GameState.weather
+	ctx["customers"] = customers.size()
+	ctx["capacity_frac"] = float(customers.size()) / maxf(1.0, max_customers())
+	ctx["atmosphere"] = GameState.atmosphere()
+	var served := int(GameState.today.get("served", 0))
+	ctx["satisfaction"] = float(GameState.today.get("satisfaction_sum", 0.0)) / maxf(1.0, served) if served > 0 else 60.0
+	# keep the chatter down while a vocal song is being sung so the words carry
+	var vocal: bool = live != null and live.playing and MusicDirector.tracks.get(live.now_playing, {}).get("vocal", false)
+	Sfx.set_loop("crowd", "crowd_loop", clampf(customers.size() / 10.0, 0.0, 1.0) * (0.35 if vocal else 0.8), "Speech")
 
 
 func _relationship(id: String, delta: int, chat := false) -> void:
@@ -954,6 +1035,12 @@ func _process(delta: float) -> void:
 		_autosave_t = 0.0
 		autosave()
 	_check_church_bell()
+	_update_music_context()
+	_award_t -= delta
+	if _award_t <= 0.0:
+		_award_t = 2.0
+		if not in_minigame():
+			_check_awards()
 
 
 func _last_orders() -> void:
@@ -990,7 +1077,13 @@ func close_day() -> void:
 	if player.held:
 		dirty += 1
 	GameState.tutorial["dirty_overnight"] = dirty
+	if live:
+		live.stop_now()
+	var finished_day := GameState.day
+	var sang := bool(GameState.today.get("singalong", false))
 	var summary := GameState.end_day()
+	summary["milestone"] = finished_day in [1, 3, 7, 14, 21, 30, 50, 75, 100] or sang
+	MusicDirector.context["milestone"] = summary["milestone"]
 	if hud:
 		hud.show_day_summary(summary)
 
@@ -1023,8 +1116,6 @@ func _update_audio() -> void:
 	elif GameState.weather == "storm":
 		rain = 0.8
 	Sfx.set_loop("rain", "rain_loop", rain)
-	var crowd := clampf(customers.size() / 10.0, 0.0, 1.0)
-	Sfx.set_loop("crowd", "crowd_loop", crowd * 0.8, "Speech")
 	var lit := GameState.has_upgrade("fireplace")
 	if lit and not _fire_audio.playing:
 		_fire_audio.play()

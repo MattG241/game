@@ -20,6 +20,7 @@ config/quit_on_go_back=false
 GameData="*res://scripts/autoload/game_data.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
+MusicDirector="*res://scripts/autoload/music_director.gd"
 
 [display]
 

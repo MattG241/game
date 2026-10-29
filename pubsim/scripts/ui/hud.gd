@@ -51,6 +51,11 @@ var darts_status: Label
 var darts_leave: TouchButton
 var darts_again: TouchButton
 var darts_ctrl: DartsGame
+var celebration: PanelContainer
+var celebration_title: Label
+var celebration_body: Label
+var celebration_ok: TouchButton
+var _celebration_track := ""
 var _result_t := 0.0
 var _order_t := 0.0
 var _subtitle_t := 0.0
@@ -73,6 +78,7 @@ func _ready() -> void:
 	_build_pour_ui()
 	_build_overlays()
 	_build_minigame_ui()
+	_build_celebration()
 	menu = MenuPanel.new()
 	menu.hud = self
 	frame.add_child(menu)
@@ -379,6 +385,50 @@ func _build_minigame_ui() -> void:
 	darts_root.add_child(darts_again)
 
 
+func _build_celebration() -> void:
+	celebration = PanelContainer.new()
+	celebration.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.07, 0.2, 0.12, 0.96), UITheme.GOLD, 22, 4))
+	celebration.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(celebration, Control.PRESET_CENTER, Vector2(-330, -190), Vector2(660, 330))
+	celebration.visible = false
+	frame.add_child(celebration)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 12)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	celebration.add_child(vb)
+	celebration_title = UITheme.label("", 40, UITheme.GOLD, MeshKit.font_title())
+	celebration_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	celebration_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(celebration_title)
+	celebration_body = UITheme.label("", 24)
+	celebration_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	celebration_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(celebration_body)
+	celebration_ok = TouchButton.new("Sláinte!")
+	_place(celebration_ok, Control.PRESET_CENTER, Vector2(-120, 170), Vector2(240, 80))
+	celebration_ok.visible = false
+	celebration_ok.pressed.connect(dismiss_celebration)
+	frame.add_child(celebration_ok)
+
+
+## Big moments (renovations, awards) get a card and their own music until dismissed.
+func show_celebration(title: String, body: String, track: String) -> void:
+	celebration_title.text = title
+	var now := MusicDirector.title_of(track)
+	celebration_body.text = body + ("\n\nNow playing: %s" % now if now != "" else "")
+	celebration.visible = true
+	celebration_ok.visible = true
+	_celebration_track = track
+	Sfx.play("cheer", -6.0)
+
+
+func dismiss_celebration() -> void:
+	celebration.visible = false
+	celebration_ok.visible = false
+	MusicDirector.clear_override(_celebration_track)
+	_celebration_track = ""
+
+
 func _hide_gameplay(on: bool) -> void:
 	touch.reset()
 	touch.gameplay = not on
@@ -674,10 +724,12 @@ func open_menu(tab: String) -> void:
 	touch.enabled = false
 	world.set_fast_forward(false)
 	get_tree().paused = true
+	MusicDirector.context["menu_open"] = tab != "music"
 	menu.open(tab)
 
 
 func close_menu() -> void:
+	MusicDirector.context["menu_open"] = false
 	menu.visible = false
 	touch.enabled = true
 	get_tree().paused = false

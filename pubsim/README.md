@@ -54,16 +54,59 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
 - Glasses are physical and counted: take, pour, settle, serve, collect, wash, return to the rack.
 - Spills to wipe. Kegs that run dry and must be changed in the cellar. Stock orders delivered the next day.
 - Price setting, a ledger, end-of-day accounts (rent, utilities), reputation and weather.
-- Seven upgrades that change the room and how it runs (restored lamps, glassware, chalkboard,
-  brass drip tray, lit fireplace, more glassware, paint & tiles).
+- Upgrades that change the room and how it runs (restored lamps, glassware, chalkboard, brass drip tray,
+  lit fireplace, paint & tiles, dartboard, snug stage, sound system, jukebox restoration).
 - Opening and closing routine, last orders, autosave plus an atomic, versioned save with a backup.
 - Settings: sensitivity, invert look, button opacity, HUD scale, vibration, five volume sliders,
   subtitles, quality preset, FPS limit, render scale, reduced motion/effects, high contrast,
   pour assist, day length, performance overlay.
 
-Planned next (not in 0.1, not claimed): lager/ale/cider/spirits serving mechanics, live trad music
-nights and the bodhrán rhythm game, darts, the "Split the Knot" precision drinking challenge, staff,
-food, furniture placement and expansions. See `docs/ROADMAP.md`.
+### Added since 0.1
+- **Your 20-song soundtrack**, played by a central MusicDirector (details below).
+- **Live music nights**: book eight acts from the *Live music* tab. Musicians appear (by the fire, round a
+  table or on the snug stage), play your songs from where they sit in 3D, and lift footfall, atmosphere, stay
+  length, tips and the next day's reputation. Dancing nights get customers dancing in front of the stage. A great
+  night ends with *One More Round* sung by the whole pub.
+- **Jukebox** by the front window (and the *Jukebox* menu tab): browse all 20 songs by category, play any,
+  pause/resume, skip, set music volume, switch Automatic / My choice.
+- **Darts** (301 against a regular), **Split the Knot** challenge, a **pint by the fire**.
+- **Awards** with prize money, and celebration cards for big renovations.
+
+## The soundtrack: who plays what
+| # | Song | When it plays |
+| --- | --- | --- |
+| 01 | Welcome to The Local | Title screen; fades out when you start or continue |
+| 02 | First Pint of the Day | Setting up before opening, quiet early trade |
+| 03 | A Quiet Tuesday | Ordinary trading with few customers |
+| 04 | Rain on the Windows | Rainy days, especially after dark (chosen when a song ends, never cuts one off) |
+| 05 | The Friday Crowd | When the bar fills up (8+ customers, or a busy Friday/Saturday evening) |
+| 06 | Last Orders | From last orders through closing, and on the end-of-day accounts |
+| 07 | Fiddles by the Fire | Live act: solo fiddler by the fireplace (cheapest, no upgrade needed) |
+| 08 | The Galway Reel | Live act: weekend trad session on the snug stage |
+| 09 | The Wild Session | Live act: high-energy band, needs the sound system |
+| 10 | The Old Country Jig | Live act: Irish dancing night; customers dance |
+| 11 | The Fiddler's Table | Live act: trio seated round a table, best on quieter nights |
+| 12 | The Big Night | Live act: the biggest event, needs sound system and reputation 50, best Saturday |
+| 13 | Split the G | The Split the Knot challenge (fades back to pub music after) |
+| 14 | Perfect Pint | A 9-second excerpt over the music when you serve a pint scoring 92+ (not more than once every 75s), with cheers |
+| 15 | The Pub Gets Bigger | Celebration card after major renovations (€200+) |
+| 16 | Champions of the Pub | Award cards (reputation and career milestones) |
+| 17 | One More Round | Sung live as the finale of an especially good night (atmosphere 45+, 6+ customers, happy crowd); customers gather at the stage and raise their glasses |
+| 18 | Mind the Line | Live act: the Split the Knot Championship night (enter for a €50 prize) |
+| 19 | The Pub on the Corner | End-of-day accounts on milestone days (days 1, 3, 7, 14...) and after a singalong night |
+| 20 | The Landlord's Lament | Live act: comedy singalong night; the crowd laughs and cheers |
+
+How it behaves: songs inside one situation finish naturally before the next is chosen; changes of situation
+(menu, live band, challenge, celebration, closing time) crossfade. Only one background song is ever at
+full volume, and while musicians play the background music fades right out so you only hear the band, getting
+louder as you walk up to them and muffled from the cellar or the street. The Music, Effects and Ambience volume
+sliders are separate, and music can be turned off without muting anything else. Choices are saved.
+
+The songs are MP3s, kept exactly as supplied and loaded only when needed; they're decoded while they play rather
+than all at once, and the APK carries them for offline play.
+
+Planned next (not claimed): lager/ale/cider/spirits serving mechanics, the bodhrán rhythm game,
+staff, food, furniture placement and room expansions. See `docs/ROADMAP.md`.
 
 ## Signing (for consistent updates)
 The CI workflow derives the release keystore from **one** repository secret so every build has the

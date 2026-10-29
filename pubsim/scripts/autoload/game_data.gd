@@ -16,6 +16,7 @@ var furniture: Array = []
 var furniture_by_id: Dictionary = {}
 var customer_lines: Dictionary = {}
 var quiz: Array = []
+var awards: Array = []
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func reload() -> void:
 	furniture = _load("res://data/furniture.json", [])
 	customer_lines = _load("res://data/customer_lines.json", {})
 	quiz = _load("res://data/quiz.json", [])
+	awards = _load("res://data/awards.json", [])
 	drinks_by_id = _index(drinks)
 	upgrades_by_id = _index(upgrades)
 	regulars_by_id = _index(regulars)

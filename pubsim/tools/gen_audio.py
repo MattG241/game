@@ -325,6 +325,33 @@ def sfx_groan():
     return normalize((bandpass_fast(tone, 150, 1500) + crowd * 0.5) * np.sin(np.pi * tt / d), 0.6)
 
 
+def sfx_laugh():
+    """A small crowd laughing: several voices of rhythmic 'ha' syllables."""
+    d = 2.6
+    n = int(d * SR)
+    x = np.zeros(n)
+    for v in range(7):
+        f0 = rng.uniform(140, 300)
+        t = rng.uniform(0.0, 0.3)
+        k = 0
+        while t < d - 0.3 and k < rng.integers(4, 9):
+            ln = rng.uniform(0.09, 0.14)
+            st = int(t * SR)
+            m = int(ln * SR)
+            tt = np.arange(m) / SR
+            f = f0 * (1.0 - 0.15 * k / 8.0) * (1 + 0.1 * np.sin(2 * np.pi * 6 * tt))
+            ph = np.cumsum(f) / SR
+            voiced = np.sin(2 * np.pi * ph) + 0.5 * np.sin(4 * np.pi * ph) + 0.3 * np.sin(6 * np.pi * ph)
+            breath = rng.uniform(-1, 1, m) * 0.5
+            env = np.sin(np.pi * tt / ln) ** 1.5
+            x[st:st + m] += (voiced * 0.6 + breath) * env * rng.uniform(0.3, 0.7)
+            t += ln + rng.uniform(0.04, 0.09)
+            k += 1
+    x = bandpass_fast(x, 200, 3500)
+    tt = t_axis(d)
+    return normalize(x * np.clip(1.4 - tt / d, 0, 1), 0.6)
+
+
 def sfx_bodhran(pitch=1.0, dur=0.5):
     tt = t_axis(dur)
     f = 85 * pitch * (1 + 0.6 * np.exp(-tt * 40))
@@ -634,11 +661,7 @@ def main():
     save("spill", sfx_spill())
     save("keg", sfx_keg())
     save("sizzle_loop", sfx_sizzle_loop())
-    save("music_solo_session", music_solo_session())
-    save("music_trad_circle", music_trad_circle())
-    save("music_folk_band", music_folk_band())
-    save("music_singalong", music_singalong())
-    save("music_jukebox", music_jukebox_hornpipe())
+    save("laugh", sfx_laugh())
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ var _result := {}
 var _anchor: Node3D
 var _sips := 0
 var _relax_cam_pos := Vector3.ZERO
+var championship := false
 
 
 func begin(m: String, drink := "stout") -> void:
@@ -65,6 +66,9 @@ func begin(m: String, drink := "stout") -> void:
 		glass.position = Vector3(0.12, -0.32, -0.42)
 	_cam_tween = world.create_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.6).set_trans(Tween.TRANS_SINE)
+	if mode == "split":
+		# the Split the G instrumental takes over the music for the challenge
+		MusicDirector.start_override("t13", "minigame")
 	world.hud.enter_drink_mode(self)
 
 
@@ -173,6 +177,15 @@ func _score() -> void:
 	var react: String = (reactions_good if ae <= 3.0 else reactions_bad)[randi() % 3]
 	Sfx.play("cheer" if ae <= 3.0 else "groan", -6.0)
 	_result = {"error_mm": err, "score": score, "verdict": verdict, "where": where, "best": best, "reaction": react}
+	if championship:
+		championship = false
+		world.live.championship_done = true
+		if ae <= 2.0:
+			GameState.earn(50.0, "prizes")
+			GameState.reputation = minf(100.0, GameState.reputation + 2.0)
+			_result["reaction"] = "Championship won! 50 euro prize and the whole pub on its feet."
+		else:
+			_result["reaction"] = "Not this year. The championship goes to Packie, again."
 	# close-up replay: zoom onto the line and show it
 	_line.visible = true
 	var cam: Camera3D = world.close_cam
@@ -209,6 +222,7 @@ func end() -> void:
 	holding = false
 	if mode == "relax":
 		GameState.stats["own_pints"] = int(GameState.stats["own_pints"]) + 1
+	MusicDirector.clear_override("t13")
 	if _line:
 		_line.queue_free()
 		_line = null

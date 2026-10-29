@@ -29,6 +29,14 @@ var drink_left := 0.0
 var drink_rate := 0.008
 var speed := 1.25
 var music_enjoy := 0.0
+var instrument := ""
+var music_style := ""
+var _react_anim := 0.0       # >0 while cheering / laughing
+var _react_kind := ""
+var _audience_return := Vector3.ZERO
+var _audience_face := Vector3.ZERO
+var beat := 0.5
+var _prop: Node3D
 
 var _path: PackedVector3Array = PackedVector3Array()
 var _path_i := 0
@@ -232,6 +240,10 @@ func _process(delta: float) -> void:
 			_drinking(delta)
 		"stand_drink":
 			_drinking(delta)
+		"musician":
+			_play_anim(delta)
+		"audience":
+			_audience_anim(delta)
 		_:
 			_idle_anim(delta)
 
@@ -284,6 +296,8 @@ func _arrive() -> void:
 			rotation.y = _seat_yaw
 			_set_seated(true)
 			_place_glass_on_table()
+		"audience":
+			state = "audience"
 		"exit":
 			state = "gone"
 			left_pub.emit(self)
@@ -292,11 +306,19 @@ func _arrive() -> void:
 			state = next if next != "" else "idle"
 
 
-func _idle_anim(_delta: float) -> void:
-	_body.position.y = sin(_anim_t * 1.3) * 0.005
+func _idle_anim(delta: float) -> void:
+	var base_y := -0.4 if _seated else 0.0
+	_body.position.y = base_y + sin(_anim_t * 1.3) * 0.005
 	_head.rotation.y = sin(_anim_t * 0.4) * 0.25
 	if music_enjoy > 0.0:
-		_head.rotation.x = sin(_anim_t * 6.0) * 0.08 * music_enjoy
+		var speed := 7.0 if music_style == "dance" else 5.0
+		_head.rotation.x = sin(_anim_t * speed) * 0.08 * music_enjoy
+		_body.rotation.z = sin(_anim_t * speed * 0.3) * 0.04 * music_enjoy
+		if _seated and music_style in ["dance", "sing"]:
+			_legs[1].rotation.x = -1.45 + maxf(0.0, sin(_anim_t * speed)) * 0.15  # tapping a foot
+	else:
+		_body.rotation.z = 0.0
+	_apply_reaction(delta)
 
 
 func _face_yaw(yaw: float, delta: float) -> void:
@@ -505,5 +527,162 @@ func leave() -> void:
 	_after_path = "exit"
 
 
-func apply_music(level: float) -> void:
+func apply_music(level: float, style := "sway") -> void:
 	music_enjoy = level
+	music_style = style
+
+
+func cheer() -> void:
+	_react_kind = "cheer"
+	_react_anim = 1.6
+
+
+func laugh() -> void:
+	_react_kind = "laugh"
+	_react_anim = 2.0
+
+
+## Leaves the seat (keeping it) to stand, dance or sing in front of the musicians.
+func join_audience(pos: Vector3, style: String, face: Vector3) -> void:
+	if glass and glass.get_parent() != _right_hand:
+		var gp := glass.get_parent()
+		if gp:
+			gp.remove_child(glass)
+		_right_hand.add_child(glass)
+		glass.position = Vector3.ZERO
+		glass.rotation = Vector3.ZERO
+	_audience_return = global_position
+	_audience_face = face
+	music_style = style
+	walk_to(pos, "audience")
+
+
+func leave_audience() -> void:
+	_body.rotation = Vector3.ZERO
+	_arms[0].rotation = Vector3.ZERO
+	_arms[1].rotation = Vector3(-0.5, 0, 0)
+	if seat >= 0:
+		var sd: Dictionary = world.seat_info(seat)
+		_seat_yaw = sd["yaw"]
+		walk_to(sd["pos"], "seated")
+	else:
+		walk_to(_audience_return, "stand_drink")
+
+
+func _audience_anim(delta: float) -> void:
+	var to := _audience_face - global_position
+	rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), minf(1.0, delta * 4.0))
+	var t := _anim_t
+	match music_style:
+		"dance":
+			# a lively step: hops, alternating arms and a turn now and then
+			_body.position.y = absf(sin(t * 5.0)) * 0.08
+			_legs[0].rotation.x = sin(t * 5.0) * 0.6
+			_legs[1].rotation.x = -sin(t * 5.0) * 0.6
+			_arms[0].rotation = Vector3(-0.3, 0, -0.5 - 0.3 * sin(t * 2.5))
+			_arms[1].rotation = Vector3(-0.6, 0, 0.4)
+			_body.rotation.y = sin(t * 0.9) * 0.6
+		"sing":
+			# glass raised, swaying with the crowd
+			_body.rotation.z = sin(t * 1.6) * 0.08
+			_arms[1].rotation = Vector3(-2.6, 0, 0.25)
+			_arms[0].rotation = Vector3(-0.2, 0, -0.9 - 0.2 * sin(t * 1.6))
+			_head.rotation.x = -0.25
+			_body.position.y = absf(sin(t * 3.2)) * 0.02
+		_:
+			_head.rotation.x = sin(t * 5.0) * 0.08
+			_body.rotation.z = sin(t * 1.4) * 0.05
+	_apply_reaction(delta)
+
+
+func _apply_reaction(delta: float) -> void:
+	if _react_anim <= 0.0:
+		return
+	_react_anim -= delta
+	if _react_kind == "cheer":
+		_arms[0].rotation = Vector3(-2.8, 0, -0.3)
+		if not glass or state == "audience":
+			_arms[1].rotation = Vector3(-2.6, 0, 0.3)
+	elif _react_kind == "laugh":
+		_head.rotation.x = -0.3 + sin(_react_anim * 22.0) * 0.08
+		_body.position.y += absf(sin(_react_anim * 18.0)) * 0.01
+	if _react_anim <= 0.0 and state != "audience":
+		_arms[0].rotation = Vector3.ZERO
+		if _sip_phase <= 0.0:
+			_arms[1].rotation = Vector3(-0.5, 0, 0) if (glass and glass.get_parent() == _right_hand) else Vector3.ZERO
+
+
+## Turns this character into a seated musician holding an instrument.
+func make_musician(kind: String, beat_s: float) -> void:
+	state = "musician"
+	instrument = kind
+	beat = maxf(beat_s, 0.2)
+	_set_seated(true)
+	_bubble.visible = false
+	_prop = Node3D.new()
+	_body.add_child(_prop)
+	var wood := MeshKit.color_mat(Color(0.45, 0.2, 0.07), 0.35)
+	var dark := MeshKit.color_mat(Color(0.1, 0.06, 0.03), 0.5)
+	match kind:
+		"fiddle":
+			_prop.position = Vector3(-0.08, 1.48, -0.18)
+			_prop.rotation = Vector3(0.3, 0.5, 0.6)
+			var b := MeshKit.sphere(_prop, 0.09, Vector3.ZERO, wood, Vector3(0.7, 0.25, 1.0))
+			MeshKit.box(_prop, Vector3(0.02, 0.02, 0.25), Vector3(0, 0.0, -0.2), dark)
+			var bow := MeshKit.cyl(_right_hand, 0.004, 0.004, 0.6, Vector3(0.0, 0.0, 0.0), MeshKit.color_mat(Color(0.3, 0.2, 0.1), 0.5), 6, Vector3(0, 0, PI / 2.0))
+			_arms[0].rotation = Vector3(-1.6, 0, -0.5)
+			_arms[1].rotation = Vector3(-1.1, 0, 0.3)
+		"whistle":
+			_prop.position = Vector3(0, 1.58, -0.2)
+			_prop.rotation = Vector3(1.1, 0, 0)
+			MeshKit.cyl(_prop, 0.01, 0.01, 0.28, Vector3.ZERO, MeshKit.color_mat(Color(0.75, 0.75, 0.7), 0.25, 0.8), 8)
+			_arms[0].rotation = Vector3(-1.5, 0, -0.3)
+			_arms[1].rotation = Vector3(-1.3, 0, 0.3)
+		"bodhran":
+			_prop.position = Vector3(-0.12, 1.15, -0.28)
+			_prop.rotation = Vector3(PI / 2.0 - 0.3, 0, 0.2)
+			MeshKit.cyl(_prop, 0.22, 0.22, 0.07, Vector3.ZERO, MeshKit.color_mat(Color(0.85, 0.75, 0.55), 0.7), 20)
+			MeshKit.torus(_prop, 0.2, 0.225, Vector3(0, 0.0, 0), wood)
+			MeshKit.cyl(_right_hand, 0.008, 0.008, 0.2, Vector3.ZERO, wood, 6, Vector3(PI / 2.0, 0, 0))
+			_arms[0].rotation = Vector3(-0.9, 0, -0.4)
+		"accordion":
+			_prop.position = Vector3(0, 1.12, -0.26)
+			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(-0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
+			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
+			var bellows := MeshKit.box(_prop, Vector3(0.22, 0.28, 0.18), Vector3.ZERO, MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.6))
+			bellows.name = "Bellows"
+			_arms[0].rotation = Vector3(-0.9, 0, -0.3)
+			_arms[1].rotation = Vector3(-0.9, 0, 0.3)
+		"guitar", "banjo":
+			_prop.position = Vector3(0.0, 1.0, -0.2)
+			_prop.rotation = Vector3(0, 0, 0.9)
+			if kind == "guitar":
+				MeshKit.sphere(_prop, 0.17, Vector3(0, -0.05, 0), wood, Vector3(1.0, 1.25, 0.4))
+			else:
+				MeshKit.cyl(_prop, 0.14, 0.14, 0.06, Vector3(0, -0.05, 0), MeshKit.color_mat(Color(0.9, 0.88, 0.8), 0.5), 20, Vector3(PI / 2.0, 0, 0))
+			MeshKit.box(_prop, Vector3(0.04, 0.5, 0.025), Vector3(0, 0.33, 0), dark)
+			_arms[0].rotation = Vector3(-1.2, 0, -0.6)
+			_arms[1].rotation = Vector3(-0.7, 0, 0.2)
+
+
+func _play_anim(_delta: float) -> void:
+	var ph := _anim_t / beat * TAU
+	_body.position.y = -0.4 + absf(sin(ph * 0.5)) * 0.012
+	_head.rotation.x = sin(ph * 0.5) * 0.08
+	_legs[0].rotation.x = -1.45 + maxf(0.0, sin(ph)) * 0.12  # foot tapping
+	match instrument:
+		"fiddle":
+			_arms[1].rotation.z = 0.3 + sin(ph * 0.5) * 0.45
+			_head.rotation.z = 0.25
+		"whistle":
+			_head.rotation.x = -0.1 + sin(ph * 0.5) * 0.05
+		"bodhran":
+			_arms[1].rotation.x = -1.1 + absf(sin(ph * 0.5)) * 0.6
+		"accordion":
+			var b := _prop.get_node_or_null("Bellows") as Node3D
+			if b:
+				b.scale.x = 1.0 + 0.6 * sin(ph * 0.125)
+			_prop.get_child(0).position.x = -0.17 - 0.06 * sin(ph * 0.125)
+			_prop.get_child(1).position.x = 0.17 + 0.06 * sin(ph * 0.125)
+		"guitar", "banjo":
+			_arms[1].rotation.x = -0.7 + sin(ph) * 0.25

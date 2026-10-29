@@ -6,7 +6,7 @@
 | Materials: wood, tiles, plaster, stone, cobbles, glass, stout liquid | Original procedural shaders in `assets/shaders/` | Original work |
 | Photographs on the walls | Procedurally generated sepia landscapes (`PubBuilder.make_photo`) | Original work |
 | All sound effects (pour, bubbles, clinks, till, coins, rain, fire, crowd, bells, darts, bodhrán...) | Synthesised by `tools/gen_audio.py` (numpy oscillators, filtered noise, Karplus-Strong) | Original work |
-| Music: slow air, jig, reel, polka, hornpipe | Original compositions written for this game, rendered by `tools/gen_audio.py` with synthesised fiddle, whistle, accordion, banjo, guitar and bodhrán | Original work |
+| Soundtrack: 20 songs in `assets/music/` | Created by the game's owner (MattG241) with Suno; supplied via the `soundtrack-v1` release. Files are unmodified; checksums in `assets/music/SOUNDTRACK_MANIFEST.csv` | Owner's own tracks, subject to the owner's Suno licence. Check commercial rights before any public/commercial release |
 | App icon & splash | Drawn by `tools/gen_icons.py` | Original work |
 | Font: Uncial Antiqua | Astigmatic (Brian J. Bonislawsky), via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/OFL-UncialAntiqua.txt`) |
 | Font: Nunito | Vernon Adams, Cyreal, Jacques Le Bailly, via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/OFL-Nunito.txt`) |

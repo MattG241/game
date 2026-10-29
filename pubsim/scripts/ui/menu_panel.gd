@@ -10,7 +10,12 @@ var title: Label
 var tab_bar: HBoxContainer
 var _summary_mode := false
 
-const TABS := [["upgrades", "Upgrades"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
+const TABS := [["upgrades", "Upgrades"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["events", "Live music"], ["music", "Jukebox"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
+
+var _event_day := -1
+var _now_label: Label
+var _now_bar: ProgressBar
+var _refresh_t := 0.0
 
 
 func _ready() -> void:
@@ -71,8 +76,8 @@ func _build_tabs() -> void:
 		ch.queue_free()
 	for t in TABS:
 		var id: String = t[0]
-		var b := UITheme.button(t[1], func(): show_tab(id), 22)
-		b.custom_minimum_size = Vector2(150, 56)
+		var b := UITheme.button(t[1], func(): show_tab(id), 19)
+		b.custom_minimum_size = Vector2(118, 54)
 		b.toggle_mode = true
 		b.button_pressed = id == tab
 		b.set_meta("tab", id)
@@ -100,6 +105,10 @@ func show_tab(t: String) -> void:
 			_settings()
 		"activities":
 			_activities()
+		"events":
+			_events()
+		"music":
+			_jukebox()
 		"game":
 			_game()
 
@@ -266,6 +275,196 @@ func _ledger() -> void:
 	_text(st, "Career", 26, UITheme.GOLD)
 	var gs := GameState.stats
 	_text(st, "Pints poured %d · Perfect pints %d · Best pour %d · Customers served %d · Glasses washed %d · Days run %d" % [int(gs["pints_poured"]), int(gs["perfect_pints"]), int(gs["best_pour"]), int(gs["served"]), int(gs["glasses_washed"]), int(gs["days"])], 20)
+
+
+# ------------------------------------------------------------------ live music bookings
+func _events() -> void:
+	var live: LiveMusic = hud.world.live
+	if _event_day < GameState.day:
+		_event_day = GameState.day
+	_text(content, "Book musicians for tonight or the coming week. They play from 8pm to 11pm, draw a crowd, lift the atmosphere and make people stay longer. Acts suit some nights better than others. Cancelling before the night refunds the fee.", 20, UITheme.MUTED)
+	var days := HBoxContainer.new()
+	days.add_theme_constant_override("separation", 8)
+	content.add_child(days)
+	var names: Array = GameData.econ("weekday_names", [])
+	for d in range(GameState.day, GameState.day + 7):
+		var wd := (d + 2) % 7
+		var booked: String = GameState.bookings.get(str(d), "")
+		var label := "%s\nDay %d%s" % [str(names[wd]).substr(0, 3), d, "\nbooked" if booked != "" else ""]
+		var dd := d
+		var b := UITheme.button(label, func():
+			_event_day = dd
+			show_tab("events"), 18)
+		b.custom_minimum_size = Vector2(118, 86)
+		b.toggle_mode = true
+		b.set_pressed_no_signal(d == _event_day)
+		days.add_child(b)
+	var day := _event_day
+	var wd2 := (day + 2) % 7
+	var booked_id: String = GameState.bookings.get(str(day), "")
+	if booked_id != "":
+		var ev: Dictionary = GameData.events_by_id.get(booked_id, {})
+		var v := _card(Color(0.1, 0.22, 0.13, 0.95))
+		_text(v, "Booked for %s (day %d): %s" % [names[wd2], day, ev.get("name", "")], 26, UITheme.GOLD)
+		_text(v, "%s · plays %s" % [ev.get("kind", ""), MusicDirector.title_of(str(ev.get("track", "")))], 20)
+		var c := UITheme.button("Cancel booking (refund €%d)" % int(ev.get("fee", 0)), func():
+			if live.cancel(day):
+				GameState.notify("Booking cancelled.", "info")
+			show_tab("events"), 20)
+		c.disabled = day == GameState.day and (live.playing or GameState.hour >= LiveMusic.EVENT_START - 0.5)
+		v.add_child(c)
+		return
+	for ev in GameData.events:
+		var id: String = ev["id"]
+		var why := live.can_book(day, id)
+		var eff := LiveMusic.effectiveness(ev, wd2)
+		var v := _card()
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		_text(info, "%s   [%s]" % [ev["name"], ev["kind"]], 24, UITheme.GOLD)
+		_text(info, ev["desc"], 19)
+		var best: Array = ev.get("best_days", [])
+		var best_txt := "any night" if best.is_empty() else ", ".join(best.map(func(x): return str(names[int(x)]).substr(0, 3)))
+		_text(info, "Plays %s · Crowd x%.2f · Atmosphere +%d · Best: %s%s" % [MusicDirector.title_of(str(ev["track"])), float(ev["draw"]), int(ev["atmosphere"]), best_txt,
+			"" if eff >= 1.0 else " (a %s is a quieter night for it)" % names[wd2]], 18, Color(0.6, 0.9, 0.65))
+		if why != "":
+			_text(info, why, 18, Color(1, 0.65, 0.5))
+		var b := UITheme.button("Book €%d" % int(ev["fee"]), func():
+			if live.book(day, id):
+				Sfx.play("ui_buy", -4.0)
+				GameState.notify("%s booked for day %d." % [ev["name"], day], "good")
+			show_tab("events"), 22)
+		b.custom_minimum_size = Vector2(170, 66)
+		b.disabled = why != ""
+		h.add_child(b)
+
+
+# ------------------------------------------------------------------ jukebox
+func _jukebox() -> void:
+	var md := MusicDirector
+	var now := _card(Color(0.08, 0.2, 0.12, 0.96))
+	_text(now, "Now playing", 20, UITheme.MUTED)
+	_now_label = _text(now, "", 28, UITheme.GOLD)
+	_now_bar = ProgressBar.new()
+	_now_bar.show_percentage = false
+	_now_bar.custom_minimum_size = Vector2(0, 14)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = UITheme.GOLD
+	fill.set_corner_radius_all(6)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.05, 0.03, 0.02)
+	bg.set_corner_radius_all(6)
+	_now_bar.add_theme_stylebox_override("fill", fill)
+	_now_bar.add_theme_stylebox_override("background", bg)
+	now.add_child(_now_bar)
+	_refresh_now()
+	var ctl := HBoxContainer.new()
+	ctl.add_theme_constant_override("separation", 10)
+	now.add_child(ctl)
+	var auto_b := UITheme.button("Automatic", func():
+		md.set_mode("auto")
+		show_tab("music"), 20)
+	auto_b.toggle_mode = true
+	auto_b.set_pressed_no_signal(md.mode == "auto")
+	ctl.add_child(auto_b)
+	var man_b := UITheme.button("My choice", func():
+		var id: String = md.manual_id if md.manual_id != "" else (md.current_id if md.current_id != "" else "t03")
+		md.play_track(id)
+		show_tab("music"), 20)
+	man_b.toggle_mode = true
+	man_b.set_pressed_no_signal(md.mode == "manual")
+	ctl.add_child(man_b)
+	var pause_b := UITheme.button("Resume" if md.paused else "Pause", func():
+		md.toggle_pause()
+		show_tab("music"), 20)
+	pause_b.disabled = md.mode != "manual"
+	ctl.add_child(pause_b)
+	ctl.add_child(UITheme.button("Skip", func():
+		md.skip()
+		show_tab("music"), 20))
+	var vh := HBoxContainer.new()
+	now.add_child(vh)
+	vh.add_child(UITheme.label("Music volume", 20))
+	var vs := HSlider.new()
+	vs.min_value = 0.0
+	vs.max_value = 1.0
+	vs.step = 0.05
+	vs.value = float(GameState.settings.get("vol_music", 0.8))
+	vs.custom_minimum_size = Vector2(380, 44)
+	vs.value_changed.connect(func(x): GameState.set_setting("vol_music", x))
+	vh.add_child(vs)
+	var note := "Automatic picks music to suit the time, weather and how busy you are. Live musicians always take over while they play." if md.mode == "auto" else "Your playlist plays in order. Live musicians still take over while they perform."
+	_text(now, note, 18, UITheme.MUTED)
+	var cats := HBoxContainer.new()
+	cats.add_theme_constant_override("separation", 8)
+	content.add_child(cats)
+	var cat_list := [["all", "All 20"]]
+	for k in md.categories.keys():
+		cat_list.append([k, md.categories[k]])
+	for c in cat_list:
+		var cid: String = c[0]
+		var b := UITheme.button(str(c[1]), func():
+			md.set_playlist(cid)
+			show_tab("music"), 18)
+		b.toggle_mode = true
+		b.set_pressed_no_signal(md.playlist == cid)
+		cats.add_child(b)
+	for t in md.track_list:
+		if md.playlist != "all" and t["category"] != md.playlist:
+			continue
+		var playing_now: bool = md.current_id == t["id"] and md.situation.begins_with("manual")
+		var v := _card(Color(0.12, 0.25, 0.15, 0.95) if md.current_id == t["id"] else Color(0.18, 0.11, 0.06, 0.95))
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		_text(info, md.title_of(t["id"]), 24, UITheme.GOLD if md.current_id == t["id"] else UITheme.CREAM)
+		var dur := float(t.get("duration", 0))
+		_text(info, "%s · %d:%02d%s" % [md.categories.get(t["category"], ""), int(dur) / 60, int(dur) % 60, " · vocal" if t.get("vocal", false) else ""], 18, UITheme.MUTED)
+		var tid: String = t["id"]
+		var pb := UITheme.button("Playing" if playing_now else "Play", func():
+			md.play_track(tid)
+			show_tab("music"), 20)
+		pb.custom_minimum_size = Vector2(150, 60)
+		h.add_child(pb)
+
+
+func _refresh_now() -> void:
+	if _now_label == null or not is_instance_valid(_now_label):
+		return
+	var md := MusicDirector
+	var t := ""
+	var live: LiveMusic = hud.world.live if hud.world else null
+	if live and live.playing and live.now_playing != "":
+		t = "Live in the pub: %s" % md.title_of(live.now_playing)
+	elif md.current_id != "":
+		t = md.title_of(md.current_id) + ("  (paused)" if md.paused else "")
+	else:
+		t = "Nothing playing"
+	_now_label.text = t
+	var len := 1.0
+	var pos := 0.0
+	if live and live.playing and live.now_playing != "":
+		len = maxf(1.0, live.player3d.stream.get_length())
+		pos = live.player3d.get_playback_position()
+	elif md.current_id != "":
+		len = maxf(1.0, float(md.tracks[md.current_id].get("duration", 1.0)))
+		pos = md.position()
+	_now_bar.max_value = len
+	_now_bar.value = pos
+
+
+func _process(delta: float) -> void:
+	if not visible or tab != "music":
+		return
+	_refresh_t -= delta
+	if _refresh_t <= 0.0:
+		_refresh_t = 0.5
+		_refresh_now()
 
 
 # ------------------------------------------------------------------ activities

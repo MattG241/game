@@ -53,11 +53,9 @@ func _ready() -> void:
 	g.contents.foam = 0.14
 	_build_ui()
 	Sfx.set_loop("rain", "rain_loop", 0.35)
-	Sfx.set_loop("title_music", "music_solo_session", 0.55, "Music")
-
-
-func _exit_tree() -> void:
-	Sfx.set_loop("title_music", "music_solo_session", 0.0, "Music")
+	# Welcome to The Local plays on the title screen and fades when a game starts
+	MusicDirector.clear_override()
+	MusicDirector.set_screen("menu")
 
 
 func _process(delta: float) -> void:
