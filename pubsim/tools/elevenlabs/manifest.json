@@ -1,6 +1,17 @@
 {
  "added_voices": {},
  "clips": {
+  "030d1ce2b7322b8e": {
+   "credits": 37.0,
+   "file": "assets/voice/dubliner_complain_02.ogg",
+   "id": "dubliner_complain_02",
+   "kind": "tts",
+   "match": 0.86,
+   "take": "batch",
+   "text": "I've seen better pints in an airport.",
+   "transcript": "I've seen better points in an airport",
+   "voice": "dubliner"
+  },
   "0373697ed58dc8c5": {
    "credits": 40.0,
    "file": "assets/voice/cheerful_local_split_anticipation_01.ogg",
@@ -10,6 +21,17 @@
    "text": "Go on, go on, go on!",
    "transcript": "Go on, go on, go on",
    "voice": "cheerful_local"
+  },
+  "0523800326599bed": {
+   "credits": 30.0,
+   "file": "assets/voice/old_regular_complain_01.ogg",
+   "id": "old_regular_complain_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "That's a poor head on it, son.",
+   "transcript": "That's a poor head on it, son",
+   "voice": "old_regular"
   },
   "07a4caba4004d8b3": {
    "credits": 34.0,
@@ -27,8 +49,20 @@
    "id": "old_regular_goodbye_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "654c8009e5297336",
    "text": "Right so. Same time tomorrow.",
    "transcript": "Right so, same time tomorrow",
+   "voice": "old_regular"
+  },
+  "09c050f41f21eba6": {
+   "credits": 22.0,
+   "file": "assets/voice/old_regular_wait_02.ogg",
+   "id": "old_regular_wait_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Any sign of that pint?",
+   "transcript": "Any sign of that pint?",
    "voice": "old_regular"
   },
   "0ad75daee85ecc70": {
@@ -75,7 +109,7 @@
    "id": "old_regular_praise_03",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "9d82d2fe92bc88b2",
+   "superseded_by": "33d79ffb6b884ad6",
    "text": "Your father would be proud of that one.",
    "transcript": "Your father would be proud of that one",
    "voice": "old_regular"
@@ -86,6 +120,7 @@
    "id": "dubliner_pay_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "40f26258feb29bf7",
    "text": "There you go, sound.",
    "transcript": "There you go, Sound",
    "voice": "dubliner"
@@ -99,6 +134,17 @@
    "text": "Can I get a Galagers Zero, please? I'm on an early shift.",
    "transcript": "Can I get a Gallagher zero, please? I'm on an early shift",
    "voice": "jordan"
+  },
+  "0f6be70ca90c34cc": {
+   "credits": 34.0,
+   "file": "assets/voice/cheerful_local_order_other_01.ogg",
+   "id": "cheerful_local_order_other_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Can I get a cider, please? Lovely.",
+   "transcript": "Can I get a cider, please? Lovely",
+   "voice": "cheerful_local"
   },
   "10b46aedbca0440d": {
    "credits": 52.0,
@@ -136,7 +182,7 @@
    "id": "old_regular_order_stout_03",
    "kind": "tts",
    "match": 0.88,
-   "superseded_by": "25bec6055ac4276a",
+   "superseded_by": "6b4f8a58f6c50aa0",
    "text": "A Galagers, please. Take your time with it.",
    "transcript": "A Gallagher's, please. Take your time with it",
    "voice": "old_regular"
@@ -188,10 +234,32 @@
    "id": "old_regular_praise_02",
    "kind": "tts",
    "match": 0.89,
-   "superseded_by": "a241cc46cc2f4ed4",
+   "superseded_by": "3173ff19cd846872",
    "text": "Hm. Not bad at all. Not bad at all.",
    "transcript": "Hmm, not bad at all. Not bad at all",
    "voice": "old_regular"
+  },
+  "24c4042ca74f4b6d": {
+   "credits": 35.0,
+   "file": "assets/voice/old_regular_complain_02.ogg",
+   "id": "old_regular_complain_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "You rushed that. I can always tell.",
+   "transcript": "You rushed that. I can always tell",
+   "voice": "old_regular"
+  },
+  "24f7784fe6141281": {
+   "credits": 40.0,
+   "file": "assets/voice/cheerful_local_order_other_02.ogg",
+   "id": "cheerful_local_order_other_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Something cold, please! It's been a day.",
+   "transcript": "Something cold, please. It's been a day",
+   "voice": "cheerful_local"
   },
   "25bec6055ac4276a": {
    "credits": 43.0,
@@ -218,6 +286,7 @@
    "id": "cheerful_local_order_stout_01",
    "kind": "tts",
    "match": 0.8,
+   "superseded_by": "f180c3e50edb62d2",
    "text": "Pint of Galagers there, please!",
    "transcript": "Pint of Gallagher's there, please",
    "voice": "cheerful_local"
@@ -252,6 +321,28 @@
    "transcript": "A Gallagher's please, love",
    "voice": "colleen"
   },
+  "2f42b854ab04dd82": {
+   "credits": 14.0,
+   "file": "assets/voice/dubliner_goodbye_01.ogg",
+   "id": "dubliner_goodbye_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Good luck now.",
+   "transcript": "Good luck now",
+   "voice": "dubliner"
+  },
+  "3173ff19cd846872": {
+   "credits": 35.0,
+   "file": "assets/voice/old_regular_praise_02.ogg",
+   "id": "old_regular_praise_02",
+   "kind": "tts",
+   "match": 0.89,
+   "take": "batch",
+   "text": "Hm. Not bad at all. Not bad at all.",
+   "transcript": "Hmm. Not bad at all. Not bad at all",
+   "voice": "old_regular"
+  },
   "32b46ef95f81b643": {
    "credits": 41.0,
    "file": "assets/voice/andrew_goodbye_01.ogg",
@@ -262,12 +353,24 @@
    "transcript": "Right, I'm away. Cheers",
    "voice": "andrew"
   },
+  "33d79ffb6b884ad6": {
+   "credits": 39.0,
+   "file": "assets/voice/old_regular_praise_03.ogg",
+   "id": "old_regular_praise_03",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Your father would be proud of that one.",
+   "transcript": "Your father would be proud of that one",
+   "voice": "old_regular"
+  },
   "349dd2244cabb043": {
    "credits": 37.0,
    "file": "assets/voice/dubliner_goodbye_01.ogg",
    "id": "dubliner_goodbye_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "2f42b854ab04dd82",
    "text": "Good luck now.",
    "transcript": "Good luck now",
    "voice": "dubliner"
@@ -279,6 +382,17 @@
    "kind": "sfx",
    "text": "Nitro stout beer pouring from a pub tap into a pint glass, smooth creamy rush",
    "voice": ""
+  },
+  "37e6c7cec16e55ff": {
+   "credits": 31.0,
+   "file": "assets/voice/cheerful_local_order_stout_02.ogg",
+   "id": "cheerful_local_order_stout_02",
+   "kind": "tts",
+   "match": 0.86,
+   "take": "batch",
+   "text": "Ah go on, I'll have a Galagers!",
+   "transcript": "Ah, go on. I'll have a Gallagher's",
+   "voice": "cheerful_local"
   },
   "39d3d807d3d049f5": {
    "credits": 50.0,
@@ -318,6 +432,17 @@
    "transcript": "Now that's an improvement. The place looks 100 times better",
    "voice": "landlord"
   },
+  "40f26258feb29bf7": {
+   "credits": 20.0,
+   "file": "assets/voice/dubliner_pay_01.ogg",
+   "id": "dubliner_pay_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "There you go, sound.",
+   "transcript": "There you go. Sound",
+   "voice": "dubliner"
+  },
   "4107bde2f4e25c8a": {
    "credits": 44.0,
    "file": "assets/voice/cheerful_local_split_success_01.ogg",
@@ -327,6 +452,17 @@
    "text": "Split it! Oh, beautiful!",
    "transcript": "Split it. Oh, beautiful",
    "voice": "cheerful_local"
+  },
+  "418db76cf82955c1": {
+   "credits": 28.0,
+   "file": "assets/voice/dubliner_praise_02.ogg",
+   "id": "dubliner_praise_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Now we're talking. Gorgeous.",
+   "transcript": "Now we're talking. Gorgeous",
+   "voice": "dubliner"
   },
   "450ea5afc9251f88": {
    "credits": 80.0,
@@ -347,6 +483,17 @@
    "text": "Right so, we'll start with one from Galway. Hope you like it.",
    "transcript": "Right. So we'll start with one from Galway. Hope you like it",
    "voice": "musician"
+  },
+  "4911ef018f615ecd": {
+   "credits": 38.0,
+   "file": "assets/voice/cheerful_local_praise_01.ogg",
+   "id": "cheerful_local_praise_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Oh, that's gorgeous! Thanks a million!",
+   "transcript": "Oh, that's gorgeous. Thanks a million",
+   "voice": "cheerful_local"
   },
   "4abf61356943f0d5": {
    "credits": 55.0,
@@ -369,6 +516,28 @@
    "transcript": "Two minutes for a Gallagher's and I'll be a happy man",
    "voice": "dubliner"
   },
+  "4cff43a3daa24a43": {
+   "credits": 45.0,
+   "file": "assets/voice/old_regular_order_stout_01.ogg",
+   "id": "old_regular_order_stout_01",
+   "kind": "tts",
+   "match": 0.88,
+   "take": "batch",
+   "text": "Pint of Galagers, when you're ready. No rush.",
+   "transcript": "Pint of Gallagher's when you're ready. No rush",
+   "voice": "old_regular"
+  },
+  "4d79b965e7289d39": {
+   "credits": 39.0,
+   "file": "assets/voice/dubliner_wait_01.ogg",
+   "id": "dubliner_wait_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Are you brewing it yourself back there?",
+   "transcript": "Are you brewing it yourself back there?",
+   "voice": "dubliner"
+  },
   "4e6899dc2c2147ec": {
    "credits": 34.0,
    "file": "assets/voice/cillian_split_fail_01.ogg",
@@ -385,6 +554,7 @@
    "id": "old_regular_wait_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "5be0075e835b147e",
    "text": "I'm not getting any younger here.",
    "transcript": "I'm not getting any younger here",
    "voice": "old_regular"
@@ -395,6 +565,7 @@
    "id": "old_regular_wait_02",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "09c050f41f21eba6",
    "text": "Any sign of that pint?",
    "transcript": "Any sign of that pint?",
    "voice": "old_regular"
@@ -405,10 +576,21 @@
    "id": "cheerful_local_order_other_01",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "e6a23c337985494a",
+   "superseded_by": "0f6be70ca90c34cc",
    "text": "Can I get a cider, please? Lovely.",
    "transcript": "Can I get a cider, please? Lovely",
    "voice": "cheerful_local"
+  },
+  "5251059e1df807c7": {
+   "credits": 39.0,
+   "file": "assets/voice/old_regular_complain_03.ogg",
+   "id": "old_regular_complain_03",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "That's not a pint, that's a cappuccino.",
+   "transcript": "That's not a pint, that's a cappuccino",
+   "voice": "old_regular"
   },
   "53289018b900552b": {
    "credits": 10.0,
@@ -418,12 +600,24 @@
    "text": "Wooden bar stool scraping on a wooden floor",
    "voice": ""
   },
+  "534946b0691d0277": {
+   "credits": 39.0,
+   "file": "assets/voice/cheerful_local_complain_01.ogg",
+   "id": "cheerful_local_complain_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Ah, that's a bit sad looking, isn't it?",
+   "transcript": "Ah, that's a bit sad looking, isn't it?",
+   "voice": "cheerful_local"
+  },
   "55f26e76f756c3fc": {
    "credits": 60.0,
    "file": "assets/voice/dubliner_complain_02.ogg",
    "id": "dubliner_complain_02",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "030d1ce2b7322b8e",
    "text": "I've seen better pints in an airport.",
    "transcript": "I've seen better pints in an airport",
    "voice": "dubliner"
@@ -502,6 +696,17 @@
    "text": "Gentle fizz of fine bubbles settling in a glass of stout, close up",
    "voice": ""
   },
+  "5be0075e835b147e": {
+   "credits": 33.0,
+   "file": "assets/voice/old_regular_wait_01.ogg",
+   "id": "old_regular_wait_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "I'm not getting any younger here.",
+   "transcript": "I'm not getting any younger here",
+   "voice": "old_regular"
+  },
   "5c9abb7a6a566323": {
    "credits": 68.0,
    "file": "assets/voice/cheerful_local_chatter_01.ogg",
@@ -548,9 +753,21 @@
    "id": "dubliner_wait_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "4d79b965e7289d39",
    "text": "Are you brewing it yourself back there?",
    "transcript": "Are you brewing it yourself back there?",
    "voice": "dubliner"
+  },
+  "639a414f348518e8": {
+   "credits": 25.0,
+   "file": "assets/voice/old_regular_praise_01.ogg",
+   "id": "old_regular_praise_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Now that's a proper pint.",
+   "transcript": "Now that's a proper pint",
+   "voice": "old_regular"
   },
   "64c7ea0ff11ae18f": {
    "credits": 37.0,
@@ -572,6 +789,28 @@
    "transcript": "Quod maga and good night",
    "voice": "musician"
   },
+  "654c8009e5297336": {
+   "credits": 29.0,
+   "file": "assets/voice/old_regular_goodbye_01.ogg",
+   "id": "old_regular_goodbye_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Right so. Same time tomorrow.",
+   "transcript": "Right so, same time tomorrow",
+   "voice": "old_regular"
+  },
+  "670772592d3a7ece": {
+   "credits": 36.0,
+   "file": "assets/voice/dubliner_praise_01.ogg",
+   "id": "dubliner_praise_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Ah, lovely job. That's the business.",
+   "transcript": "Ah, lovely job. That's the business",
+   "voice": "dubliner"
+  },
   "6751dcf8c3aef2a9": {
    "credits": 50.0,
    "file": "assets/voice/colleen_split_success_01.ogg",
@@ -581,6 +820,17 @@
    "text": "Well, would you look at that!",
    "transcript": "Well, would you look at that?",
    "voice": "colleen"
+  },
+  "6b4f8a58f6c50aa0": {
+   "credits": 43.0,
+   "file": "assets/voice/old_regular_order_stout_03.ogg",
+   "id": "old_regular_order_stout_03",
+   "kind": "tts",
+   "match": 0.88,
+   "take": "batch",
+   "text": "A Galagers, please. Take your time with it.",
+   "transcript": "A Gallagher's, please. Take your time with it",
+   "voice": "old_regular"
   },
   "6ce82c04491b43c9": {
    "credits": 64.0,
@@ -611,6 +861,17 @@
    "text": "Busy lively pub ambience, lots of overlapping chatter and laughter, glasses, no music",
    "voice": ""
   },
+  "6da669394c7db791": {
+   "credits": 43.0,
+   "file": "assets/voice/old_regular_pay_01.ogg",
+   "id": "old_regular_pay_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "There you go. Keep the change for yourself.",
+   "transcript": "There you go. Keep the change for yourself",
+   "voice": "old_regular"
+  },
   "6f13ab9315441756": {
    "credits": 25.0,
    "file": "assets/voice/colleen_praise_01.ogg",
@@ -628,9 +889,21 @@
    "id": "dubliner_wait_02",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "a13b33d62355d7ab",
    "text": "I'll be drawing my pension at this rate.",
    "transcript": "I'll be drawing my pension at this rate",
    "voice": "dubliner"
+  },
+  "736a79cf4d2b9c52": {
+   "credits": 22.0,
+   "file": "assets/voice/cheerful_local_praise_02.ogg",
+   "id": "cheerful_local_praise_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Look at that! Perfect!",
+   "transcript": "Look at that. Perfect",
+   "voice": "cheerful_local"
   },
   "781ba78b9ad28429": {
    "credits": 44.0,
@@ -676,6 +949,7 @@
    "id": "old_regular_complain_02",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "24c4042ca74f4b6d",
    "text": "You rushed that. I can always tell.",
    "transcript": "You rushed that. I can always tell",
    "voice": "old_regular"
@@ -686,6 +960,7 @@
    "id": "old_regular_complain_03",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "5251059e1df807c7",
    "text": "That's not a pint, that's a cappuccino.",
    "transcript": "That's not a pint. That's a cappuccino",
    "voice": "old_regular"
@@ -704,10 +979,21 @@
    "id": "cheerful_local_praise_01",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "b6315aed51069584",
+   "superseded_by": "4911ef018f615ecd",
    "text": "Oh, that's gorgeous! Thanks a million!",
    "transcript": "Oh, that's gorgeous. Thanks a million",
    "voice": "cheerful_local"
+  },
+  "823fd0c41eeb6186": {
+   "credits": 24.0,
+   "file": "assets/voice/dubliner_complain_01.ogg",
+   "id": "dubliner_complain_01",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "What's that meant to be?",
+   "transcript": "What's that meant to be?",
+   "voice": "dubliner"
   },
   "83e3c46b7eb52825": {
    "credits": 62.0,
@@ -725,7 +1011,7 @@
    "id": "old_regular_order_stout_01",
    "kind": "tts",
    "match": 0.88,
-   "superseded_by": "ce424af4581090c3",
+   "superseded_by": "4cff43a3daa24a43",
    "text": "Pint of Galagers, when you're ready. No rush.",
    "transcript": "Pint of Gulligers when you're ready. No rush",
    "voice": "old_regular"
@@ -775,7 +1061,7 @@
    "id": "cheerful_local_order_stout_02",
    "kind": "tts",
    "match": 0.86,
-   "superseded_by": "5904c0379bc443ab",
+   "superseded_by": "37e6c7cec16e55ff",
    "text": "Ah go on, I'll have a Galagers!",
    "transcript": "Ah, go on. I'll have a Gallagher's",
    "voice": "cheerful_local"
@@ -827,7 +1113,7 @@
    "id": "cheerful_local_praise_02",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "b1e56f33d0626993",
+   "superseded_by": "736a79cf4d2b9c52",
    "text": "Look at that! Perfect!",
    "transcript": "Look at that. Perfect",
    "voice": "cheerful_local"
@@ -901,7 +1187,7 @@
    "id": "old_regular_order_stout_02",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "b9a8063bb8389e61",
+   "superseded_by": "d5e489b9ef800838",
    "text": "The usual. And let it settle this time.",
    "transcript": "The usual and let it settle this time",
    "voice": "old_regular"
@@ -915,6 +1201,17 @@
    "text": "Oh, that's rather lovely, actually.",
    "transcript": "Oh, that's rather lovely actually",
    "voice": "tourist_uk"
+  },
+  "a13b33d62355d7ab": {
+   "credits": 40.0,
+   "file": "assets/voice/dubliner_wait_02.ogg",
+   "id": "dubliner_wait_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "I'll be drawing my pension at this rate.",
+   "transcript": "I'll be drawing my pension at this rate",
+   "voice": "dubliner"
   },
   "a1d727c206dbb749": {
    "credits": 30.0,
@@ -963,7 +1260,7 @@
    "id": "dubliner_order_other_02",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "8af77fbbc2f7123f",
+   "superseded_by": "da65262468f09da8",
    "text": "Give us a whiskey, would ya.",
    "transcript": "Give us a whiskey, would ya?",
    "voice": "dubliner"
@@ -1031,7 +1328,7 @@
    "id": "old_regular_praise_01",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "ed2c9a61797df82b",
+   "superseded_by": "639a414f348518e8",
    "text": "Now that's a proper pint.",
    "transcript": "Now that's a proper pint",
    "voice": "old_regular"
@@ -1062,9 +1359,21 @@
    "id": "old_regular_complain_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "0523800326599bed",
    "text": "That's a poor head on it, son.",
    "transcript": "That's a poor head on it, son",
    "voice": "old_regular"
+  },
+  "b1aa4809305815d4": {
+   "credits": 51.0,
+   "file": "assets/voice/dubliner_order_stout_02.ogg",
+   "id": "dubliner_order_stout_02",
+   "kind": "tts",
+   "match": 0.91,
+   "take": "batch",
+   "text": "Two minutes for a Galagers and I'll be a happy man.",
+   "transcript": "Two minutes for a Gallagher's and I'll be a happy man",
+   "voice": "dubliner"
   },
   "b1d046323d4dae3f": {
    "credits": 40.0,
@@ -1230,6 +1539,7 @@
    "id": "cheerful_local_complain_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "534946b0691d0277",
    "text": "Ah, that's a bit sad looking, isn't it?",
    "transcript": "Ah, that's a bit sad looking, isn't it?",
    "voice": "cheerful_local"
@@ -1250,6 +1560,7 @@
    "id": "cheerful_local_goodbye_01",
    "kind": "tts",
    "match": 0.8,
+   "superseded_by": "ed21c71084c09dba",
    "text": "Night, everyone! See ye tomorrow!",
    "transcript": "Night everyone. See you tomorrow",
    "voice": "cheerful_local"
@@ -1329,6 +1640,17 @@
    "transcript": "I'll have a half of Gollager's, thanks",
    "voice": "colleen"
   },
+  "d5e489b9ef800838": {
+   "credits": 39.0,
+   "file": "assets/voice/old_regular_order_stout_02.ogg",
+   "id": "old_regular_order_stout_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "The usual. And let it settle this time.",
+   "transcript": "The usual. And let it settle this time",
+   "voice": "old_regular"
+  },
   "d631b4f9448e6b18": {
    "credits": 65.0,
    "file": "assets/voice/landlord_last_orders_02.ogg",
@@ -1348,6 +1670,17 @@
    "text": "That's a wee bit flat, so it is.",
    "transcript": "That's a wee bit flat, so it is",
    "voice": "andrew"
+  },
+  "da65262468f09da8": {
+   "credits": 28.0,
+   "file": "assets/voice/dubliner_order_other_02.ogg",
+   "id": "dubliner_order_other_02",
+   "kind": "tts",
+   "match": 1.0,
+   "take": "batch",
+   "text": "Give us a whiskey, would ya.",
+   "transcript": "Give us a whiskey, would ya?",
+   "voice": "dubliner"
   },
   "db18ca57634a22e5": {
    "credits": 41.0,
@@ -1393,6 +1726,7 @@
    "id": "old_regular_pay_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "6da669394c7db791",
    "text": "There you go. Keep the change for yourself.",
    "transcript": "There you go. Keep the change for yourself",
    "voice": "old_regular"
@@ -1447,6 +1781,17 @@
    "transcript": "One Gallagher's. Thanks, boss",
    "voice": "cillian"
   },
+  "ed21c71084c09dba": {
+   "credits": 33.0,
+   "file": "assets/voice/cheerful_local_goodbye_01.ogg",
+   "id": "cheerful_local_goodbye_01",
+   "kind": "tts",
+   "match": 0.8,
+   "take": "batch",
+   "text": "Night, everyone! See ye tomorrow!",
+   "transcript": "Night everyone. See you tomorrow",
+   "voice": "cheerful_local"
+  },
   "ed2c9a61797df82b": {
    "credits": 25.0,
    "file": "assets/voice/old_regular_praise_01.ogg",
@@ -1464,7 +1809,7 @@
    "id": "cheerful_local_order_other_02",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "cd6228d0c727d08c",
+   "superseded_by": "24f7784fe6141281",
    "text": "Something cold, please! It's been a day.",
    "transcript": "Something cold, please. It's been a day",
    "voice": "cheerful_local"
@@ -1475,10 +1820,21 @@
    "id": "dubliner_order_stout_02",
    "kind": "tts",
    "match": 0.91,
-   "superseded_by": "4cfce876695b43be",
+   "superseded_by": "b1aa4809305815d4",
    "text": "Two minutes for a Galagers and I'll be a happy man.",
    "transcript": "Two minutes for a Gallagher's and I'll be a happy man",
    "voice": "dubliner"
+  },
+  "f180c3e50edb62d2": {
+   "credits": 31.0,
+   "file": "assets/voice/cheerful_local_order_stout_01.ogg",
+   "id": "cheerful_local_order_stout_01",
+   "kind": "tts",
+   "match": 0.8,
+   "take": "batch",
+   "text": "Pint of Galagers there, please!",
+   "transcript": "Pint of Gallagher's there, please",
+   "voice": "cheerful_local"
   },
   "f4be0c233de1d56e": {
    "credits": 51.0,
@@ -1486,7 +1842,7 @@
    "id": "dubliner_praise_02",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "930135964e8dfc29",
+   "superseded_by": "418db76cf82955c1",
    "text": "Now we're talking. Gorgeous.",
    "transcript": "Now we're talking. Gorgeous",
    "voice": "dubliner"
@@ -1517,7 +1873,7 @@
    "id": "dubliner_praise_01",
    "kind": "tts",
    "match": 1.0,
-   "superseded_by": "6d772a2adeeca369",
+   "superseded_by": "670772592d3a7ece",
    "text": "Ah, lovely job. That's the business.",
    "transcript": "Ah, lovely job. That's the business",
    "voice": "dubliner"
@@ -1539,17 +1895,18 @@
    "id": "dubliner_complain_01",
    "kind": "tts",
    "match": 1.0,
+   "superseded_by": "823fd0c41eeb6186",
    "text": "What's that meant to be?",
    "transcript": "What's that meant to be?",
    "voice": "dubliner"
   }
  },
- "credits_spent": 8147.0,
+ "credits_spent": 9446.0,
  "designed_voices": {},
  "last_balance": {
   "limit": 10000,
-  "remaining": 2345,
-  "run_used": 298,
-  "used": 7655
+  "remaining": 686,
+  "run_used": 873,
+  "used": 9314
  }
 }
