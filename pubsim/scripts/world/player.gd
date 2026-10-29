@@ -95,44 +95,17 @@ func _build_hand() -> Node3D:
 
 
 static func build_hand() -> Node3D:
+	# the sculpted gripping hand (tools/gen_people.py), skin down to the wrist then a rolled
+	# white shirt sleeve
 	var h := Node3D.new()
 	h.name = "FirstPersonHand"
-	var skin := MeshKit.color_mat(Color(0.9, 0.71, 0.58), 0.55)
-	var nail := MeshKit.color_mat(Color(0.95, 0.8, 0.72), 0.3)
-	var shirt := MeshKit.color_mat(Color(0.93, 0.92, 0.88), 0.85)
-	var r := 0.047
-	# back of the hand against the right of the glass, with a row of knuckles
-	MeshKit.sphere(h, 0.046, Vector3(r + 0.01, 0.074, 0.004), skin, Vector3(0.42, 1.0, 0.95))
-	for i in 4:
-		var ka := deg_to_rad(-12.0)
-		MeshKit.sphere(h, 0.0105, Vector3(cos(ka) * (r + 0.006), 0.05 + i * 0.019, sin(ka) * (r + 0.006) - 0.008), skin)
-	# four fingers wrapping round the far side, each in three short segments
-	for i in 4:
-		var y := 0.05 + i * 0.019
-		for k in 3:
-			var a := deg_to_rad(-15.0 - k * 38.0)    # from the right side round to the back
-			var p := Vector3(cos(a) * r, y, sin(a) * r)
-			var seg := MeshKit.capsule(h, 0.0085 - k * 0.0008, 0.034, p, skin)
-			seg.rotation = Vector3(PI / 2, -a, 0)
-		var tip_a := deg_to_rad(-105.0)
-		MeshKit.sphere(h, 0.0062, Vector3(cos(tip_a) * (r - 0.002), y, sin(tip_a) * (r - 0.002)), nail)
-	# thumb across the near side
-	var t1 := MeshKit.capsule(h, 0.0105, 0.045, Vector3(0.03, 0.07, 0.035), skin)
-	t1.rotation = Vector3(PI / 2, deg_to_rad(-55.0), deg_to_rad(15.0))
-	var t2 := MeshKit.capsule(h, 0.009, 0.03, Vector3(0.0, 0.08, 0.05), skin)
-	t2.rotation = Vector3(PI / 2, deg_to_rad(-80.0), 0)
-	# wrist and forearm running down and back out of view, with a rolled shirt sleeve
-	var arm_dir := Vector3(0.55, -0.62, 0.56).normalized()
-	var arm_basis := Basis(Quaternion(Vector3.UP, -arm_dir))
-	var wrist := MeshKit.capsule(h, 0.024, 0.11, Vector3(r + 0.012, 0.035, 0.012) + arm_dir * 0.04, skin)
-	wrist.transform.basis = arm_basis
-	var fa := MeshKit.capsule(h, 0.03, 0.24, Vector3(r + 0.012, 0.035, 0.012) + arm_dir * 0.17, skin)
-	fa.transform.basis = arm_basis
-	var sl := MeshKit.cyl(h, 0.04, 0.042, 0.07, Vector3(r + 0.012, 0.035, 0.012) + arm_dir * 0.29, shirt, 14)
-	sl.transform.basis = arm_basis
-	MeshKit.merge_children(h, "Hand")
-	for c in h.get_children():
-		(c as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mi := MeshInstance3D.new()
+	mi.mesh = load("res://assets/people/hand_grip.obj")
+	mi.material_override = MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {
+		"cloth": Color(0.9, 0.71, 0.58), "pattern": 0, "end_color": Color(0.93, 0.92, 0.88),
+		"end_rough": 0.85, "split_y": -0.11, "cuff": 1.0, "cuff_color": Color(0.85, 0.84, 0.8)})
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	h.add_child(mi)
 	return h
 
 

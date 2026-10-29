@@ -307,6 +307,37 @@ def flat_cap(p):
     return smin(crown, peak, 0.015)
 
 
+def grip_hand(p):
+    """The bartender's right hand round a pint (glass axis = +Y through the origin, radius 0.047):
+    back of the hand on the right, fingers curled round the far side, thumb across the near side,
+    wrist and forearm running down and back towards the viewer (+X, -Y, +Z)."""
+    r = 0.049
+    parts = []
+    back = ellipsoid(p, (r + 0.012, 0.074, 0.006), (0.02, 0.046, 0.044))
+    parts.append(back)
+    for i in range(4):
+        y = 0.048 + i * 0.018
+        prev = None
+        for k in range(4):
+            a0 = np.radians(-10.0 - k * 26.0)
+            a1 = np.radians(-10.0 - (k + 1) * 26.0)
+            pa = (np.cos(a0) * r, y, np.sin(a0) * r)
+            pb = (np.cos(a1) * r, y - 0.002 * k, np.sin(a1) * r)
+            rr = 0.0088 - k * 0.0007
+            parts.append(round_cone(p, pa, pb, rr, rr - 0.0006))
+    thumb_a = (r + 0.004, 0.078, 0.024)
+    thumb_b = (0.03, 0.088, 0.04)
+    thumb_c = (0.008, 0.093, 0.046)
+    parts.append(round_cone(p, thumb_a, thumb_b, 0.0115, 0.0098))
+    parts.append(round_cone(p, thumb_b, thumb_c, 0.0098, 0.0085))
+    d = union(parts, 0.007)
+    wrist_dir = np.array([0.55, -0.62, 0.56])
+    wrist_dir = wrist_dir / np.linalg.norm(wrist_dir)
+    w0 = np.array([r + 0.012, 0.04, 0.012])
+    arm = round_cone(p, tuple(w0), tuple(w0 + wrist_dir * 0.32), 0.026, 0.036)
+    return smin(d, arm, 0.015)
+
+
 def skirt(p):
     d = round_cone(p, (0, 0.92, 0), (0, 0.5, 0), 0.19, 0.26)
     d = smax(d, -(p[..., 1] - 0.5), 0.01)
@@ -328,6 +359,7 @@ def main():
                      ("beard", beard), ("cap", flat_cap)]:
         mesh_sdf(fn, hb[0], hb[1], 0.0045, 900, name)
     mesh_sdf(skirt, (-0.3, 0.45, -0.3), (0.3, 0.98, 0.3), 0.008, 500, "skirt")
+    mesh_sdf(grip_hand, (-0.03, -0.25, -0.07), (0.27, 0.15, 0.27), 0.0025, 2400, "hand_grip")
 
 
 if __name__ == "__main__":

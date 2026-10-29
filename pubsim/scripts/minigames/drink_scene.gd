@@ -74,8 +74,8 @@ func begin(m: String, drink := "stout") -> void:
 		_build_line()
 	else:
 		# sunk into the left armchair, the fire ahead and your pint in your hand
-		var seat := Vector3(-5.95, 1.08, 0.82)
-		var look_at := Vector3(-6.55, 0.62, 2.2)
+		var seat := Vector3(-5.8, 1.12, 0.6)
+		var look_at := Vector3(-6.6, 0.55, 2.25)
 		target = Transform3D(Basis(), seat).looking_at(look_at, Vector3.UP)
 		_anchor.global_transform = target
 		_relax_cam_pos = seat
