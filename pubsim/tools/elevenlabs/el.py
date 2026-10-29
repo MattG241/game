@@ -246,7 +246,7 @@ def premade_ok(voice_id, cache):
 
 
 def generate(phase, cap, all_sfx=False):
-    lines = load_json(os.path.join(HERE, "voice_lines.json"), {"cast": {}, "lines": []})
+    lines = load_json(os.path.join(ROOT, "data", "voice_lines.json"), {"cast": {}, "lines": []})
     sfx = load_json(os.path.join(HERE, "sfx.json"), [])
     manifest = load_json(MANIFEST, {"clips": {}, "credits_spent": 0})
     _, used0, limit = subscription()

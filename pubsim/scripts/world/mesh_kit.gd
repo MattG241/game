@@ -379,6 +379,40 @@ static func solid_box(parent: Node, size: Vector3, pos: Vector3, material: Mater
 	return mi
 
 
+## Merges the plain MeshInstance3D children of a node into one mesh with one surface per
+## material, so a character's limb or head costs a few draw calls instead of a dozen.
+## Children that have their own children (joints) are left alone.
+static func merge_children(node: Node3D, name := "Merged") -> MeshInstance3D:
+	var by_mat := {}
+	var order: Array = []
+	for ch in node.get_children():
+		if not (ch is MeshInstance3D) or ch.get_child_count() > 0 or ch.mesh == null:
+			continue
+		var mi: MeshInstance3D = ch
+		var m: Material = mi.material_override
+		if not by_mat.has(m):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			by_mat[m] = st
+			order.append(m)
+		for si in mi.mesh.get_surface_count():
+			(by_mat[m] as SurfaceTool).append_from(mi.mesh, si, mi.transform)
+		node.remove_child(mi)
+		mi.free()
+	if order.is_empty():
+		return null
+	var am := ArrayMesh.new()
+	for m in order:
+		var st: SurfaceTool = by_mat[m]
+		st.commit(am)
+		am.surface_set_material(am.get_surface_count() - 1, m)
+	var out := MeshInstance3D.new()
+	out.name = name
+	out.mesh = am
+	node.add_child(out)
+	return out
+
+
 ## Surface of revolution from a profile of (radius, height) points.
 static func lathe(profile: PackedVector2Array, segs := 24, cap_bottom := true, inward := false) -> ArrayMesh:
 	var st := SurfaceTool.new()

@@ -65,7 +65,7 @@ func begin(id: String, tap_info: Dictionary) -> void:
 	var g0: Vector3 = tap["glass"]
 	var target := Transform3D(Basis(), g0 + Vector3(-0.2, 0.25, -0.44))
 	target = target.looking_at(g0 + Vector3(0.03, 0.16, 0.0), Vector3.UP)
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	world.hud.enter_pour_mode(self)
 	Sfx.play("tap_clunk", -10.0)
@@ -218,9 +218,7 @@ func end(to_settle: bool) -> void:
 	var cam: Camera3D = world.close_cam
 	if _cam_tween:
 		_cam_tween.kill()
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", player.camera.global_transform, 0.35).set_trans(Tween.TRANS_SINE)
-	_cam_tween.tween_callback(func():
-		player.camera.current = true
-		player.input_enabled = true)
+	_cam_tween.tween_callback(world.back_to_player_camera)
 	world.hud.exit_pour_mode()

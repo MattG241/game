@@ -71,7 +71,7 @@ func begin(opp := "packie") -> void:
 	cam.current = true
 	var eye := Vector3(PubLayout.OCHE_X, 1.62, BOARD.z)
 	var target := Transform3D(Basis(), eye).looking_at(BOARD, Vector3.UP)
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.6).set_trans(Tween.TRANS_SINE)
 	cam.fov = 21.0
 	_reticle = MeshInstance3D.new()
@@ -264,10 +264,9 @@ func end() -> void:
 	var cam: Camera3D = world.close_cam
 	if _cam_tween:
 		_cam_tween.kill()
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", player.camera.global_transform, 0.4)
 	_cam_tween.tween_callback(func():
 		cam.fov = 50.0
-		player.camera.current = true
-		player.input_enabled = true)
+		world.back_to_player_camera())
 	world.hud.exit_darts_mode()

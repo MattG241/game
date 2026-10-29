@@ -15,6 +15,9 @@ var pour: Node
 var drink_scene: DrinkScene
 var darts: DartsGame
 var live: LiveMusic
+var voices: VoiceDirector
+var _cam_tween: Tween
+var _chatter_t := 20.0
 var dispatcher := OrderDispatcher.new()
 var _spawn_gap := 0.0
 var max_active_seen := 0
@@ -92,11 +95,16 @@ func _ready() -> void:
 	_fire_audio.position = PubLayout.FIREPLACE + Vector3(0.5, 0.5, 0)
 	add_child(_fire_audio)
 	_update_lighting(true)
+	voices = VoiceDirector.new()
+	voices.name = "Voices"
+	voices.world = self
+	add_child(voices)
 	live = LiveMusic.new()
 	live.name = "LiveMusic"
 	live.world = self
 	add_child(live)
 	GameState.upgrade_bought.connect(_on_upgrade_bought)
+	GameState.award_earned.connect(func(_id): voices.speak(null, "landlord", "milestone", true))
 	MusicDirector.set_screen("world")
 	MusicDirector.context["milestone"] = false
 	await get_tree().physics_frame
@@ -128,19 +136,36 @@ func _setup_env() -> void:
 	apply_graphics()
 
 
+## Graphics presets. All run on the Compatibility (OpenGL ES 3) renderer used on Android.
+##  Performance: 75% render scale, no shadows, glow or fog, light rain, fewer people.
+##  Balanced:    full resolution, glow and fog, no real-time shadows.
+##  High:        + shadowed key light over the taps, 2x MSAA, more rain and people.
+##  Ultra:       + shadows from the pendant lamps and the fire, 4x MSAA, the most people.
 func apply_graphics() -> void:
-	var preset: String = GameState.settings.get("graphics", "medium")
+	var preset := GameState.graphics_preset()
+	var tier: int = GameState.GRAPHICS_PRESETS.find(preset)
 	var scale := float(GameState.settings.get("render_scale", 1.0))
+	if preset == "performance":
+		scale = minf(scale, 0.75)
 	get_viewport().scaling_3d_scale = clampf(scale, 0.5, 1.0)
-	get_viewport().msaa_3d = Viewport.MSAA_2X if preset == "high" else Viewport.MSAA_DISABLED
+	get_viewport().msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][tier]
 	if env:
-		env.glow_enabled = preset != "low" and not GameState.settings.get("reduced_effects", false)
-		env.fog_enabled = preset != "low"
+		env.glow_enabled = tier >= 1 and not GameState.settings.get("reduced_effects", false)
+		env.fog_enabled = tier >= 1
 	Engine.max_fps = int(GameState.settings.get("fps_limit", 60))
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 	if info.has("key_light") and info["key_light"]:
-		(info["key_light"] as SpotLight3D).shadow_enabled = preset == "high"
+		(info["key_light"] as SpotLight3D).shadow_enabled = tier >= 2
+	var lamp_i := 0
+	for l in info.get("lamps", []):
+		# only the two lamps nearest the bar cast shadows, and only on Ultra
+		(l as Light3D).shadow_enabled = tier >= 3 and lamp_i >= 4
+		lamp_i += 1
+	var fl: OmniLight3D = info.get("fire_light")
+	if fl:
+		fl.shadow_enabled = tier >= 3
 	for r in info.get("rain", []):
-		(r as CPUParticles3D).amount = 150 if preset == "low" else (350 if preset == "medium" else 600)
+		(r as CPUParticles3D).amount = [120, 300, 500, 700][tier]
 
 
 # ------------------------------------------------------------------ interactables
@@ -318,7 +343,8 @@ func _sign_action() -> void:
 			GameState.open_pub()
 			Sfx.play("door_bell", -4.0)
 			_set_sign(true)
-			notify("The Crooked Shamrock is open!", "good")
+			notify("%s is open!" % GameState.pub_name, "good")
+			voices.speak(null, "landlord", "welcome", true)
 			_tutorial_event("opened")
 			if int(GameState.stats["served"]) == 0:
 				_first_customer_timer = 3.0
@@ -356,6 +382,23 @@ func _keg_action(id: String) -> void:
 		Sfx.play("keg", -2.0)
 		notify("Fresh %s connected." % GameData.drink(id)["stock_unit"], "good")
 		_refresh_stock_pile()
+
+
+## All close-up camera moves (pouring, darts, Split the G, the fireside) share one tween, so a
+## move that is still finishing can never fight the next one.
+func new_cam_tween() -> Tween:
+	if _cam_tween and _cam_tween.is_valid():
+		_cam_tween.kill()
+	_cam_tween = create_tween()
+	return _cam_tween
+
+
+## Hands the view back to the player, unless another close-up has started in the meantime.
+func back_to_player_camera() -> void:
+	if in_minigame():
+		return
+	player.camera.current = true
+	player.input_enabled = true
 
 
 func in_minigame() -> bool:
@@ -559,7 +602,7 @@ func pick_drink(c: Customer) -> String:
 
 
 func max_customers() -> int:
-	var preset: String = GameState.settings.get("graphics", "medium")
+	var preset: String = GameState.graphics_preset()
 	var cap := int(GameData.econ("max_customers_" + preset, 14))
 	var seats := 0
 	for s in info["seats"]:
@@ -675,6 +718,8 @@ func spawn_customer(force_regular := "") -> Customer:
 	c.drink_rate = 1.0 / _rng.randf_range(75.0, 120.0)
 	c.speed = _rng.randf_range(1.1, 1.4)
 	c.setup(self, look, _rng.randi())
+	var reg_voice := str(GameData.regulars_by_id[reg].get("voice", "")) if reg != "" else ""
+	c.voice = VoiceDirector.voice_for(reg_voice, c.gender, c.visitor, _rng.randi())
 	add_child(c)
 	c.drink_id = pick_drink(c)
 	var from_left := _rng.randf() < 0.5
@@ -855,7 +900,7 @@ func _customer_action(c: Customer) -> void:
 				var r: Dictionary = GameData.regulars_by_id[c.regular_id]
 				var chat: Array = r.get("chat", [])
 				if not chat.is_empty():
-					c.say(chat[_rng.randi() % chat.size()], 5.0)
+					c.speak("chatter", chat[_rng.randi() % chat.size()], 5.0, Color(1, 0.97, 0.9), true)
 					_relationship(c.regular_id, 1, true)
 
 
@@ -918,7 +963,7 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 		_relationship(c.regular_id, 3 if q >= 85 else (1 if q >= 60 else -1))
 	else:
 		reaction = line("praise" if q >= 80 else ("ok" if q >= 55 else "complain"))
-	c.say(reaction, 3.5, Color(0.7, 1.0, 0.7) if q >= 70 else Color(1.0, 0.85, 0.6))
+	c.speak("praise" if q >= 70 else "complain", reaction, 3.5, Color(0.7, 1.0, 0.7) if q >= 70 else Color(1.0, 0.85, 0.6))
 	Sfx.play("glass_place", -4.0)
 	Sfx.play("till", -8.0)
 	if tip > 0.0:
@@ -949,8 +994,29 @@ func _perfect_pint_reaction(served_to: Customer) -> void:
 	notify("A perfect pint! The bar raises a glass.", "good")
 
 
+## Now and then someone near you passes a remark (recorded chatter lines only; no bubble spam).
+func _ambient_chatter(delta: float) -> void:
+	_chatter_t -= delta
+	if _chatter_t > 0.0:
+		return
+	_chatter_t = _rng.randf_range(28.0, 55.0)
+	var near: Array = []
+	for c in customers:
+		if c.state in ["mingle", "drinking", "stand_drink"] and c.global_position.distance_to(player.global_position) < 8.0:
+			near.append(c)
+	if not near.is_empty():
+		var c: Customer = near[_rng.randi() % near.size()]
+		c.speak("chatter", "", 4.0)
+
+
+## A reaction from the room (used by Split the G).
+func crowd_voice(tag: String) -> void:
+	voices.crowd(tag)
+
+
 func _on_upgrade_bought(id: String) -> void:
 	var u := GameData.upgrade(id)
+	voices.speak(null, "landlord", "upgrade", true)
 	# substantial renovations get a proper moment with The Pub Gets Bigger
 	if float(u.get("cost", 0)) >= 200.0:
 		celebrate("The pub gets bigger!", "%s\n%s" % [u["name"], u.get("desc", "")], "t15")
@@ -995,7 +1061,11 @@ func _update_music_context() -> void:
 	ctx["satisfaction"] = float(GameState.today.get("satisfaction_sum", 0.0)) / maxf(1.0, served) if served > 0 else 60.0
 	# keep the chatter down while a vocal song is being sung so the words carry
 	var vocal: bool = live != null and live.playing and MusicDirector.tracks.get(live.now_playing, {}).get("vocal", false)
-	Sfx.set_loop("crowd", "crowd_loop", clampf(customers.size() / 10.0, 0.0, 1.0) * (0.35 if vocal else 0.8), "Speech")
+	# a quiet murmur for a few people, the busy room fading in as the pub fills
+	var fill := clampf(customers.size() / 10.0, 0.0, 1.0) * (0.35 if vocal else 0.8)
+	var busy := clampf((customers.size() - 3) / 6.0, 0.0, 1.0)
+	Sfx.set_loop("crowd_quiet", "quiet_crowd_loop", minf(fill * 2.0, 0.6) * (1.0 - busy), "Speech")
+	Sfx.set_loop("crowd", "crowd_loop", fill * busy, "Speech")
 
 
 func _relationship(id: String, delta: int, chat := false) -> void:
@@ -1044,6 +1114,7 @@ func _process(delta: float) -> void:
 			_last_orders()
 		if GameState.phase == "last_orders" and GameState.hour >= close_h:
 			GameState.phase = "closing"
+			voices.speak(null, "landlord", "closing", true)
 			for c in customers.duplicate():
 				if c.state in ["queue", "wait_order"]:
 					c.say("Ah, closing time. Night!", 2.0)
@@ -1055,6 +1126,7 @@ func _process(delta: float) -> void:
 					c.leave()
 		_maybe_spawn(delta)
 		_dispatch(delta)
+		_ambient_chatter(delta)
 	# settle every pint in the building
 	var settle_s := float(GameData.econ("settle_seconds", 12.0))
 	for g in settle_slots:
@@ -1089,6 +1161,7 @@ func _last_orders() -> void:
 		return
 	GameState.phase = "last_orders"
 	Sfx.play("till", -2.0)
+	voices.speak(null, "landlord", "last_orders", true)
 	notify("Last orders, please! No new customers tonight.", "info")
 
 

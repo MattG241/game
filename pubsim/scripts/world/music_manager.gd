@@ -132,6 +132,8 @@ func _start(ev: Dictionary) -> void:
 	world.notify("%s has started! Walk over to hear them." % ev["name"], "good")
 	Sfx.play_at("cheer", _centre + Vector3(-2.0, 1.2, 0), world, -6.0)
 	_between = 1.5
+	if _band_says("music_intro"):
+		_between = 4.5
 
 
 ## The band opens with the booked tune; longer nights add other tunes they know.
@@ -182,6 +184,17 @@ func _next_song() -> void:
 	player3d.play()
 
 
+## The band's front player says something between tunes (recorded lines only).
+func _band_says(tag: String) -> bool:
+	if musicians.is_empty() or not is_instance_valid(musicians[0]) or world.voices == null:
+		return false
+	var m: Customer = musicians[0]
+	var said: String = world.voices.speak(m, "musician", tag, true)
+	if said != "":
+		m.say(said, 4.0)
+	return said != ""
+
+
 ## One More Round is played on especially good nights.
 func finale_due() -> bool:
 	var served := int(GameState.today.get("served", 0))
@@ -199,12 +212,19 @@ func _on_song_finished() -> void:
 		if c.state in ["drinking", "stand_drink", "audience"] and randf() < 0.7:
 			c.cheer()
 	_release_audience()
+	if randf() < 0.5:
+		world.voices.crowd("cheer")
+	if was != FINALE and not finale_played and finale_due():
+		if _band_says("music_finale"):
+			_between = 5.0
+	elif randf() < 0.5:
+		_band_says("music_thanks")
 	if was == FINALE:
 		crowd_mood += 0.5
 		GameState.reputation = minf(100.0, GameState.reputation + 1.5)
 		GameState.today["singalong"] = true
 		world.notify("The whole pub sang One More Round! Reputation up.", "good")
-	_between = 3.0
+	_between = maxf(_between, 3.0)
 
 
 func _finish() -> void:
@@ -224,6 +244,7 @@ func _finish() -> void:
 	for c in world.customers:
 		c.apply_music(0.0, "")
 	championship_open = false
+	Sfx.play_at("applause", _centre + Vector3(-2.0, 1.2, 0), world, -4.0)
 	GameState.today["live_rating"] = live_rating()
 	world.notify("The musicians take a bow. What a night!", "good")
 
@@ -294,7 +315,12 @@ func _spawn_musicians(ev: Dictionary) -> void:
 		var look := {}
 		if i == 0 and ev["id"] in ["fiddles_fire", "fiddlers_table", "galway_reel"]:
 			look = GameData.regulars_by_id.get("tomas", {}).get("look", {})
+		if i == 0 and not look.has("gender"):
+			look = look.duplicate()
+			look["gender"] = "m"   # the band's talker, voiced by the musician cast
 		m.setup(world, look, 900 + i * 31 + GameState.day)
+		if i == 0:
+			m.voice = "musician"
 		m.display_name = "Musician"
 		world.add_child(m)
 		var sp: Dictionary = spots[i]

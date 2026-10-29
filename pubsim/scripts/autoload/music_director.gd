@@ -48,6 +48,7 @@ var _last_ids: Array[String] = []
 var _rng := RandomNumberGenerator.new()
 var _stream_cache: Dictionary = {}
 var _duck := 1.0
+var _speech_left := 0.0
 
 
 func _ready() -> void:
@@ -106,6 +107,11 @@ func _release_unused() -> void:
 
 
 # ------------------------------------------------------------------ public API
+## Called by the voice director while a character speaks.
+func duck_for_speech(seconds: float) -> void:
+	_speech_left = maxf(_speech_left, seconds)
+
+
 func set_screen(screen: String) -> void:
 	context["screen"] = screen
 
@@ -365,6 +371,10 @@ func _process(delta: float) -> void:
 			_stinger.stop()
 	if context["menu_open"]:
 		duck_target = minf(duck_target, 0.55)
+	if _speech_left > 0.0:
+		# dip the music a little under spoken lines so they stay clear
+		_speech_left -= delta
+		duck_target = minf(duck_target, 0.6)
 	_duck = move_toward(_duck, duck_target, delta * 1.5)
 	for i in 2:
 		_levels[i] = move_toward(_levels[i], _targets[i], delta * _fade_speed[i])

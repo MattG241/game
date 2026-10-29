@@ -55,7 +55,7 @@ var settings: Dictionary = {
 	"vol_ambience": 0.7,
 	"vol_speech": 0.7,
 	"vol_effects": 0.9,
-	"graphics": "medium",
+	"graphics": "balanced",
 	"render_scale": 1.0,
 	"fps_limit": 60,
 	"reduced_motion": false,
@@ -64,6 +64,7 @@ var settings: Dictionary = {
 	"day_length": 10,
 	"show_fps": false,
 	"subtitles": true,
+	"voices": true,
 	"high_contrast": false,
 	"difficulty": "balanced",
 	"music_mode": "auto",
@@ -528,6 +529,21 @@ func load_settings() -> void:
 	if typeof(parsed) == TYPE_DICTIONARY:
 		for k in parsed.keys():
 			settings[k] = parsed[k]
+	settings["graphics"] = graphics_preset()
+
+
+const GRAPHICS_PRESETS := ["performance", "balanced", "high", "ultra"]
+
+
+## The graphics preset, with the names used by earlier versions mapped onto the new ones.
+func graphics_preset() -> String:
+	var g := str(settings.get("graphics", "balanced"))
+	match g:
+		"low":
+			return "performance"
+		"medium":
+			return "balanced"
+	return g if g in GRAPHICS_PRESETS else "balanced"
 
 
 func set_setting(key: String, value: Variant) -> void:

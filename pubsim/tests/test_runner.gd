@@ -424,7 +424,89 @@ func _test_loop() -> void:
 	check(main.world.info["upgrade_show"]["lamps"][0].visible, "purchased upgrade still visible after reload")
 	await _test_minigames(main.world)
 	await _test_music(main.world)
+	await _test_voices_and_people(main.world)
 	await _test_queue_balance()
+
+
+func _test_voices_and_people(w: World) -> void:
+	_log("== Integration: voices, recorded effects and characters ==")
+	var vd := w.voices
+	var n := vd.recorded_count()
+	check(n >= 1, "recorded voice lines are bundled and indexed (%d found)" % n)
+	check(not vd.has_line("old_regular", "order_stout", "lager") or vd.has_line("old_regular", "order_stout", "stout"), "order lines are matched to the drink ordered")
+	check(ResourceLoader.exists("res://assets/sfx_el/tap_lever.ogg") and Sfx.get_stream("tap_clunk").resource_path.contains("sfx_el"), "recorded tap effect replaces the synthesised one")
+	var crowd_s: AudioStream = Sfx.get_stream("crowd_loop")
+	check(crowd_s is AudioStreamOggVorbis and (crowd_s as AudioStreamOggVorbis).loop, "recorded pub ambience loops")
+	# a regular orders with their own voice; the mouth moves while they talk
+	for c in w.customers.duplicate():
+		c.queue_free()
+	w.customers.clear()
+	await _frames(2)
+	var c := w.spawn_customer("packie")
+	check(c.voice == "old_regular" and c.gender == "m", "regulars have their own voice and look (%s, %s)" % [c.voice, c.gender])
+	var reg_f := w.spawn_customer("nora")
+	check(reg_f.gender == "f" and reg_f.voice in VoiceDirector.FEMALE_VOICES, "voices match the character (Nora: %s)" % reg_f.voice)
+	c.global_position = w.player.global_position + Vector3(0, 0, 1.5)
+	c.drink_id = "stout"
+	c.state = "wait_order"
+	vd._gap = 0.0
+	var before := vd.played.size()
+	var music_duck_before := MusicDirector._speech_left
+	c.take_order()
+	if vd.has_line("old_regular", "order_stout", "stout"):
+		check(vd.played.size() == before + 1, "ordering plays the character's recorded line")
+		check(c._talk_left > 0.0 and MusicDirector._speech_left > music_duck_before, "they move their mouth and the music dips while speaking")
+		await _frames(20)
+		check(absf(c._jaw_lip.position.y + 0.005) > 0.0005, "the mouth opens and closes")
+		check(str(c._bubble.text).contains("Galagers"), "the bubble shows the words spoken (%s)" % c._bubble.text)
+	# no pile-ups: a second line straight away is held back, unless it matters
+	var p2 := vd.played.size()
+	vd.speak(reg_f, "old_regular", "order_stout")
+	check(vd.played.size() == p2, "a second voice right after is held back (no pile-ups)")
+	# characters bend at the knee when they sit
+	c._set_seated(true)
+	await _frames(3)
+	check(c._knees[0].rotation.x > 1.2, "seated characters bend their knees (%.2f)" % c._knees[0].rotation.x)
+	c._set_seated(false)
+	c._arms[1].rotation.x = -1.6
+	await _frames(15)
+	check(c._elbows[1].rotation.x < -0.8, "raising a glass bends the elbow")
+	c.leave()
+	reg_f.leave()
+	# regression: starting a close-up right after leaving another must keep the new view
+	GameState.upgrades["dartboard"] = 1
+	w.start_darts()
+	await _frames(30)
+	w.darts.end()
+	await _frames(6)
+	w.start_split()
+	await _frames(60)
+	check(get_viewport().get_camera_3d() == w.close_cam, "a close-up started straight after another keeps its camera")
+	w.drink_scene.end()
+	await _frames(40)
+	check(get_viewport().get_camera_3d() == w.player.camera and w.player.input_enabled, "and the view returns to you afterwards")
+	# graphics presets: old names map onto the new ones and each preset applies
+	GameState.settings["graphics"] = "low"
+	check(GameState.graphics_preset() == "performance", "older 'low' setting maps to Performance")
+	for pr in ["performance", "balanced", "high", "ultra"]:
+		GameState.settings["graphics"] = pr
+		w.apply_graphics()
+		await _frames(2)
+	check(get_viewport().msaa_3d == Viewport.MSAA_4X and (w.info["key_light"] as SpotLight3D).shadow_enabled, "Ultra preset turns on 4x MSAA and shadows")
+	GameState.settings["graphics"] = "performance"
+	w.apply_graphics()
+	check(get_viewport().scaling_3d_scale <= 0.75 and not (w.info["key_light"] as SpotLight3D).shadow_enabled and w.max_customers() <= 10, "Performance preset lowers resolution, shadows and crowd size")
+	GameState.settings["fps_limit"] = 30
+	w.apply_graphics()
+	check(Engine.max_fps == 30, "30 FPS mode caps the frame rate")
+	GameState.settings["fps_limit"] = 60
+	GameState.settings["graphics"] = "balanced"
+	w.apply_graphics()
+	# the game keeps working with voices switched off
+	GameState.settings["voices"] = false
+	vd._gap = 0.0
+	check(vd.speak(null, "landlord", "last_orders", true) == "", "voices can be switched off")
+	GameState.settings["voices"] = true
 
 
 func _test_minigames(w: World) -> void:

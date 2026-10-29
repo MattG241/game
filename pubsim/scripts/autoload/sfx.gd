@@ -1,10 +1,22 @@
 extends Node
-## Audio buses, one-shot sounds and looping ambience. All audio is synthesised by tools/gen_audio.py.
+## Audio buses, one-shot sounds and looping ambience.
+## Sounds are synthesised by tools/gen_audio.py; where a recorded ElevenLabs effect exists
+## (assets/sfx_el, made once offline by tools/elevenlabs/el.py) it is used instead.
 
 const BUSES := ["Music", "Ambience", "Speech", "Effects"]
 const SETTING_FOR_BUS := {
 	"Master": "vol_master", "Music": "vol_music", "Ambience": "vol_ambience",
 	"Speech": "vol_speech", "Effects": "vol_effects",
+}
+
+## Game sound name -> recorded effect that replaces it when present.
+const RECORDED := {
+	"tap_clunk": "tap_lever", "glass_place": "glass_on_bar", "clink": "glass_clink", "till": "till_drawer",
+	"door_bell": "door_bell", "dart_hit": "dart_hit", "cheer": "cheer_crowd", "laugh": "laugh_group",
+	"crowd_loop": "pub_busy_loop", "quiet_crowd_loop": "pub_quiet_loop", "rain_loop": "rain_window_loop",
+	"fire_loop": "fire_loop", "applause": "applause", "bottle_open": "bottle_open", "stool": "stool_scrape",
+	"foam_settle": "foam_settle", "wash": "wash_glass", "success": "success_sting", "split_tension": "split_tension",
+	"stout_pour": "stout_pour",
 }
 
 var streams: Dictionary = {}
@@ -42,6 +54,8 @@ func get_stream(sound: String) -> AudioStream:
 	if streams.has(sound):
 		return streams[sound]
 	var path := "res://assets/audio/%s.ogg" % sound
+	if RECORDED.has(sound) and ResourceLoader.exists("res://assets/sfx_el/%s.ogg" % RECORDED[sound]):
+		path = "res://assets/sfx_el/%s.ogg" % RECORDED[sound]
 	if not ResourceLoader.exists(path):
 		push_warning("Missing sound %s" % sound)
 		streams[sound] = null

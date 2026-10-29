@@ -79,7 +79,7 @@ func begin(m: String, drink := "stout") -> void:
 		_anchor.global_transform = target
 		_relax_cam_pos = seat
 		glass.position = Vector3(0.12, -0.32, -0.42)
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.6).set_trans(Tween.TRANS_SINE)
 	if mode == "split":
 		# the Split the G instrumental takes over the music for the challenge
@@ -120,6 +120,10 @@ func press() -> void:
 		hold_t = 0.0
 		_gulp_start_body = glass.contents.body
 		state = "drinking"
+		if mode == "split":
+			Sfx.play("split_tension", -8.0, 0.0)
+			if world.has_method("crowd_voice"):
+				world.crowd_voice("split_anticipation")
 
 
 func release() -> void:
@@ -240,7 +244,7 @@ func _score() -> void:
 	var zoom := Transform3D(Basis(), SPLIT_POS + Vector3(0.0, ty + 0.004, 0.15)).looking_at(SPLIT_POS + Vector3(0, ty, 0), Vector3.UP)
 	if _cam_tween:
 		_cam_tween.kill()
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", zoom, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	world.hud.set_drink_text("Slow-motion replay...")
 	finished.emit(_result)
@@ -271,7 +275,7 @@ func retry() -> void:
 	var target := _split_cam()
 	if _cam_tween:
 		_cam_tween.kill()
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.6)
 	world.hud.enter_drink_mode(self)
 
@@ -293,9 +297,7 @@ func end() -> void:
 	var cam: Camera3D = world.close_cam
 	if _cam_tween:
 		_cam_tween.kill()
-	_cam_tween = world.create_tween()
+	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", player.camera.global_transform, 0.4)
-	_cam_tween.tween_callback(func():
-		player.camera.current = true
-		player.input_enabled = true)
+	_cam_tween.tween_callback(world.back_to_player_camera)
 	world.hud.exit_drink_mode()

@@ -222,21 +222,24 @@
    "voice": "old_regular",
    "tag": "order_stout",
    "text": "Pint of Galagers, when you're ready. No rush.",
-   "sample": true
+   "sample": true,
+   "drink": "stout"
   },
   {
    "id": "old_regular_order_stout_02",
    "voice": "old_regular",
    "tag": "order_stout",
    "text": "The usual. And let it settle this time.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "old_regular_order_stout_03",
    "voice": "old_regular",
    "tag": "order_stout",
    "text": "A Galagers, please. Take your time with it.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "old_regular_praise_01",
@@ -334,28 +337,32 @@
    "voice": "cheerful_local",
    "tag": "order_stout",
    "text": "Pint of Galagers there, please!",
-   "sample": true
+   "sample": true,
+   "drink": "stout"
   },
   {
    "id": "cheerful_local_order_stout_02",
    "voice": "cheerful_local",
    "tag": "order_stout",
    "text": "Ah go on, I'll have a Galagers!",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "cheerful_local_order_other_01",
    "voice": "cheerful_local",
    "tag": "order_other",
    "text": "Can I get a cider, please? Lovely.",
-   "sample": false
+   "sample": false,
+   "drink": "cider"
   },
   {
    "id": "cheerful_local_order_other_02",
    "voice": "cheerful_local",
    "tag": "order_other",
    "text": "Something cold, please! It's been a day.",
-   "sample": false
+   "sample": false,
+   "drink": "any"
   },
   {
    "id": "cheerful_local_praise_01",
@@ -467,35 +474,40 @@
    "voice": "dubliner",
    "tag": "order_stout",
    "text": "Pint of Galagers, boss.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "dubliner_order_stout_02",
    "voice": "dubliner",
    "tag": "order_stout",
    "text": "Two minutes for a Galagers and I'll be a happy man.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "dubliner_order_stout_03",
    "voice": "dubliner",
    "tag": "order_stout",
    "text": "Here, pint of Galagers when you get a sec.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "dubliner_order_other_01",
    "voice": "dubliner",
    "tag": "order_other",
    "text": "Pint of lager there, bud.",
-   "sample": false
+   "sample": false,
+   "drink": "lager"
   },
   {
    "id": "dubliner_order_other_02",
    "voice": "dubliner",
    "tag": "order_other",
    "text": "Give us a whiskey, would ya.",
-   "sample": false
+   "sample": false,
+   "drink": "whiskey"
   },
   {
    "id": "dubliner_praise_01",
@@ -628,28 +640,32 @@
    "voice": "colleen",
    "tag": "order_stout",
    "text": "A Galagers, please, love.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "colleen_order_stout_02",
    "voice": "colleen",
    "tag": "order_stout",
    "text": "I'll have a half of Galagers, thanks.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "colleen_order_other_01",
    "voice": "colleen",
    "tag": "order_other",
    "text": "A small whiskey, please. Just the one.",
-   "sample": false
+   "sample": false,
+   "drink": "whiskey"
   },
   {
    "id": "colleen_order_other_02",
    "voice": "colleen",
    "tag": "order_other",
    "text": "A lemonade for me, I'm driving.",
-   "sample": false
+   "sample": false,
+   "drink": "soft"
   },
   {
    "id": "colleen_praise_01",
@@ -705,21 +721,24 @@
    "voice": "jordan",
    "tag": "order_other",
    "text": "Hiya, could I get a cider, please?",
-   "sample": false
+   "sample": false,
+   "drink": "cider"
   },
   {
    "id": "jordan_order_other_02",
    "voice": "jordan",
    "tag": "order_other",
    "text": "Can I get a Galagers Zero, please? I'm on an early shift.",
-   "sample": false
+   "sample": false,
+   "drink": "zero"
   },
   {
    "id": "jordan_order_stout_01",
    "voice": "jordan",
    "tag": "order_stout",
    "text": "Galagers, please. Go on, I'll treat myself.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "jordan_praise_01",
@@ -761,21 +780,24 @@
    "voice": "andrew",
    "tag": "order_stout",
    "text": "Pint of Galagers, please, mate.",
-   "sample": true
+   "sample": true,
+   "drink": "stout"
   },
   {
    "id": "andrew_order_stout_02",
    "voice": "andrew",
    "tag": "order_stout",
    "text": "I'll take a Galagers there, thanks.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "andrew_order_other_01",
    "voice": "andrew",
    "tag": "order_other",
    "text": "A pint of ale, please. The red one.",
-   "sample": false
+   "sample": false,
+   "drink": "ale"
   },
   {
    "id": "andrew_praise_01",
@@ -817,14 +839,16 @@
    "voice": "cillian",
    "tag": "order_stout",
    "text": "Galagers, please. Cheers.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "cillian_order_stout_02",
    "voice": "cillian",
    "tag": "order_stout",
    "text": "One Galagers, thanks, boss.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "cillian_praise_01",
@@ -873,14 +897,16 @@
    "voice": "tourist_us",
    "tag": "order_stout",
    "text": "Hi! What's good here? Actually, I'll try the Galagers.",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "tourist_us_order_stout_02",
    "voice": "tourist_us",
    "tag": "order_stout",
    "text": "One Galagers, please. My first one in Ireland!",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "tourist_us_praise_01",
@@ -901,14 +927,16 @@
    "voice": "tourist_uk",
    "tag": "order_stout",
    "text": "Could I have a pint of the Galagers, please?",
-   "sample": false
+   "sample": false,
+   "drink": "stout"
   },
   {
    "id": "tourist_uk_order_other_01",
    "voice": "tourist_uk",
    "tag": "order_other",
    "text": "A gin and tonic? Oh, just a lemonade then, thanks.",
-   "sample": false
+   "sample": false,
+   "drink": "soft"
   },
   {
    "id": "tourist_uk_praise_01",
