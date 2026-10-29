@@ -12,6 +12,25 @@ const RED := Color(0.75, 0.22, 0.16)
 const MUTED := Color(0.75, 0.68, 0.55)
 
 static var _theme: Theme
+static var _tex_boxes := {}
+
+
+## A 9-patch box from one of the pub's UI textures (assets/ui, made by tools/gen_ui.py):
+## "panel_timber", "button_timber", "button_green" or "ticket_ivory".
+static func tex_box(name: String, modulate := Color.WHITE, margin_h := 18, margin_v := 12) -> StyleBoxTexture:
+	var key := "%s|%s|%d|%d" % [name, modulate.to_html(), margin_h, margin_v]
+	if _tex_boxes.has(key):
+		return _tex_boxes[key]
+	var sb := StyleBoxTexture.new()
+	sb.texture = load("res://assets/ui/%s.png" % name)
+	sb.set_texture_margin_all(26.0)
+	sb.modulate_color = modulate
+	sb.content_margin_left = margin_h
+	sb.content_margin_right = margin_h
+	sb.content_margin_top = margin_v
+	sb.content_margin_bottom = margin_v
+	_tex_boxes[key] = sb
+	return sb
 
 
 static func panel_box(bg := WOOD, border := Color(0.55, 0.38, 0.18), radius := 18, border_w := 3) -> StyleBoxFlat:
@@ -40,25 +59,20 @@ static func theme() -> Theme:
 	t.set_color("font_hover_color", "Button", Color(1, 1, 0.92))
 	t.set_color("font_pressed_color", "Button", GOLD)
 	t.set_color("font_disabled_color", "Button", Color(0.6, 0.55, 0.45, 0.7))
-	var normal := panel_box(GREEN_DARK, Color(0.75, 0.6, 0.3), 14, 2)
-	normal.content_margin_top = 10
-	normal.content_margin_bottom = 10
-	var hover := normal.duplicate()
-	hover.bg_color = GREEN
-	var pressed := normal.duplicate()
-	pressed.bg_color = Color(0.05, 0.2, 0.1)
-	var disabled := normal.duplicate()
-	disabled.bg_color = Color(0.2, 0.18, 0.15, 0.8)
-	disabled.border_color = Color(0.4, 0.35, 0.3)
+	# buttons: green lacquer in a brass rim; panels: dark timber in a brass rim
+	var normal := tex_box("button_green", Color.WHITE, 18, 10)
+	var hover := tex_box("button_green", Color(1.25, 1.25, 1.2), 18, 10)
+	var pressed := tex_box("button_green", Color(0.75, 0.75, 0.75), 18, 10)
+	var disabled := tex_box("button_timber", Color(0.7, 0.68, 0.65, 0.85), 18, 10)
 	t.set_stylebox("normal", "Button", normal)
 	t.set_stylebox("hover", "Button", hover)
 	t.set_stylebox("pressed", "Button", pressed)
 	t.set_stylebox("disabled", "Button", disabled)
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	t.set_stylebox("panel", "PanelContainer", panel_box())
-	t.set_stylebox("panel", "Panel", panel_box())
-	var tab_sel := panel_box(GREEN, GOLD, 12, 2)
-	var tab_unsel := panel_box(WOOD_LIGHT, Color(0.4, 0.3, 0.15), 12, 2)
+	t.set_stylebox("panel", "PanelContainer", tex_box("panel_timber"))
+	t.set_stylebox("panel", "Panel", tex_box("panel_timber"))
+	var tab_sel := tex_box("button_green", Color(1.15, 1.15, 1.1), 14, 8)
+	var tab_unsel := tex_box("button_timber", Color.WHITE, 14, 8)
 	t.set_stylebox("tab_selected", "TabBar", tab_sel)
 	t.set_stylebox("tab_unselected", "TabBar", tab_unsel)
 	t.set_stylebox("tab_hovered", "TabBar", tab_unsel)

@@ -9,6 +9,7 @@ uniform vec3 grain_dir = vec3(1.0, 0.0, 0.0);
 uniform float roughness_base = 0.45;
 uniform float wear = 0.0;
 uniform bool world_space = false;
+uniform float relief = 1.0;
 varying vec3 pos;
 void vertex() {
 	pos = world_space ? (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz : VERTEX;
@@ -24,6 +25,7 @@ void fragment() {
 	float g = smoothstep(-0.6, 1.0, rings) * 0.35 + n * 0.65;
 	vec3 col = mix(dark_color, light_color, g);
 	float rough = roughness_base + (1.0 - g) * 0.15;
+	float h = g * 0.0012 + fbm3(pos * 40.0) * 0.0004;
 	if (plank_width > 0.0) {
 		vec3 dd = abs(d) ;
 		float cross_coord = dot(pos, vec3(dd.z, 0.0, dd.x));
@@ -32,9 +34,12 @@ void fragment() {
 		float plank_id = floor(cross_coord / plank_width);
 		col *= 0.85 + 0.3 * hash12(vec2(plank_id, 3.0));
 		col = mix(col, col * 0.35, s);
+		h -= s * 0.002;
 	}
-	col = mix(col, col * 1.25, wear * fbm3(pos * 2.0));
+	float worn = wear * fbm3(pos * 2.0);
+	col = mix(col, col * 1.25, worn);
 	ALBEDO = col;
-	ROUGHNESS = rough;
+	ROUGHNESS = clamp(rough - worn * 0.2, 0.05, 1.0);
+	NORMAL = bump_normal(NORMAL, VERTEX, h * relief, 1.0);
 	SPECULAR = 0.45;
 }

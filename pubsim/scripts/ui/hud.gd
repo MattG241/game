@@ -123,7 +123,7 @@ func apply_settings() -> void:
 
 func _build_status() -> void:
 	var status := PanelContainer.new()
-	status.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.1, 0.06, 0.04, 0.82), Color(0.55, 0.38, 0.18), 16, 2))
+	status.add_theme_stylebox_override("panel", UITheme.tex_box("panel_timber", Color(1, 1, 1, 0.92)))
 	status.position = Vector2(0, 0)
 	frame.add_child(status)
 	var vb := VBoxContainer.new()
@@ -289,7 +289,7 @@ func _draw_gauge() -> void:
 
 func _build_overlays() -> void:
 	result_card = PanelContainer.new()
-	result_card.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.1, 0.06, 0.04, 0.95), UITheme.GOLD, 20, 3))
+	result_card.add_theme_stylebox_override("panel", UITheme.tex_box("panel_timber", Color.WHITE, 22, 16))
 	_place(result_card, Control.PRESET_CENTER, Vector2(-260, -220), Vector2(520, 10))
 	result_card.grow_vertical = Control.GROW_DIRECTION_BOTH
 	result_card.custom_minimum_size = Vector2(520, 0)
@@ -639,7 +639,7 @@ func refresh_orders() -> void:
 			break
 		var p := PanelContainer.new()
 		var first: bool = shown == 0
-		p.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.95, 0.9, 0.76, 0.95) if first else Color(0.86, 0.82, 0.7, 0.88), UITheme.GOLD if first else Color(0.4, 0.3, 0.15), 10, 3 if first else 2))
+		p.add_theme_stylebox_override("panel", UITheme.tex_box("ticket_ivory", Color.WHITE if first else Color(0.9, 0.88, 0.84, 0.92), 14, 8))
 		p.custom_minimum_size = Vector2(250, 0)
 		var vb := VBoxContainer.new()
 		vb.add_theme_constant_override("separation", 2)

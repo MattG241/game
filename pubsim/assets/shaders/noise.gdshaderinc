@@ -55,3 +55,17 @@ vec2 voronoi2(vec2 p) {
 	}
 	return vec2(sqrt(best), id);
 }
+
+// Surface relief without normal maps: perturbs the (view-space) normal by the screen-space
+// gradient of a height value (Mikkelsen's surface-gradient bump). Cheap enough for phones.
+vec3 bump_normal(vec3 n, vec3 view_pos, float h, float strength) {
+	vec3 dpdx = dFdx(view_pos);
+	vec3 dpdy = dFdy(view_pos);
+	float dhdx = dFdx(h);
+	float dhdy = dFdy(h);
+	vec3 r1 = cross(dpdy, n);
+	vec3 r2 = cross(n, dpdx);
+	float det = dot(dpdx, r1);
+	vec3 grad = sign(det) * (dhdx * r1 + dhdy * r2);
+	return normalize(abs(det) * n - strength * grad);
+}

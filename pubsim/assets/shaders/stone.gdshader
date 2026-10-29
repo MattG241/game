@@ -20,4 +20,6 @@ void fragment() {
 	ALBEDO = c * (1.0 - wetness * 0.35);
 	ROUGHNESS = mix(mix(0.85, 0.3, wetness), 0.05, puddle) + edge * 0.1;
 	SPECULAR = 0.5 + wetness * 0.3;
+	float h = (1.0 - edge) * 0.006 + n * 0.002 * (1.0 - puddle);
+	NORMAL = bump_normal(NORMAL, VERTEX, h, 1.0);
 }

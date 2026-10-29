@@ -109,6 +109,11 @@ func _room() -> void:
 	var pd := PubLayout.BAR_BACK_Z - PubLayout.ROOM_MIN.y
 	MeshKit.solid(g, Vector3(0.15, h, pd), Vector3(px, h / 2, pz))
 	MeshKit.box(g, Vector3(0.15, h, pd), Vector3(px, h / 2, pz), MeshKit.mat("oak_y"))
+	# shadow gathered along the foot of each wall (cheap ambient occlusion)
+	MeshKit.edge_shadow(g, Vector3(0, 0, PubLayout.ROOM_MIN.y + 0.1), w, Vector3(0, 0, 1))
+	MeshKit.edge_shadow(g, Vector3(0, 0, PubLayout.ROOM_MAX.y - 0.13), w, Vector3(0, 0, -1))
+	MeshKit.edge_shadow(g, Vector3(PubLayout.ROOM_MIN.x + 0.1, 0, 0), d, Vector3(1, 0, 0))
+	MeshKit.edge_shadow(g, Vector3(PubLayout.ROOM_MAX.x - 0.1, 0, 0), d, Vector3(-1, 0, 0))
 	# skirting
 	MeshKit.box(g, Vector3(w, 0.14, 0.04), Vector3(0, 0.07, PubLayout.ROOM_MIN.y + 0.12), MeshKit.mat("oak"))
 	MeshKit.box(g, Vector3(0.04, 0.14, d), Vector3(PubLayout.ROOM_MAX.x - 0.12, 0.07, 0), MeshKit.mat("oak_z"))
@@ -169,6 +174,9 @@ func _bar() -> void:
 	MeshKit.box(g, Vector3(len, 0.12, 0.06), Vector3(cx, 0.06, zf + 0.04), MeshKit.mat("black_paint"))
 	MeshKit.box(g, Vector3(len + 0.1, 0.06, absf(depth) + 0.16), Vector3(cx, top - 0.03, cz + 0.02), MeshKit.mat("bar_top"))
 	MeshKit.cyl(g, 0.035, 0.035, len + 0.1, Vector3(cx, top - 0.035, zf + 0.1), MeshKit.mat("bar_top"), 10, Vector3(0, 0, PI / 2))
+	# shade where the bar meets the floor, both sides
+	MeshKit.edge_shadow(g, Vector3(cx, 0, zf), len, Vector3(0, 0, 1), 0.6, 0.5)
+	MeshKit.edge_shadow(g, Vector3(cx, 0, zb), len, Vector3(0, 0, -1), 0.5, 0.45)
 	# brass foot rail with brackets
 	var rail := MeshKit.cyl(g, 0.025, 0.025, len, Vector3(cx, 0.2, zf + 0.25), MeshKit.mat("brass_dull"), 10, Vector3(0, 0, PI / 2))
 	_tag("drip_tray", rail, false)
@@ -220,7 +228,9 @@ func _stool(g: Node3D, p: Vector3) -> void:
 	var s := Node3D.new()
 	s.position = p
 	g.add_child(s)
+	MeshKit.contact_shadow(s, Vector3.ZERO, Vector2(0.55, 0.55), 0.45)
 	MeshKit.cyl(s, 0.19, 0.19, 0.06, Vector3(0, 0.76, 0), MeshKit.mat("leather_red"), 16)
+	MeshKit.torus(s, 0.165, 0.2, Vector3(0, 0.76, 0), MeshKit.mat("leather_red"))  # rolled cushion edge
 	MeshKit.cyl(s, 0.03, 0.03, 0.72, Vector3(0, 0.38, 0), MeshKit.mat("iron"), 8)
 	MeshKit.torus(s, 0.13, 0.15, Vector3(0, 0.28, 0), MeshKit.mat("brass_dull"))
 	MeshKit.cyl(s, 0.18, 0.2, 0.03, Vector3(0, 0.015, 0), MeshKit.mat("iron"), 16)
@@ -254,12 +264,13 @@ func _stout_tap(g: Node3D) -> void:
 	t.add_child(pivot)
 	MeshKit.cyl(pivot, 0.012, 0.016, 0.06, Vector3(0, 0.03, 0), MeshKit.mat("brass"), 8)
 	MeshKit.cyl(pivot, 0.022, 0.03, 0.2, Vector3(0, 0.16, 0), MeshKit.mat("black_paint"), 12)
-	# GALAGERS badge on both faces of the handle, in a polished brass bezel
-	var badge := MeshKit.cyl(pivot, 0.046, 0.046, 0.014, Vector3(0, 0.2, 0.0), MeshKit.mat("brass"), 24, Vector3(PI / 2, 0, 0))
-	badge.name = "Badge"
+	# GALAGERS badge on both faces of the handle, each in a polished brass bezel proud of the handle
 	var bm := MeshKit.print_mat(BRAND + "galagers_badge.png", 0.0, 0.35)
-	MeshKit.quad(pivot, Vector2(0.086, 0.086), Vector3(0, 0.2, -0.0075), bm, Vector3(0, PI, 0))
-	MeshKit.quad(pivot, Vector2(0.086, 0.086), Vector3(0, 0.2, 0.0075), bm)
+	for side in [-1, 1]:
+		var badge := MeshKit.cyl(pivot, 0.047, 0.047, 0.008, Vector3(0, 0.2, side * 0.032), MeshKit.mat("brass"), 24, Vector3(PI / 2, 0, 0))
+		if side == -1:
+			badge.name = "Badge"
+		MeshKit.quad(pivot, Vector2(0.088, 0.088), Vector3(0, 0.2, side * 0.0365), bm, Vector3(0, 0.0 if side == 1 else PI, 0))
 	# black collar and chrome cap on the brass font
 	MeshKit.cyl(t, 0.043, 0.043, 0.03, Vector3(0, 0.30, 0.02), MeshKit.mat("black_paint"), 16)
 	MeshKit.cyl(t, 0.02, 0.02, 0.012, Vector3(0, 0.425, 0.02), MeshKit.mat("chrome"), 12)
@@ -461,7 +472,15 @@ func _table_round(g: Node3D, p: Vector3, seats: int) -> void:
 	var t := Node3D.new()
 	t.position = p
 	g.add_child(t)
+	MeshKit.contact_shadow(t, Vector3.ZERO, Vector2(1.5, 1.5), 0.5)
 	MeshKit.cyl(t, 0.42, 0.42, 0.05, Vector3(0, 0.74, 0), MeshKit.mat("bar_top"), 24)
+	MeshKit.torus(t, 0.405, 0.43, Vector3(0, 0.74, 0), MeshKit.mat("bar_top"))  # rounded edge
+	# a GALAGERS menu tent and a candle in an amber jar in the middle of the table
+	var menu_m := MeshKit.print_mat(BRAND + "galagers_menu.png", 0.0, 0.8)
+	for side in [-1, 1]:
+		MeshKit.quad(t, Vector2(0.09, 0.135), Vector3(0.0, 0.83, side * 0.022), menu_m, Vector3(side * -0.33, 0.0 if side == 1 else PI, 0))
+	MeshKit.cyl(t, 0.032, 0.03, 0.07, Vector3(0.1, 0.8, 0.06), MeshKit.color_mat(Color(0.75, 0.42, 0.12, 0.6), 0.1), 12)
+	MeshKit.sphere(t, 0.012, Vector3(0.1, 0.84, 0.06), MeshKit.mat("bulb"), Vector3(0.7, 1.4, 0.7))
 	MeshKit.cyl(t, 0.05, 0.06, 0.7, Vector3(0, 0.37, 0), MeshKit.mat("iron"), 10)
 	MeshKit.cyl(t, 0.25, 0.28, 0.04, Vector3(0, 0.02, 0), MeshKit.mat("iron"), 16)
 	var sb := StaticBody3D.new()
@@ -493,6 +512,7 @@ func _chair(g: Node3D, p: Vector3, yaw: float) -> void:
 	c.rotation.y = yaw
 	g.add_child(c)
 	var wood := MeshKit.mat("oak_y")
+	MeshKit.contact_shadow(c, Vector3.ZERO, Vector2(0.65, 0.65), 0.45)
 	MeshKit.box(c, Vector3(0.42, 0.05, 0.4), Vector3(0, 0.46, 0), MeshKit.mat("oak"))
 	for lx in [-0.18, 0.18]:
 		for lz in [-0.17, 0.17]:
@@ -510,10 +530,18 @@ func _armchair(g: Node3D, p: Vector3, face: Vector3, table_pos: Vector3) -> void
 	c.rotation.y = yaw
 	g.add_child(c)
 	var fab := MeshKit.mat("leather_green")
+	MeshKit.contact_shadow(c, Vector3.ZERO, Vector2(1.1, 1.0), 0.55)
 	MeshKit.box(c, Vector3(0.75, 0.25, 0.7), Vector3(0, 0.3, 0), fab)
+	MeshKit.box(c, Vector3(0.6, 0.08, 0.58), Vector3(0, 0.45, -0.03), fab)  # seat cushion
 	MeshKit.box(c, Vector3(0.75, 0.6, 0.15), Vector3(0, 0.7, 0.3), fab)
-	MeshKit.box(c, Vector3(0.12, 0.25, 0.7), Vector3(-0.38, 0.55, 0), fab)
-	MeshKit.box(c, Vector3(0.12, 0.25, 0.7), Vector3(0.38, 0.55, 0), fab)
+	MeshKit.cyl(c, 0.08, 0.08, 0.75, Vector3(0, 1.0, 0.3), fab, 14, Vector3(0, 0, PI / 2))  # top roll
+	for side in [-1, 1]:
+		MeshKit.box(c, Vector3(0.12, 0.25, 0.7), Vector3(side * 0.38, 0.55, 0), fab)
+		MeshKit.cyl(c, 0.075, 0.075, 0.72, Vector3(side * 0.38, 0.68, -0.01), fab, 14, Vector3(PI / 2, 0, 0))  # rolled arm
+	var button := MeshKit.color_mat(Color(0.03, 0.1, 0.05), 0.4)
+	for bx in 4:
+		for by in 2:
+			MeshKit.sphere(c, 0.012, Vector3(-0.24 + bx * 0.16 + by * 0.08, 0.62 + by * 0.16, 0.222), button)
 	MeshKit.box(c, Vector3(0.7, 0.18, 0.66), Vector3(0, 0.1, 0), MeshKit.mat("oak"))
 	MeshKit.solid(c, Vector3(0.8, 0.9, 0.75), Vector3(0, 0.45, 0))
 	info["seats"].append({"pos": p, "yaw": yaw, "table": table_pos, "kind": "armchair", "sit_y": 0.0})
@@ -529,6 +557,7 @@ func _booth(g: Node3D, p: Vector3) -> void:
 	b.rotation.y = PI / 2.0
 	g.add_child(b)
 	var leather := MeshKit.mat("leather_red")
+	MeshKit.contact_shadow(b, Vector3.ZERO, Vector2(1.8, 2.3), 0.5)
 	for side in [-1, 1]:
 		var z: float = side * 0.75
 		MeshKit.box(b, Vector3(1.3, 0.12, 0.5), Vector3(0, 0.44, z), leather)
@@ -673,6 +702,24 @@ func _decor() -> void:
 	MeshKit.box(g, Vector3(0.03, 0.54, 1.3), mp + Vector3(0.012, 0, 0), MeshKit.mat("oak_y"))
 	MeshKit.box(g, Vector3(0.01, 0.46, 1.22), mp, MeshKit.mat("mirror"))
 	MeshKit.quad(g, Vector2(1.16, 0.435), mp - Vector3(0.007, 0, 0), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.2), Vector3(0, -PI / 2, 0))
+	# framed menu board on the back wall, right of the shelving
+	var mb := Vector3(3.05, 1.85, PubLayout.ROOM_MIN.y + 0.13)
+	MeshKit.box(g, Vector3(0.5, 0.73, 0.03), mb, MeshKit.mat("oak_y"))
+	MeshKit.quad(g, Vector2(0.44, 0.66), mb + Vector3(0, 0, 0.017), MeshKit.print_mat(BRAND + "galagers_menu.png", 0.0, 0.7))
+	# coats and a flat cap on the hooks by the door, an umbrella stand
+	var coat_cols := [Color(0.25, 0.2, 0.14), Color(0.12, 0.16, 0.22)]
+	for i in 2:
+		var hx := -2.4 + i * 0.44
+		var cm := MeshKit.color_mat(coat_cols[i], 0.9)
+		MeshKit.capsule(g, 0.11, 0.85, Vector3(hx, 1.25, PubLayout.ROOM_MAX.y - 0.24), cm)
+		MeshKit.sphere(g, 0.09, Vector3(hx, 1.64, PubLayout.ROOM_MAX.y - 0.24), cm, Vector3(1.3, 0.6, 0.8))
+	MeshKit.cyl(g, 0.11, 0.12, 0.05, Vector3(-2.18, 1.73, PubLayout.ROOM_MAX.y - 0.2), MeshKit.color_mat(Color(0.3, 0.28, 0.22), 0.9), 14)
+	var us := Vector3(-0.95, 0, PubLayout.ROOM_MAX.y - 0.3)
+	MeshKit.contact_shadow(g, us, Vector2(0.4, 0.4), 0.5)
+	MeshKit.cyl(g, 0.11, 0.1, 0.5, us + Vector3(0, 0.25, 0), MeshKit.mat("brass_dull"), 16)
+	for i in 3:
+		var a := i * 2.1
+		MeshKit.cyl(g, 0.012, 0.03, 0.8, us + Vector3(sin(a) * 0.05, 0.45, cos(a) * 0.05), MeshKit.color_mat([Color(0.1, 0.1, 0.12), Color(0.45, 0.08, 0.08), Color(0.08, 0.2, 0.12)][i], 0.6), 8, Vector3(sin(a) * 0.12, 0, cos(a) * 0.12))
 	# chalkboard (upgrade)
 	var cb := Node3D.new()
 	cb.position = Vector3(1.9, 1.7, PubLayout.ROOM_MAX.y - 0.16)

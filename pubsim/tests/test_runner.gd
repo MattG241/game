@@ -485,6 +485,15 @@ func _test_voices_and_people(w: World) -> void:
 	w.drink_scene.end()
 	await _frames(40)
 	check(get_viewport().get_camera_3d() == w.player.camera and w.player.input_enabled, "and the view returns to you afterwards")
+	# first-person hand appears only while you hold a glass
+	var hg := PintGlass.new()
+	w.player.take_glass(hg)
+	await _frames(2)
+	check(w.player.fp_hand.visible, "your hand is shown holding the glass")
+	w.player.release_glass()
+	hg.queue_free()
+	await _frames(2)
+	check(not w.player.fp_hand.visible, "and hidden when your hands are empty")
 	# graphics presets: old names map onto the new ones and each preset applies
 	GameState.settings["graphics"] = "low"
 	check(GameState.graphics_preset() == "performance", "older 'low' setting maps to Performance")

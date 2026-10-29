@@ -76,6 +76,16 @@ static func mat(key: String) -> Material:
 			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.16, 0.24, 0.42), "stain": 0.3})
 		"render_yellow":
 			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.78, 0.6, 0.22), "stain": 0.3})
+		"leather_red":
+			m = shader_mat("res://assets/shaders/leather.gdshader", {"base_color": Color(0.32, 0.06, 0.05)})
+		"leather_green":
+			m = shader_mat("res://assets/shaders/leather.gdshader", {"base_color": Color(0.06, 0.18, 0.1)})
+		"brass":
+			m = shader_mat("res://assets/shaders/metal.gdshader", {"base_color": Color(0.85, 0.62, 0.28), "roughness_base": 0.2, "tarnish": 0.1})
+		"brass_dull":
+			m = shader_mat("res://assets/shaders/metal.gdshader", {"base_color": Color(0.5, 0.37, 0.18), "roughness_base": 0.45, "tarnish": 0.6})
+		"chrome":
+			m = shader_mat("res://assets/shaders/metal.gdshader", {"base_color": Color(0.8, 0.8, 0.82), "roughness_base": 0.1, "tarnish": 0.0})
 		_:
 			m = _std(key)
 	_mat_cache[key] = m
@@ -317,6 +327,39 @@ static func quad(parent: Node, size: Vector2, pos: Vector3, material: Material, 
 
 
 static var _prints := {}
+static var _shadow_mats := {}
+
+
+static func _shadow_mat(tex_path: String, strength: float) -> StandardMaterial3D:
+	var key := "%s|%.2f" % [tex_path, strength]
+	if not _shadow_mats.has(key):
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load(tex_path)
+		m.albedo_color = Color(0.0, 0.0, 0.0, strength)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		m.render_priority = -1
+		_shadow_mats[key] = m
+	return _shadow_mats[key]
+
+
+## A soft dark blob on the floor under furniture or a person: an approximation of ambient
+## occlusion that grounds objects without real-time shadows.
+static func contact_shadow(parent: Node, pos: Vector3, size: Vector2, strength := 0.55, yaw := 0.0) -> MeshInstance3D:
+	var q := quad(parent, size, pos + Vector3(0, 0.004, 0), _shadow_mat("res://assets/env/contact_shadow.png", strength), Vector3(-PI / 2, yaw, 0))
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return q
+
+
+## Darkening along the foot of a wall (where real rooms collect shadow and grime).
+## `inward` points from the wall into the room; the strip lies on the floor.
+static func edge_shadow(parent: Node, centre: Vector3, length: float, inward: Vector3, depth := 0.45, strength := 0.45) -> MeshInstance3D:
+	var yaw := atan2(inward.x, inward.z)
+	var q := quad(parent, Vector2(length, depth), centre + inward * (depth / 2.0) + Vector3(0, 0.003, 0),
+		_shadow_mat("res://assets/env/edge_shadow.png", strength), Vector3(-PI / 2, yaw, 0))
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return q
 
 
 ## A printed or painted graphic (GALAGERS badges, signs, posters...). Transparent PNGs use alpha

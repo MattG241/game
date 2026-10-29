@@ -17,7 +17,10 @@ void fragment() {
 	float grout = max(smoothstep(0.5 - gw.x, 0.5 - gw.x * 0.3, f.x), smoothstep(0.5 - gw.y, 0.5 - gw.y * 0.3, f.y));
 	float id = hash12(floor(q));
 	vec3 c = tile_color * (0.85 + 0.3 * id);
+	float dome = (1.0 - max(f.x, f.y) * 2.0);
+	float h = -grout * 0.002 + dome * 0.0008;
 	ALBEDO = mix(c, grout_color, grout);
 	ROUGHNESS = mix(glaze, 0.9, grout);
+	NORMAL = bump_normal(NORMAL, VERTEX, h, 1.0);
 	SPECULAR = 0.6;
 }

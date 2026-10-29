@@ -87,6 +87,20 @@ func _draw() -> void:
 	sb.shadow_color = Color(0, 0, 0, 0.3)
 	sb.shadow_size = 4
 	draw_style_box(sb, r)
+	if enabled:
+		# lacquer sheen on the upper half and a fine inner brass line
+		var hi := StyleBoxFlat.new()
+		hi.bg_color = Color(1, 1, 1, 0.07 if not is_down else 0.12)
+		hi.set_corner_radius_all(maxi(radius - 4, 0))
+		hi.corner_radius_bottom_left = 0
+		hi.corner_radius_bottom_right = 0
+		draw_style_box(hi, Rect2(Vector2(5, 5), Vector2(size.x - 10, size.y * 0.45)))
+		var line := StyleBoxFlat.new()
+		line.draw_center = false
+		line.border_color = Color(0.0, 0.0, 0.0, 0.35)
+		line.set_border_width_all(1)
+		line.set_corner_radius_all(maxi(radius - 3, 0))
+		draw_style_box(line, Rect2(Vector2(4, 4), size - Vector2(8, 8)))
 	if hold_progress > 0.0:
 		var pr := Rect2(Vector2(6, size.y - 12), Vector2((size.x - 12) * hold_progress, 6))
 		draw_rect(pr, UITheme.GOLD)

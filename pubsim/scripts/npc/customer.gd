@@ -80,6 +80,7 @@ func _build(look: Dictionary) -> void:
 	var fem := gender == "f"
 	_body = Node3D.new()
 	add_child(_body)
+	MeshKit.contact_shadow(self, Vector3.ZERO, Vector2(0.7, 0.7), 0.45)
 	var height: float = look.get("height", _rng.randf_range(0.93, 1.07) * (0.95 if fem else 1.0))
 	_body.scale = Vector3.ONE * height
 	var skin: Color = SKIN[int(look.get("skin", _rng.randi() % SKIN.size()))]
@@ -90,7 +91,7 @@ func _build(look: Dictionary) -> void:
 	else:
 		coat_c = Color.from_hsv(_rng.randf(), _rng.randf_range(0.25, 0.6), _rng.randf_range(0.2, 0.55))
 	var coat_m := MeshKit.color_mat(coat_c, 0.9)
-	var coat_dark := MeshKit.color_mat(coat_c.darkened(0.25), 0.9)
+	var coat_dark := MeshKit.color_mat(coat_c.darkened(0.14), 0.9)
 	var shirt_c: Color = [Color(0.92, 0.9, 0.85), Color(0.75, 0.82, 0.9), Color(0.85, 0.8, 0.7), Color(0.3, 0.32, 0.36)][_rng.randi() % 4]
 	var shirt_m := MeshKit.color_mat(shirt_c, 0.8)
 	var trouser_m := MeshKit.color_mat(Color.from_hsv(_rng.randf_range(0.55, 0.65), 0.3, _rng.randf_range(0.1, 0.3)), 0.85)
@@ -136,7 +137,7 @@ func _build(look: Dictionary) -> void:
 	else:
 		MeshKit.box(_body, Vector3(0.1, 0.26, 0.01), Vector3(0, 1.33, -0.146), shirt_m)
 		for side in [-1, 1]:
-			MeshKit.box(_body, Vector3(0.065, 0.3, 0.012), Vector3(side * 0.058, 1.3, -0.15), coat_dark, Vector3(0, 0, side * 0.28))
+			MeshKit.box(_body, Vector3(0.045, 0.28, 0.01), Vector3(side * 0.06, 1.31, -0.151), coat_dark, Vector3(0, 0, side * 0.3))
 		MeshKit.sphere(_body, 0.012, Vector3(0, 1.12, -0.147), MeshKit.color_mat(Color(0.2, 0.16, 0.1), 0.4))
 	if skirt:
 		MeshKit.cyl(_body, 0.19, 0.26, 0.42, Vector3(0, 0.7, 0), coat_dark, 14)

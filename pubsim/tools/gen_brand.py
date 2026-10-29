@@ -322,6 +322,39 @@ def keg_label():
     return im
 
 
+def menu_card():
+    """A table menu: what's on tap and behind the bar, with the house prices."""
+    W, H = 512, 768
+    im = Image.new("RGBA", (W, H), (236, 222, 190, 255))
+    d = ImageDraw.Draw(im)
+    d.rectangle([12, 12, W - 13, H - 13], outline=BURGUNDY, width=5)
+    d.rectangle([24, 24, W - 25, H - 25], outline=GOLD_DARK, width=2)
+    wm, _ = wordmark(400, 170, ivory=BLACK, edge=GOLD)
+    im.alpha_composite(wm, ((W - 400) // 2, 34))
+    f_head = font(30, 700)
+    f_item = font(25, 600)
+    t = "On Tap & Behind the Bar"
+    d.text(((W - d.textlength(t, font=f_head)) / 2, 220), t, font=f_head, fill=BURGUNDY)
+    with open(os.path.join(ROOT, "data", "drinks.json")) as fh:
+        drinks = json.load(fh)
+    y = 280
+    for dr in drinks:
+        name = dr["name"]
+        price = "%.2f" % float(dr.get("price", 5.0))
+        d.text((54, y), name, font=f_item, fill=BLACK)
+        pw = d.textlength(price, font=f_item)
+        d.text((W - 54 - pw, y), price, font=f_item, fill=BLACK)
+        # dotted leader
+        x0 = 54 + d.textlength(name, font=f_item) + 10
+        x1 = W - 54 - pw - 10
+        for x in range(int(x0), int(x1), 9):
+            d.ellipse([x, y + 20, x + 2, y + 22], fill=GOLD_DARK)
+        y += 52
+    em = emblem(90, ring=False)
+    im.alpha_composite(em, ((W - 90) // 2, H - 130))
+    return im
+
+
 def main():
     g_center, g_top, g_bot = glass_print()
     badge().save(os.path.join(OUT, "galagers_badge.png"))
@@ -332,6 +365,7 @@ def main():
     mirror_lettering().save(os.path.join(OUT, "galagers_mirror.png"))
     keg_label().save(os.path.join(OUT, "galagers_keg.png"))
     emblem(512).save(os.path.join(OUT, "galagers_emblem.png"))
+    menu_card().save(os.path.join(OUT, "galagers_menu.png"))
     # The print covers this part of the glass (metres from the glass base, radians round it).
     print_y0, print_y1 = 0.050, 0.140
     half_angle = 0.95

@@ -122,7 +122,9 @@ func _row() -> HBoxContainer:
 
 func _card(bg := Color(0.18, 0.11, 0.06, 0.95)) -> VBoxContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.panel_box(bg, Color(0.45, 0.32, 0.15), 14, 2))
+	# green cards (owned, now playing) are green lacquer; the rest are timber
+	var green := bg.g > bg.r
+	p.add_theme_stylebox_override("panel", UITheme.tex_box("button_green" if green else "button_timber", Color(0.8, 0.8, 0.8) if green else Color.WHITE, 18, 12))
 	content.add_child(p)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)

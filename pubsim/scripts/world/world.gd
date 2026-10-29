@@ -17,6 +17,7 @@ var darts: DartsGame
 var live: LiveMusic
 var voices: VoiceDirector
 var _cam_tween: Tween
+var _vignette: CanvasLayer
 var _chatter_t := 20.0
 var dispatcher := OrderDispatcher.new()
 var _spawn_gap := 0.0
@@ -131,9 +132,49 @@ func _setup_env() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 1.08
 	env.adjustment_contrast = 1.05
+	# brass, chrome, glass and polished wood reflect the pub itself: a panorama rendered from
+	# inside the room (tools/bake) is used as the sky for reflections only
+	var pano: Texture2D = load("res://assets/env/pub_reflection.png")
+	if pano:
+		var sky := Sky.new()
+		var sm := PanoramaSkyMaterial.new()
+		sm.panorama = pano
+		sm.energy_multiplier = 1.6
+		sky.sky_material = sm
+		sky.radiance_size = Sky.RADIANCE_SIZE_128
+		env.sky = sky
+		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	we.environment = env
 	add_child(we)
+	_add_vignette()
 	apply_graphics()
+
+
+## A gentle darkening towards the screen edges, like a warm, dim room seen through the eye.
+func _add_vignette() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -1
+	layer.name = "Vignette"
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0.0))
+	g.set_color(1, Color(0.02, 0.01, 0.0, 0.5))
+	g.add_point(0.55, Color(0, 0, 0, 0.0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.05, 1.05)
+	gt.width = 256
+	gt.height = 256
+	var tr := TextureRect.new()
+	tr.texture = gt
+	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(tr)
+	add_child(layer)
+	_vignette = layer
 
 
 ## Graphics presets. All run on the Compatibility (OpenGL ES 3) renderer used on Android.
@@ -164,6 +205,8 @@ func apply_graphics() -> void:
 	var fl: OmniLight3D = info.get("fire_light")
 	if fl:
 		fl.shadow_enabled = tier >= 3
+	if _vignette:
+		_vignette.visible = tier >= 1 and not GameState.settings.get("reduced_effects", false)
 	for r in info.get("rain", []):
 		(r as CPUParticles3D).amount = [120, 300, 500, 700][tier]
 
