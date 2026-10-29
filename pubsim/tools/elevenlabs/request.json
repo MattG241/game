@@ -1,1 +1,1 @@
-{"phase": "sample", "max_credits": 1500, "all_sfx": true, "note": "sample 3: free plan allows only premade voices (library voices 402, Voice Design 403). 4 lines with eleven_v3 accent tags to judge by ear, plus all remaining sound effects"}
+{"phase": "full", "max_credits": 6500, "note": "full script on premade voices with v3 accent tags (free plan). Spent before this run: 1,187 per request headers. Cap keeps the total under 8,500 and 1,500+ in reserve."}
