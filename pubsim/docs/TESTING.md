@@ -64,6 +64,22 @@ Simulated playtests (a bot bartender serving at a fixed pace, in game time):
 - All 20 files present and unchanged (SHA-256 manifest); selection rules for every situation; real
   playback, crossfades, live music, jukebox, preferences. Unchanged by this update.
 
+## Rendering load per graphics preset
+
+`tests/perf_probe.tscn` renders a busy evening: 25 people, a five-piece band, every upgrade, seen from
+behind the bar. It records the most expensive of ten frames. These are engine counts from a desktop
+software renderer, not phone frame rates.
+
+| Preset | Crowd cap | Draw calls | Objects | Triangles |
+| --- | --- | --- | --- | --- |
+| Performance (75% resolution) | 10 | 95 | 458 | 45k |
+| Balanced | 14 | 96 | 459 | 45k |
+| High (tap shadows, 2x MSAA, dust) | 20 | 217 | 580 | 53k |
+| Ultra (fire shadows, 4x MSAA) | 24 | 217 | 580 | 53k |
+
+An earlier Ultra with shadow-casting pendant lamps measured 856 draw calls and 326k triangles. Point-light
+shadows re-render the scene six times each, so they were removed.
+
 ## Not verified
 - **Frame rate and memory on a phone.** No FPS figures are claimed. Turn on *Settings → Show performance
   overlay* to see live FPS, draw calls and memory, and compare the four Quality presets.

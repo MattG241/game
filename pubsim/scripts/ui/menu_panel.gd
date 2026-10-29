@@ -571,7 +571,7 @@ func _settings() -> void:
 	_text(content, "Graphics & accessibility", 26, UITheme.GOLD)
 	var regfx := func(): if hud.world: hud.world.apply_graphics()
 	_choice("Quality", "graphics", [["performance", "Performance"], ["balanced", "Balanced"], ["high", "High"], ["ultra", "Ultra"]], regfx)
-	_text(content, "Performance suits older phones and long sessions. Balanced is the default. High adds shadows over the taps and smoother edges; Ultra adds lamp and fire shadows and the biggest crowds.", 18, UITheme.MUTED)
+	_text(content, "Performance suits older phones and long sessions. Balanced is the default. High adds shadows over the taps and smoother edges; Ultra adds flickering shadows from the fire, 4x anti-aliasing and the biggest crowds.", 18, UITheme.MUTED)
 	_choice("Frame rate", "fps_limit", [[30, "30 (battery saver)"], [60, "60"], [120, "120"]], regfx)
 	_slider("Render scale", "render_scale", 0.5, 1.0, 0.05)
 	_toggle("Reduced camera motion", "reduced_motion")

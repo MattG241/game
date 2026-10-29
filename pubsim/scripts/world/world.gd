@@ -181,7 +181,7 @@ func _add_vignette() -> void:
 ##  Performance: 75% render scale, no shadows, glow or fog, light rain, fewer people.
 ##  Balanced:    full resolution, glow and fog, no real-time shadows.
 ##  High:        + shadowed key light over the taps, 2x MSAA, more rain and people.
-##  Ultra:       + shadows from the pendant lamps and the fire, 4x MSAA, the most people.
+##  Ultra:       + flickering shadows from the fire, 4x MSAA, the most people.
 func apply_graphics() -> void:
 	var preset := GameState.graphics_preset()
 	var tier: int = GameState.GRAPHICS_PRESETS.find(preset)
@@ -197,11 +197,9 @@ func apply_graphics() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 	if info.has("key_light") and info["key_light"]:
 		(info["key_light"] as SpotLight3D).shadow_enabled = tier >= 2
-	var lamp_i := 0
+	# point-light shadows re-render the scene six times each, so on Ultra only the fire casts them
 	for l in info.get("lamps", []):
-		# only the two lamps nearest the bar cast shadows, and only on Ultra
-		(l as Light3D).shadow_enabled = tier >= 3 and lamp_i >= 4
-		lamp_i += 1
+		(l as Light3D).shadow_enabled = false
 	var fl: OmniLight3D = info.get("fire_light")
 	if fl:
 		fl.shadow_enabled = tier >= 3
