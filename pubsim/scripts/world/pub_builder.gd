@@ -703,14 +703,7 @@ func _front_wall() -> void:
 
 
 func _window(g: Node3D, c: Vector3, size: Vector2) -> void:
-	var glass_m := StandardMaterial3D.new()
-	glass_m.albedo_color = Color(0.25, 0.35, 0.45, 0.25)
-	glass_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass_m.roughness = 0.05
-	glass_m.metallic = 0.4
-	glass_m.emission_enabled = true
-	glass_m.emission = Color(0.2, 0.25, 0.3)
-	glass_m.emission_energy_multiplier = 0.3
+	var glass_m := MeshKit.shader_mat("res://assets/shaders/window_rain.gdshader")
 	info["window_mats"].append(glass_m)
 	MeshKit.box(g, Vector3(size.x - 0.1, size.y - 0.1, 0.02), c, glass_m)
 	MeshKit.solid(g, Vector3(size.x, size.y, 0.1), c)
@@ -724,7 +717,7 @@ func _window(g: Node3D, c: Vector3, size: Vector2) -> void:
 		MeshKit.box(g, Vector3(0.06, size.y, 0.1), c + Vector3(sx * size.x / 2.0, 0, 0), frame)
 	# half-height café curtain on a brass rod (inside)
 	MeshKit.cyl(g, 0.01, 0.01, size.x, c + Vector3(0, -0.1, -0.12), MeshKit.mat("brass"), 6, Vector3(0, 0, PI / 2))
-	MeshKit.box(g, Vector3(size.x - 0.08, 0.6, 0.01), c + Vector3(0, -0.42, -0.12), MeshKit.color_mat(Color(0.75, 0.68, 0.5, 0.85), 0.9))
+	MeshKit.quad(g, Vector2(size.x - 0.08, 0.6), c + Vector3(0, -0.42, -0.12), MeshKit.shader_mat("res://assets/shaders/lace.gdshader"))
 
 
 # ------------------------------------------------------------------ decor

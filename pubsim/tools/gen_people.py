@@ -169,8 +169,8 @@ def head(fem):
         lip_r = 0.0105 if fem else 0.009
         lips = smin(round_cone(p, (-0.021, -0.053, -0.102), (0.021, -0.053, -0.102), lip_r, lip_r),
                     round_cone(p, (-0.018, -0.067, -0.099), (0.018, -0.067, -0.099), lip_r * 1.05, lip_r * 1.05), 0.006)
-        ears = smin(ellipsoid(p, (-0.087, 0.0, 0.012), (0.012, 0.031, 0.022)),
-                    ellipsoid(p, (0.087, 0.0, 0.012), (0.012, 0.031, 0.022)), 0.01)
+        ears = smin(ellipsoid(p, (-0.084, 0.0, 0.012), (0.008, 0.026, 0.018)),
+                    ellipsoid(p, (0.084, 0.0, 0.012), (0.008, 0.026, 0.018)), 0.01)
         neck = round_cone(p, (0, -0.06, 0.012), (0, -0.15, 0.02), 0.048 if fem else 0.055, 0.05 if fem else 0.058)
         d = union([cran, face, chin, cheeks, brow, nose, wings, ears, neck], 0.022)
         d = smin(d, lips, 0.008)

@@ -1295,8 +1295,10 @@ func _update_lighting(force: bool) -> void:
 		(l as OmniLight3D).omni_range = 4.8 if lamps_restored else 3.2
 	env.ambient_light_energy = lerpf(0.6, 0.42, dusk) + (0.08 if lamps_restored else 0.0)
 	env.ambient_light_color = Color(0.55, 0.5, 0.45).lerp(Color(0.5, 0.38, 0.28), dusk)
+	var wet := 1.0 if GameState.weather in ["rain", "storm"] else 0.0
 	for m in info["window_mats"]:
-		(m as StandardMaterial3D).emission = Color(0.45, 0.5, 0.55).lerp(Color(0.02, 0.03, 0.05), dusk)
+		(m as ShaderMaterial).set_shader_parameter("glow", Color(0.45, 0.5, 0.55).lerp(Color(0.02, 0.03, 0.05), dusk))
+		(m as ShaderMaterial).set_shader_parameter("rain", wet)
 	for sl in info["street_lights"]:
 		(sl as OmniLight3D).visible = dusk > 0.3
 	for r in info["rain"]:
