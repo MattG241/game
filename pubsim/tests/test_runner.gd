@@ -457,7 +457,7 @@ func _test_voices_and_people(w: World) -> void:
 		check(vd.played.size() == before + 1, "ordering plays the character's recorded line")
 		check(c._talk_left > 0.0 and MusicDirector._speech_left > music_duck_before, "they move their mouth and the music dips while speaking")
 		await _frames(20)
-		check(absf(c._jaw_lip.position.y + 0.005) > 0.0005, "the mouth opens and closes")
+		check(c._mouth_open > 0.05, "the mouth opens and closes")
 		check(c._bubble.text == vd.last_text and vd.played.back().begins_with("old_regular_order_stout"), "the bubble shows the words spoken (%s)" % c._bubble.text)
 	# no pile-ups: a second line straight away is held back, unless it matters
 	var p2 := vd.played.size()

@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://4lsflqjs7vte"
+path="res://.godot/imported/hair_bun.obj-5e9b48733bccc1e4ebb6b4e3998edc6e.mesh"
+
+[deps]
+
+files=["res://.godot/imported/hair_bun.obj-5e9b48733bccc1e4ebb6b4e3998edc6e.mesh"]
+
+source_file="res://assets/people/hair_bun.obj"
+dest_files=["res://.godot/imported/hair_bun.obj-5e9b48733bccc1e4ebb6b4e3998edc6e.mesh", "res://.godot/imported/hair_bun.obj-5e9b48733bccc1e4ebb6b4e3998edc6e.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

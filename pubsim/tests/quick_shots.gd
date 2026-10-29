@@ -51,6 +51,24 @@ func _ready() -> void:
 				var g = w.player.release_glass()
 				if g:
 					g.queue_free()
+			"faces":
+				# three people standing chatting, close up
+				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]
+				for i in 3:
+					var c := w.spawn_customer()
+					c.global_position = spots[i]
+					c.state = "idle"
+					c.rotation.y = 0.0
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 45.0
+				cam.global_transform = Transform3D(Basis(), Vector3(1.6, 1.55, 0.2)).looking_at(Vector3(1.6, 1.25, 2.1), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(1.0)
+				await _shot(v)
+				main.hud.visible = true
+				w.player.camera.current = true
 			_:
 				var views_cam := {
 					"backbar": [Vector3(-1.0, 1.55, 0.2), Vector3(-1.4, 1.6, -5.0)],

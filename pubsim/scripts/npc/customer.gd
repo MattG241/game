@@ -4,6 +4,7 @@ extends Node3D
 
 signal left_pub(c: Customer)
 
+const LID_REST := 0.55
 const SKIN := [Color(0.95, 0.78, 0.66), Color(0.86, 0.66, 0.5), Color(0.55, 0.38, 0.27), Color(0.36, 0.24, 0.17)]
 
 var world: Node
@@ -57,9 +58,12 @@ var _arms: Array[Node3D] = []     # shoulder joints
 var _knees: Array[Node3D] = []
 var _elbows: Array[Node3D] = []
 var _hands: Array[Node3D] = []
-var _mouth: Node3D
-var _jaw_lip: MeshInstance3D
+var _face_m: ShaderMaterial
+var _mouth_open := 0.0
 var _talk_left := 0.0
+var _lids: Node3D
+var _blink_t := 3.0
+var _torso_node: Node3D
 var gender := "m"
 var voice := ""
 var _head: Node3D
@@ -78,156 +82,123 @@ func setup(w: Node, look: Dictionary, seed_v: int) -> void:
 func _build(look: Dictionary) -> void:
 	gender = str(look.get("gender", "f" if _rng.randf() < 0.45 else "m"))
 	var fem := gender == "f"
+	var g := "f" if fem else "m"
 	_body = Node3D.new()
 	add_child(_body)
 	MeshKit.contact_shadow(self, Vector3.ZERO, Vector2(0.7, 0.7), 0.45)
-	var height: float = look.get("height", _rng.randf_range(0.93, 1.07) * (0.95 if fem else 1.0))
+	var height: float = look.get("height", _rng.randf_range(0.94, 1.06) * (0.95 if fem else 1.0))
 	_body.scale = Vector3.ONE * height
 	var skin: Color = SKIN[int(look.get("skin", _rng.randi() % SKIN.size()))]
-	var skin_m := MeshKit.color_mat(skin, 0.62)
 	var coat_c: Color
 	if look.has("coat"):
 		coat_c = Color(look["coat"][0], look["coat"][1], look["coat"][2])
 	else:
-		coat_c = Color.from_hsv(_rng.randf(), _rng.randf_range(0.25, 0.6), _rng.randf_range(0.2, 0.55))
-	var coat_m := MeshKit.color_mat(coat_c, 0.9)
-	var coat_dark := MeshKit.color_mat(coat_c.darkened(0.14), 0.9)
-	var shirt_c: Color = [Color(0.92, 0.9, 0.85), Color(0.75, 0.82, 0.9), Color(0.85, 0.8, 0.7), Color(0.3, 0.32, 0.36)][_rng.randi() % 4]
-	var shirt_m := MeshKit.color_mat(shirt_c, 0.8)
-	var trouser_m := MeshKit.color_mat(Color.from_hsv(_rng.randf_range(0.55, 0.65), 0.3, _rng.randf_range(0.1, 0.3)), 0.85)
-	var shoe_m := MeshKit.color_mat(Color(0.08, 0.06, 0.05), 0.35)
+		coat_c = Color.from_hsv(_rng.randf(), _rng.randf_range(0.2, 0.55), _rng.randf_range(0.18, 0.5))
 	var hair_c: Color
 	if look.has("hair"):
 		hair_c = Color(look["hair"][0], look["hair"][1], look["hair"][2])
 	else:
 		hair_c = [Color(0.1, 0.07, 0.05), Color(0.3, 0.18, 0.08), Color(0.55, 0.22, 0.08), Color(0.75, 0.6, 0.35), Color(0.6, 0.6, 0.6)][_rng.randi() % 5]
-	var hair_m := MeshKit.color_mat(hair_c, 0.75)
+	var shirt_c: Color = [Color(0.92, 0.9, 0.85), Color(0.75, 0.82, 0.9), Color(0.85, 0.8, 0.7), Color(0.3, 0.32, 0.36)][_rng.randi() % 4]
+	var jumper: bool = bool(look.get("jumper", _rng.randf() < (0.45 if fem else 0.3)))
 	var skirt: bool = fem and bool(look.get("skirt", _rng.randf() < 0.4))
-	var jumper: bool = bool(look.get("jumper", _rng.randf() < (0.5 if fem else 0.3)))
-	var leg_m: Material = MeshKit.color_mat(Color(0.12, 0.1, 0.1), 0.6) if skirt else trouser_m
-	var hip_w := 0.1 if fem else 0.09
-	var sh_w := 0.21 if fem else 0.25
-	# legs: thigh from the hip, shin from the knee
+	var style := 0 if jumper else (2 if fem and _rng.randf() < 0.5 else 1)
+	var top_pat := 2 if jumper else (1 if _rng.randf() < 0.45 else 0)
+	var denim := _rng.randf() < 0.45
+	var trouser_c := Color(0.16, 0.22, 0.36).lerp(Color(0.1, 0.12, 0.2), _rng.randf()) if denim else Color.from_hsv(_rng.randf_range(0.05, 0.65), 0.25, _rng.randf_range(0.1, 0.28))
+	var trouser_pat := 3 if denim else 0
+	var shoe_c: Color = [Color(0.08, 0.06, 0.05), Color(0.25, 0.14, 0.07), Color(0.12, 0.12, 0.13)][_rng.randi() % 3]
+	if skirt:
+		trouser_c = Color(0.1, 0.08, 0.08)   # dark tights under the skirt
+		trouser_pat = 0
+	# --- torso, painted with the outfit
+	var outfit := MeshKit.shader_mat("res://assets/shaders/outfit.gdshader", {"top_color": coat_c, "top_pattern": top_pat,
+		"shirt_color": shirt_c, "trouser_color": trouser_c, "trouser_pattern": trouser_pat, "skin": skin, "style": style,
+		"belt": 0.0 if skirt else 1.0})
+	_part(_body, "torso_" + g, outfit)
+	if skirt:
+		_part(_body, "skirt", MeshKit.shader_mat("res://assets/shaders/fabric.gdshader", {"base_color": coat_c.darkened(0.15), "pattern": 0}))
+	# --- legs: thigh from the hip, shin (with shoe) from the knee
+	var hip_w := 0.095 if fem else 0.09
+	var thigh_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": trouser_c, "pattern": trouser_pat, "split_y": -9.0})
+	var shin_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": trouser_c, "pattern": trouser_pat,
+		"end_color": shoe_c, "end_rough": 0.35, "split_y": -0.385})
 	for side in [-1, 1]:
 		var hip := Node3D.new()
 		hip.position = Vector3(side * hip_w, 0.86, 0)
 		_body.add_child(hip)
-		MeshKit.capsule(hip, 0.078, 0.46, Vector3(0, -0.21, 0), leg_m)
+		_part(hip, "thigh_" + g, thigh_m)
 		var knee := Node3D.new()
 		knee.position = Vector3(0, -0.42, 0)
 		hip.add_child(knee)
-		MeshKit.capsule(knee, 0.064, 0.44, Vector3(0, -0.2, 0), leg_m)
-		MeshKit.box(knee, Vector3(0.1, 0.07, 0.2), Vector3(0, -0.41, -0.04), shoe_m)
-		MeshKit.sphere(knee, 0.05, Vector3(0, -0.415, -0.12), shoe_m, Vector3(1.0, 0.65, 1.0))
-		MeshKit.merge_children(knee, "Shin")
-		MeshKit.merge_children(hip, "Thigh")
+		_part(knee, "shin_" + g, shin_m)
 		_legs.append(hip)
 		_knees.append(knee)
-	# torso: tapered body, shirt front, lapels or a knitted collar, belt or skirt
-	var torso_mesh := _torso_mesh(fem)
-	var torso := MeshInstance3D.new()
-	torso.mesh = torso_mesh
-	torso.material_override = coat_m
-	torso.scale = Vector3(1.0, 1.0, 0.72)
-	_body.add_child(torso)
-	if jumper:
-		MeshKit.torus(_body, 0.055, 0.085, Vector3(0, 1.49, 0), coat_dark)
-		for i in 4:
-			MeshKit.box(_body, Vector3(0.012, 0.3, 0.012), Vector3(-0.06 + i * 0.04, 1.2, -0.145), coat_dark)  # cable knit
-	else:
-		MeshKit.box(_body, Vector3(0.1, 0.26, 0.01), Vector3(0, 1.33, -0.146), shirt_m)
-		for side in [-1, 1]:
-			MeshKit.box(_body, Vector3(0.045, 0.28, 0.01), Vector3(side * 0.06, 1.31, -0.151), coat_dark, Vector3(0, 0, side * 0.3))
-		MeshKit.sphere(_body, 0.012, Vector3(0, 1.12, -0.147), MeshKit.color_mat(Color(0.2, 0.16, 0.1), 0.4))
-	if skirt:
-		MeshKit.cyl(_body, 0.19, 0.26, 0.42, Vector3(0, 0.7, 0), coat_dark, 14)
-	else:
-		MeshKit.cyl(_body, 0.172, 0.172, 0.04, Vector3(0, 0.9, 0), MeshKit.color_mat(Color(0.12, 0.08, 0.05), 0.4), 14)
-	MeshKit.cyl(_body, 0.055, 0.065, 0.09, Vector3(0, 1.52, 0), skin_m, 10)
-	MeshKit.merge_children(_body, "Torso")
-	# arms: upper arm from the shoulder, forearm from the elbow, a hand that holds the glass
+	# --- arms: upper arm from the shoulder, forearm and hand from the elbow
+	var sh_w := 0.205 if fem else 0.245
+	var sleeve_c := coat_c
+	var upper_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat, "split_y": -9.0})
+	var fore_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat,
+		"end_color": skin, "split_y": -0.255, "cuff": 0.0 if jumper else 1.0, "cuff_color": shirt_c})
 	for side in [-1, 1]:
 		var sh := Node3D.new()
-		sh.position = Vector3(side * sh_w, 1.42, 0)
+		sh.position = Vector3(side * sh_w, 1.41, 0)
 		_body.add_child(sh)
-		MeshKit.sphere(sh, 0.07, Vector3.ZERO, coat_m)
-		MeshKit.capsule(sh, 0.062, 0.34, Vector3(0, -0.15, 0), coat_m)
+		_part(sh, "upperarm_" + g, upper_m)
 		var el := Node3D.new()
 		el.position = Vector3(0, -0.3, 0)
 		sh.add_child(el)
-		MeshKit.capsule(el, 0.055, 0.3, Vector3(0, -0.13, 0), coat_m)
-		MeshKit.cyl(el, 0.052, 0.05, 0.03, Vector3(0, -0.27, 0), shirt_m if not jumper else coat_dark, 10)
-		MeshKit.sphere(el, 0.045, Vector3(0, -0.325, -0.008), skin_m, Vector3(0.75, 1.0, 1.0))
-		MeshKit.sphere(el, 0.018, Vector3(side * -0.03, -0.31, -0.03), skin_m)  # thumb
+		_part(el, ("forearm_l_" if side == -1 else "forearm_r_") + g, fore_m)
 		var hand := Node3D.new()
-		hand.position = Vector3(0, -0.33, -0.05)
+		hand.position = Vector3(side * -0.01, -0.33, -0.04)
 		el.add_child(hand)
-		MeshKit.merge_children(el, "Forearm")
-		MeshKit.merge_children(sh, "UpperArm")
 		_arms.append(sh)
 		_elbows.append(el)
 		_hands.append(hand)
 		if side == 1:
 			_right_hand = hand
-	# head: face with eyes, brows, nose, ears and a mouth that moves when they talk
+	# --- head: sculpted face, eyes, hair
 	_head = Node3D.new()
-	_head.position = Vector3(0, 1.68, 0)
+	_head.position = Vector3(0, 1.665, 0)
 	_body.add_child(_head)
-	MeshKit.sphere(_head, 0.118, Vector3(0, 0.01, 0), skin_m, Vector3(0.9, 1.06, 0.98))
-	MeshKit.sphere(_head, 0.085, Vector3(0, -0.055, -0.03), skin_m, Vector3(1.0, 0.8, 1.0) if fem else Vector3(1.08, 0.85, 1.0))  # jaw
-	MeshKit.sphere(_head, 0.024, Vector3(0, -0.005, -0.118), skin_m, Vector3(0.8, 1.2, 1.0))  # nose
-	MeshKit.sphere(_head, 0.014, Vector3(0, -0.03, -0.125), skin_m)
-	var white_m := MeshKit.color_mat(Color(0.95, 0.94, 0.9), 0.3)
-	var iris_m := MeshKit.color_mat([Color(0.25, 0.4, 0.6), Color(0.3, 0.2, 0.1), Color(0.3, 0.45, 0.3), Color(0.15, 0.1, 0.07)][_rng.randi() % 4], 0.2)
+	var lip_c := skin.darkened(0.22).lerp(Color(0.62, 0.26, 0.28), 0.45 if fem else 0.2)
+	_face_m = MeshKit.shader_mat("res://assets/shaders/face.gdshader", {"skin": skin, "brow_color": hair_c.darkened(0.2),
+		"lip_color": lip_c, "stubble": 0.0 if fem else _rng.randf_range(0.0, 0.8), "blush": 0.45 if fem else 0.22})
+	_part(_head, "head_" + g, _face_m)
+	var white_m := MeshKit.color_mat(Color(0.95, 0.94, 0.9), 0.25)
+	var iris_m := MeshKit.color_mat([Color(0.25, 0.42, 0.62), Color(0.32, 0.2, 0.1), Color(0.3, 0.46, 0.3), Color(0.16, 0.1, 0.07)][_rng.randi() % 4], 0.15)
+	var pupil_m := MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.1)
 	for side in [-1, 1]:
-		MeshKit.sphere(_head, 0.017, Vector3(side * 0.042, 0.025, -0.098), white_m)
-		MeshKit.sphere(_head, 0.009, Vector3(side * 0.042, 0.025, -0.112), iris_m)
-		MeshKit.box(_head, Vector3(0.04, 0.008, 0.012), Vector3(side * 0.043, 0.052, -0.108), hair_m, Vector3(0, 0, side * -0.12))  # brows
-		MeshKit.sphere(_head, 0.024, Vector3(side * 0.11, 0.005, 0.0), skin_m, Vector3(0.5, 1.0, 0.8))  # ears
-	_mouth = Node3D.new()
-	_mouth.position = Vector3(0, -0.058, -0.106)
-	_head.add_child(_mouth)
-	var lip_m := MeshKit.color_mat(skin.darkened(0.3).lerp(Color(0.6, 0.25, 0.25), 0.35 if fem else 0.15), 0.5)
-	MeshKit.box(_mouth, Vector3(0.046, 0.009, 0.012), Vector3(0, 0.005, 0), lip_m)
-	_jaw_lip = MeshKit.box(_mouth, Vector3(0.042, 0.009, 0.012), Vector3(0, -0.005, 0), lip_m)
-	MeshKit.box(_mouth, Vector3(0.036, 0.012, 0.004), Vector3(0, 0.0, 0.004), MeshKit.color_mat(Color(0.15, 0.05, 0.05), 0.8))
+		MeshKit.sphere(_head, 0.0105, Vector3(side * 0.035, 0.011, -0.0905), white_m, Vector3.ONE, 10)
+		MeshKit.sphere(_head, 0.0058, Vector3(side * 0.035, 0.011, -0.0985), iris_m, Vector3(1, 1, 0.45), 8)
+		MeshKit.sphere(_head, 0.0027, Vector3(side * 0.035, 0.011, -0.1012), pupil_m, Vector3(1, 1, 0.45), 6)
+	var hair_m := MeshKit.shader_mat("res://assets/shaders/hair.gdshader", {"color": hair_c})
 	var styles_f := ["long", "bob", "ponytail", "bun", "curly", "long"]
-	var styles_m := ["short", "short", "messy", "curly", "bald", "short"]
-	var style: String = look.get("hair_style", (styles_f if fem else styles_m)[_rng.randi() % 6])
-	match style:
-		"short":
-			MeshKit.sphere(_head, 0.125, Vector3(0, 0.045, 0.015), hair_m, Vector3(0.95, 0.72, 1.0))
-		"messy", "curly":
-			MeshKit.sphere(_head, 0.122, Vector3(0, 0.04, 0.02), hair_m, Vector3(0.95, 0.75, 1.0))
-			for i in 8:
-				var a := TAU * i / 8.0
-				MeshKit.sphere(_head, 0.05, Vector3(sin(a) * 0.085, 0.09 + (i % 2) * 0.02, cos(a) * 0.075 + 0.02), hair_m)
-		"long":
-			MeshKit.sphere(_head, 0.128, Vector3(0, 0.035, 0.02), hair_m, Vector3(1.0, 0.85, 1.0))
-			MeshKit.box(_head, Vector3(0.23, 0.3, 0.09), Vector3(0, -0.12, 0.075), hair_m)
-			for side in [-1, 1]:
-				MeshKit.box(_head, Vector3(0.04, 0.22, 0.08), Vector3(side * 0.105, -0.07, 0.0), hair_m)
-		"bob":
-			MeshKit.sphere(_head, 0.133, Vector3(0, 0.015, 0.02), hair_m, Vector3(1.0, 0.9, 1.0))
-		"ponytail":
-			MeshKit.sphere(_head, 0.125, Vector3(0, 0.045, 0.015), hair_m, Vector3(0.95, 0.72, 1.0))
-			MeshKit.capsule(_head, 0.035, 0.22, Vector3(0, -0.04, 0.15), hair_m, Vector3(0.4, 0, 0))
-		"bun":
-			MeshKit.sphere(_head, 0.125, Vector3(0, 0.045, 0.015), hair_m, Vector3(0.95, 0.72, 1.0))
-			MeshKit.sphere(_head, 0.055, Vector3(0, 0.1, 0.1), hair_m)
-		"bald":
-			MeshKit.sphere(_head, 0.121, Vector3(0, -0.005, 0.03), hair_m, Vector3(1.0, 0.5, 1.0))
+	var styles_m := ["short", "short", "curly", "short", "bald", "short"]
+	var style_h: String = look.get("hair_style", (styles_f if fem else styles_m)[_rng.randi() % 6])
+	if style_h == "messy":
+		style_h = "curly"
+	if style_h != "bald":
+		_part(_head, "hair_" + style_h, hair_m)
 	if look.get("beard", (not fem) and _rng.randf() < 0.3):
-		MeshKit.sphere(_head, 0.092, Vector3(0, -0.075, -0.035), hair_m, Vector3(1.0, 0.75, 0.85))
+		_part(_head, "beard", hair_m)
 	if look.get("cap", (not fem) and _rng.randf() < 0.15):
-		var cap_m := MeshKit.color_mat(Color.from_hsv(_rng.randf(), 0.3, 0.25), 0.9)
-		MeshKit.cyl(_head, 0.124, 0.128, 0.07, Vector3(0, 0.1, 0.0), cap_m, 14)
-		MeshKit.box(_head, Vector3(0.2, 0.012, 0.1), Vector3(0, 0.075, -0.14), cap_m)
+		_part(_head, "cap", MeshKit.shader_mat("res://assets/shaders/fabric.gdshader", {"base_color": Color.from_hsv(_rng.randf(), 0.25, 0.25), "pattern": 1}))
 	if look.get("glasses", _rng.randf() < 0.15):
 		var gm := MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.3, 0.5)
 		for side in [-1, 1]:
-			MeshKit.torus(_head, 0.02, 0.026, Vector3(side * 0.042, 0.025, -0.118), gm, Vector3(PI / 2, 0, 0))
-	MeshKit.merge_children(_head, "Head")
+			MeshKit.torus(_head, 0.017, 0.021, Vector3(side * 0.035, 0.012, -0.112), gm, Vector3(PI / 2, 0, 0))
+		MeshKit.box(_head, Vector3(0.016, 0.003, 0.003), Vector3(0, 0.016, -0.114), gm)
+	MeshKit.merge_children(_head, "HeadDetails")
+	# eyelids for blinking (kept separate so they can move)
+	# upper eyelids: resting over the top of the eye, closing fully for a blink
+	_lids = Node3D.new()
+	_lids.position = Vector3(0, 0.0215, -0.0905)
+	_head.add_child(_lids)
+	var lid_m := MeshKit.color_mat(skin.darkened(0.08), 0.55)
+	for side in [-1, 1]:
+		MeshKit.sphere(_lids, 0.0118, Vector3(side * 0.035, 0.0, 0.0), lid_m, Vector3(1.0, 1.0, 1.0), 10)
+	_lids.scale = Vector3(1, LID_REST, 1)
 	_relax_pose()
 	# speech bubble & name
 	_bubble = Label3D.new()
@@ -254,21 +225,22 @@ func _build(look: Dictionary) -> void:
 	add_child(_name_tag)
 
 
-static var _torso_meshes := {}
+static var _people_meshes := {}
 
 
-static func _torso_mesh(fem: bool) -> ArrayMesh:
-	var key := "f" if fem else "m"
-	if not _torso_meshes.has(key):
-		var prof: PackedVector2Array
-		if fem:
-			prof = PackedVector2Array([Vector2(0.0, 0.84), Vector2(0.185, 0.85), Vector2(0.2, 0.95), Vector2(0.158, 1.1),
-				Vector2(0.18, 1.27), Vector2(0.185, 1.38), Vector2(0.13, 1.47), Vector2(0.06, 1.51), Vector2(0.0, 1.515)])
-		else:
-			prof = PackedVector2Array([Vector2(0.0, 0.84), Vector2(0.172, 0.85), Vector2(0.18, 0.96), Vector2(0.19, 1.12),
-				Vector2(0.215, 1.3), Vector2(0.21, 1.4), Vector2(0.14, 1.48), Vector2(0.065, 1.515), Vector2(0.0, 1.52)])
-		_torso_meshes[key] = MeshKit.lathe(prof, 18, false)
-	return _torso_meshes[key]
+## A sculpted body part from assets/people (made by tools/gen_people.py), shared between people.
+static func people_mesh(name: String) -> Mesh:
+	if not _people_meshes.has(name):
+		_people_meshes[name] = load("res://assets/people/%s.obj" % name)
+	return _people_meshes[name]
+
+
+func _part(parent: Node3D, mesh_name: String, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = people_mesh(mesh_name)
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
 
 
 func _relax_pose() -> void:
@@ -301,13 +273,29 @@ func _solve_joints(delta: float) -> void:
 		# keep whatever is in the hand upright relative to the body
 		_hands[i].rotation.x = -(sx + _elbows[i].rotation.x)
 		_hands[i].rotation.z = -_arms[i].rotation.z
+	# blink every few seconds
+	_blink_t -= delta
+	if _blink_t <= 0.0:
+		_blink_t = _rng.randf_range(2.5, 6.0)
+	_lids.scale.y = 1.0 if _blink_t < 0.12 else LID_REST
+	_lids.position.y = 0.011 if _blink_t < 0.12 else 0.0215
+	# breathing
+	_body.scale.x = _body.scale.y * (1.0 + sin(_anim_t * 1.6) * 0.006)
+	# glance at the bartender when they're close and this person is at the bar or chatting
+	if world and world.player and state in ["wait_order", "wait_drink", "mingle", "drinking", "stand_drink"]:
+		var to_p: Vector3 = world.player.global_position - global_position
+		if to_p.length() < 3.0:
+			var local := global_transform.basis.inverse() * to_p
+			var want := clampf(atan2(-local.x, -local.z), -0.9, 0.9)
+			_head.rotation.y = lerp_angle(_head.rotation.y, want, minf(1.0, delta * 4.0))
 	if _talk_left > 0.0:
 		_talk_left -= delta
-		var open := absf(sin(_anim_t * 17.0)) * 0.6 + absf(sin(_anim_t * 7.3)) * 0.4
-		_jaw_lip.position.y = -0.005 - open * 0.012
+		_mouth_open = absf(sin(_anim_t * 17.0)) * 0.6 + absf(sin(_anim_t * 7.3)) * 0.4
+		_face_m.set_shader_parameter("mouth_open", _mouth_open)
 		_head.rotation.x += sin(_anim_t * 4.0) * 0.004
-	elif _jaw_lip.position.y != -0.005:
-		_jaw_lip.position.y = move_toward(_jaw_lip.position.y, -0.005, delta * 0.1)
+	elif _mouth_open > 0.0:
+		_mouth_open = 0.0
+		_face_m.set_shader_parameter("mouth_open", 0.0)
 
 
 func set_name_tag(text: String) -> void:
@@ -360,7 +348,11 @@ func walk_to(target: Vector3, then_state: String) -> void:
 
 func _process(delta: float) -> void:
 	_anim_t += delta
+	_process_state(delta)
 	_solve_joints(delta)
+
+
+func _process_state(delta: float) -> void:
 	if _say_t > 0.0:
 		_say_t -= delta
 		if _say_t <= 0.0:
