@@ -347,8 +347,12 @@ static func _shadow_mat(tex_path: String, strength: float) -> StandardMaterial3D
 static var _halo_mats := {}
 
 
-## A soft glow sprite around a lamp: reads as bloom even on presets without glow.
-static func halo(parent: Node, pos: Vector3, size: float, color: Color) -> MeshInstance3D:
+static func halo_material(color: Color) -> StandardMaterial3D:
+	halo_mat_for(color)
+	return _halo_mats[color.to_html()]
+
+
+static func halo_mat_for(color: Color) -> void:
 	var key := color.to_html()
 	if not _halo_mats.has(key):
 		var m := StandardMaterial3D.new()
@@ -360,6 +364,12 @@ static func halo(parent: Node, pos: Vector3, size: float, color: Color) -> MeshI
 		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 		_halo_mats[key] = m
+
+
+## A soft glow sprite around a lamp: reads as bloom even on presets without glow.
+static func halo(parent: Node, pos: Vector3, size: float, color: Color) -> MeshInstance3D:
+	halo_mat_for(color)
+	var key := color.to_html()
 	var q := quad(parent, Vector2(size, size), pos, _halo_mats[key])
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return q

@@ -209,6 +209,11 @@ func apply_graphics() -> void:
 		_vignette.visible = tier >= 1 and not GameState.settings.get("reduced_effects", false)
 	for r in info.get("rain", []):
 		(r as CPUParticles3D).amount = [120, 300, 500, 700][tier]
+	# drifting dust in the lamplight from High up; the faint light cones from Balanced up
+	for d in info.get("dust", []):
+		(d as CPUParticles3D).visible = tier >= 2
+	for cn in info.get("light_cones", []):
+		(cn as Node3D).visible = tier >= 1
 
 
 # ------------------------------------------------------------------ interactables

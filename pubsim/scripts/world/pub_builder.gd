@@ -14,6 +14,8 @@ var info := {
 	"street_lights": [],
 	"fire": null,
 	"fire_light": null,
+	"dust": [],
+	"light_cones": [],
 	"rack_glasses": null,  # Node3D holding visual clean glasses
 	"rack_slots": [],
 	"sink_slots": [],
@@ -76,7 +78,8 @@ func _room() -> void:
 	# floor & ceiling
 	var fl := MeshKit.box(g, Vector3(w, 0.1, d), Vector3(0, -0.05, 0), MeshKit.mat("floor"))
 	MeshKit.solid(g, Vector3(w + 2, 0.1, d + 2), Vector3(0, -0.05, 0))
-	var ceil_mat := MeshKit.color_mat(Color(0.18, 0.12, 0.08), 0.9)
+	# an old pub ceiling: plaster yellowed by a century of turf smoke
+	var ceil_mat := MeshKit.shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.42, 0.32, 0.2), "stain": 0.7})
 	MeshKit.box(g, Vector3(w, 0.1, d), Vector3(0, h + 0.05, 0), ceil_mat)
 	# ceiling beams
 	for i in 6:
@@ -761,6 +764,34 @@ func _decor() -> void:
 	MeshKit.box(g, Vector3(0.03, 0.54, 1.3), mp + Vector3(0.012, 0, 0), MeshKit.mat("oak_y"))
 	MeshKit.box(g, Vector3(0.01, 0.46, 1.22), mp, MeshKit.mat("mirror"))
 	MeshKit.quad(g, Vector2(1.16, 0.435), mp - Vector3(0.007, 0, 0), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.2), Vector3(0, -PI / 2, 0))
+	# a patterned hearth rug in front of the fire
+	var rug := Vector3(PubLayout.FIREPLACE.x + 1.45, 0.006, PubLayout.FIREPLACE.z)
+	MeshKit.contact_shadow(g, rug, Vector2(1.4, 2.0), 0.25)
+	MeshKit.quad(g, Vector2(1.1, 1.7), rug, MeshKit.shader_mat("res://assets/shaders/rug.gdshader"), Vector3(-PI / 2, 0, 0))
+	# the brass bell for last orders, on a bracket behind the bar
+	var bell_p := Vector3(2.6, 2.05, PubLayout.ROOM_MIN.y + 0.2)
+	MeshKit.box(g, Vector3(0.04, 0.04, 0.22), bell_p + Vector3(0, 0.14, 0.0), MeshKit.mat("iron"))
+	MeshKit.cyl(g, 0.02, 0.075, 0.11, bell_p, MeshKit.mat("brass"), 16)
+	MeshKit.sphere(g, 0.012, bell_p + Vector3(0, -0.065, 0), MeshKit.mat("brass_dull"))
+	MeshKit.cyl(g, 0.003, 0.003, 0.5, bell_p + Vector3(0, -0.3, 0.02), MeshKit.color_mat(Color(0.75, 0.68, 0.5), 0.9), 4)
+	# two hurleys crossed on the wall above the booth, with a sliotar
+	var hw := Vector3(PubLayout.ROOM_MAX.x - 0.15, 2.0, -0.6)
+	var ash := MeshKit.color_mat(Color(0.78, 0.66, 0.46), 0.5)
+	for k in [-1, 1]:
+		var hurl := Node3D.new()
+		hurl.position = hw
+		hurl.rotation = Vector3(k * 0.7, -PI / 2.0, 0)
+		g.add_child(hurl)
+		MeshKit.box(hurl, Vector3(0.035, 0.75, 0.025), Vector3(0, 0.15, 0), ash)
+		MeshKit.sphere(hurl, 0.06, Vector3(0, -0.27, 0.0), ash, Vector3(1.4, 1.8, 0.4))
+		MeshKit.box(hurl, Vector3(0.04, 0.12, 0.03), Vector3(0, 0.45, 0), MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.7))
+	MeshKit.sphere(g, 0.036, hw + Vector3(-0.02, -0.38, 0), MeshKit.color_mat(Color(0.92, 0.9, 0.84), 0.6))
+	# a folded newspaper and a stack of GALAGERS beer mats at the end of the bar
+	var bar_end := Vector3(PubLayout.BAR_X.y - 0.45, PubLayout.BAR_TOP + 0.004, PubLayout.BAR_FRONT_Z - 0.3)
+	MeshKit.box(g, Vector3(0.3, 0.008, 0.21), bar_end, MeshKit.shader_mat("res://assets/shaders/newsprint.gdshader"), Vector3(0, 0.25, 0))
+	for k in 6:
+		MeshKit.cyl(g, 0.047, 0.047, 0.003, bar_end + Vector3(0.3, 0.002 + k * 0.0032, 0.08), MeshKit.color_mat(Color(0.93, 0.88, 0.76), 0.9), 14)
+	MeshKit.quad(g, Vector2(0.094, 0.094), bar_end + Vector3(0.3, 0.0215, 0.08), MeshKit.print_mat(BRAND + "galagers_coaster.png", 0.0, 0.9), Vector3(-PI / 2, 0.4, 0))
 	# framed menu board on the back wall, right of the shelving
 	var mb := Vector3(3.05, 1.85, PubLayout.ROOM_MIN.y + 0.13)
 	MeshKit.box(g, Vector3(0.5, 0.73, 0.03), mb, MeshKit.mat("oak_y"))
@@ -889,6 +920,33 @@ func _lights() -> void:
 		light.omni_attenuation = 1.2
 		lamp.add_child(light)
 		info["lamps"].append(light)
+		# a faint cone of light and drifting dust under each pendant (lit only once restored)
+		var beam_root := Node3D.new()
+		lamp.add_child(beam_root)
+		var cone := MeshKit.cyl(beam_root, 0.19, 0.75, 1.6, Vector3(0, -0.9, 0), _beam_mat(), 16)
+		cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(cone.mesh as CylinderMesh).cap_top = false
+		(cone.mesh as CylinderMesh).cap_bottom = false
+		info["light_cones"].append(cone)
+		var dust := CPUParticles3D.new()
+		dust.amount = 16
+		dust.lifetime = 6.0
+		dust.preprocess = 6.0
+		dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		dust.emission_box_extents = Vector3(0.35, 0.6, 0.35)
+		dust.position = Vector3(0, -0.8, 0)
+		dust.direction = Vector3(0.2, 0.1, 0.1)
+		dust.spread = 180.0
+		dust.gravity = Vector3(0, -0.003, 0)
+		dust.initial_velocity_min = 0.005
+		dust.initial_velocity_max = 0.02
+		var dq := QuadMesh.new()
+		dq.size = Vector2(0.006, 0.006)
+		dq.material = MeshKit.halo_material(Color(1.0, 0.85, 0.6, 0.6))
+		dust.mesh = dq
+		beam_root.add_child(dust)
+		_tag("lamps", beam_root)
+		info["dust"].append(dust)
 	# warm strip over the back bar shelves
 	var strip := OmniLight3D.new()
 	strip.position = Vector3(-1.5, 2.9, PubLayout.ROOM_MIN.y + 0.6)
@@ -916,6 +974,15 @@ func _lights() -> void:
 	key.spot_angle = 38.0
 	g.add_child(key)
 	info["key_light"] = key
+
+
+static var _beam_m: ShaderMaterial
+
+
+static func _beam_mat() -> ShaderMaterial:
+	if _beam_m == null:
+		_beam_m = MeshKit.shader_mat("res://assets/shaders/light_cone.gdshader")
+	return _beam_m
 
 
 # ------------------------------------------------------------------ cellar
