@@ -1,0 +1,23 @@
+[
+  {"id": "lamps", "name": "Restore the Pendant Lamps", "cost": 40, "stage": 1, "category": "Decor",
+   "desc": "Rewire and polish the old brass pendant lamps. Warm light over the bar and tables.",
+   "effects": {"atmosphere": 8, "tips_mult": 0.08}},
+  {"id": "glasses_6", "name": "Box of Pint Glasses", "cost": 28, "stage": 1, "category": "Equipment",
+   "desc": "Six more nonic pint glasses on the rack. Fewer trips to the sink when it gets busy.",
+   "effects": {"glasses": 6}},
+  {"id": "chalkboard", "name": "Hand-lettered Chalkboard", "cost": 35, "stage": 1, "category": "Decor",
+   "desc": "A proper chalkboard by the door listing tonight's pours. Draws in passers-by.",
+   "effects": {"arrival_mult": 0.08, "atmosphere": 2}},
+  {"id": "drip_tray", "name": "Brass Drip Tray & Tap Polish", "cost": 70, "stage": 1, "category": "Equipment",
+   "desc": "Clean lines, a polished font and a brass drip tray. Better beer quality and spills drain away.",
+   "effects": {"beer_quality": 5, "spill_mess_mult": -0.5}},
+  {"id": "fireplace", "name": "Light the Fireplace", "cost": 60, "stage": 1, "category": "Decor",
+   "desc": "Sweep the chimney and keep a turf fire going. Locals linger longer, especially on rainy nights.",
+   "effects": {"atmosphere": 10, "rain_bonus": 0.15, "stay_mult": 0.2}},
+  {"id": "glasses_12", "name": "Crate of Glassware", "cost": 55, "stage": 2, "category": "Equipment", "requires": "glasses_6",
+   "desc": "Twelve more pint glasses. Essential for busy weekend nights.",
+   "effects": {"glasses": 12}},
+  {"id": "paint", "name": "Fresh Paint & Green Tiles", "cost": 220, "stage": 2, "category": "Renovation",
+   "desc": "Strip the nicotine-yellow walls. Deep green tiles and cream plaster. The room feels bigger and cleaner.",
+   "effects": {"atmosphere": 10, "dirt_rate_mult": -0.3}}
+]

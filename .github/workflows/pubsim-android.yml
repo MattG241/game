@@ -1,0 +1,151 @@
+name: Irish Pub Simulator - Android APK
+
+on:
+  push:
+    branches: [main, ccr-6928ea91-vu1bri]
+    paths:
+      - 'pubsim/**'
+      - '.github/workflows/pubsim-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pubsim-android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      HAS_SIGNING_SECRET: ${{ secrets.PUBSIM_SIGNING_PASSPHRASE != '' }}
+    defaults:
+      run:
+        working-directory: pubsim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Godot editor and export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-cache
+          key: godot-${{ env.GODOT_VERSION }}-v1
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -e
+          mkdir -p ~/godot-cache && cd ~/godot-cache
+          BASE=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          if [ ! -f Godot_v${GODOT_VERSION}-stable_linux.x86_64 ]; then
+            curl -sSL -o godot.zip $BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+            unzip -q godot.zip && rm godot.zip
+          fi
+          if [ ! -d templates ]; then
+            curl -sSL -o tpl.tpz $BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz
+            unzip -q tpl.tpz && rm tpl.tpz
+          fi
+          mkdir -p ~/.local/share/godot/export_templates
+          ln -sfn ~/godot-cache/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          sudo ln -sf ~/godot-cache/Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Point Godot at the Android SDK
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.4.tres <<EOT
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_SDK_ROOT}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          EOT
+          ls "${ANDROID_SDK_ROOT}/build-tools"
+
+      - name: Import project
+        run: timeout 300 godot --headless --path . --import || true
+
+      - name: Run gameplay and logic tests
+        run: |
+          timeout 900 godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn 2>&1 | tee test_output.txt | grep -E "PASS|FAIL|RESULT|SCRIPT ERROR"
+          grep -q "RESULT: .* 0 failed" test_output.txt
+
+      # Signing: set ONE repository secret, PUBSIM_SIGNING_PASSPHRASE (any long random text).
+      # The keystore is derived from it deterministically, so every build has the same
+      # signature and updates install over the top without losing saves.
+      # Without the secret a passphrase is generated once and kept in the Actions cache.
+      - name: Restore fallback signing passphrase
+        if: env.HAS_SIGNING_SECRET != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/pubsim-signing
+          key: pubsim-fallback-signing-v1
+
+      - name: Prepare signing keystore
+        env:
+          SECRET_PASSPHRASE: ${{ secrets.PUBSIM_SIGNING_PASSPHRASE }}
+        run: |
+          set -e
+          pip install --quiet cryptography
+          if [ -n "$SECRET_PASSPHRASE" ]; then
+            PASS="$SECRET_PASSPHRASE"
+            echo "Signing with the PUBSIM_SIGNING_PASSPHRASE secret."
+          else
+            mkdir -p ~/pubsim-signing
+            if [ ! -f ~/pubsim-signing/passphrase ]; then
+              head -c 32 /dev/urandom | base64 > ~/pubsim-signing/passphrase
+              echo "::warning::No PUBSIM_SIGNING_PASSPHRASE secret: generated a fallback key kept in the Actions cache. Add the secret for a permanent key."
+            fi
+            PASS="$(cat ~/pubsim-signing/passphrase)"
+          fi
+          echo "::add-mask::$PASS"
+          OUT=$(PUBSIM_SIGNING_PASSPHRASE="$PASS" python3 tools/derive_keystore.py "$RUNNER_TEMP/release.p12" pubsim)
+          KSPW="${OUT#KEYSTORE_PASSWORD=}"
+          echo "::add-mask::$KSPW"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/release.p12" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=pubsim" >> $GITHUB_ENV
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KSPW" >> $GITHUB_ENV
+
+      - name: Set version
+        id: ver
+        run: |
+          BASE=$(grep '^config/version=' project.godot | cut -d'"' -f2)
+          NAME="${BASE}-b${{ github.run_number }}"
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/" export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"${NAME}\"/" export_presets.cfg
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
+
+      - name: Export signed ARM64 APK
+        run: |
+          mkdir -p build
+          timeout 900 godot --headless --path . --export-release "Android" build/IrishPubSimulator.apk 2>&1 | tail -20
+          test -f build/IrishPubSimulator.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$(ls "$ANDROID_SDK_ROOT"/build-tools | sort -V | tail -1)/apksigner verify --print-certs build/IrishPubSimulator.apk | grep -E "DN|SHA-256"
+          ls -la build/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IrishPubSimulator-${{ steps.ver.outputs.name }}
+          path: pubsim/build/IrishPubSimulator.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: pubsim-v${{ steps.ver.outputs.name }}
+          name: The Irish Pub Simulator ${{ steps.ver.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: pubsim/build/IrishPubSimulator.apk
+          body: |
+            **Install on Android:** tap `IrishPubSimulator.apk` below, open it when the download finishes, and allow "Install unknown apps" for your browser if asked.
+
+            Built from `${{ github.ref_name }}` at ${{ github.sha }}. All automated gameplay tests passed before this build was published. See `pubsim/README.md` for controls and known limitations.
