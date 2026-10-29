@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **244 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **245 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -85,11 +85,15 @@ shadows re-render the scene six times each, so they were removed.
   overlay* to see live FPS, draw calls and memory, and compare the four Quality presets.
 - **How the voices sound.** The free ElevenLabs plan only allows its premade voices (none are Irish), so
   the accents come from eleven_v3 accent tags. The first recordings were one short line per request,
-  which v3 handles poorly (flat, synthetic delivery). The Irish customers' lines (orders, praise,
-  complaints, waiting, paying, goodbyes) were re-recorded as one take per character with a *thick*
-  regional accent tag, then cut into lines by the API's timestamps; a cut is used only if speech-to-text
-  confirms the words. The landlord, musician and chatter lines keep the first recordings. Nobody has
-  judged the accents by ear, and the mix was set by loudness, not by listening.
+  which v3 handles poorly (flat, synthetic delivery). Customer lines (orders, praise, complaints,
+  waiting, paying, goodbyes) were re-recorded as one take per character, then cut into lines by the
+  API's timestamps. A cut is used only if speech-to-text confirms the words.
+  - Thick regional accents: the old regular, the Cork local and 10 of the Dubliner's 13 lines. The
+    Dubliner's other three were heard as "point" for "pint", so they kept the old clips.
+  - Colleen's orders and praise were re-recorded with the earlier, lighter tag.
+  - Everyone else, and the landlord, musician and chatter lines, keep the first recordings. The free
+    credits ran out (about 170 left).
+  - Nobody has judged the accents by ear, and the mix was set by loudness, not by listening.
 - Android launch, orientation and background-resume on hardware (no device available to the developer).
 
 ## Feedback checklist for a phone test

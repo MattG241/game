@@ -141,8 +141,9 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - the tipper strikes the drum
 - **More natural people**: real shoulder widths with sloping shoulders, larger heads, lower lids, softer
   lips and a rounder talking mouth. Band members no longer come out dressed alike.
-- **Thick Irish accents**: the Irish customers' lines were re-recorded, one take per character, with
-  thick regional accent tags (see `docs/TESTING.md`). Voices get a light room reverb.
+- **Thick Irish accents**: lines were re-recorded one take per character with thick regional accent
+  tags. This covers the old regular, the Cork local and most of the Dubliner's lines; the free credits
+  ran out before the rest (see `docs/TESTING.md`). Voices also get a light room reverb.
 
 ## The soundtrack: who plays what
 | # | Song | When it plays |
