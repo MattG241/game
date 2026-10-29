@@ -116,33 +116,67 @@ def to_ogg(src_mp3, dst_ogg, mono=True, rate=32000, quality=4):
     subprocess.run(args, check=True)
 
 
-def ensure_voice(cast_entry, manifest):
-    """Adds a shared library voice to the account (free) and returns the usable voice id."""
-    vid = cast_entry["voice_id"]
-    owner = cast_entry.get("public_owner_id", "")
-    added = manifest.setdefault("added_voices", {})
-    if not owner:
-        return vid
-    if vid in added:
-        return added[vid]
-    r = req("POST", f"/v1/voices/add/{owner}/{vid}", {"new_name": "PubSim " + cast_entry["name"]})
-    added[vid] = r.get("voice_id", vid)
+PREVIEW_TEXT = ("Ah, you're very welcome in. Pull up a stool there by the fire and I'll have a pint of Galagers "
+                "poured for you in a minute. Mind, it takes its time, a good pint does, but it's worth the wait.")
+
+
+def cast_identity(cast_entry):
+    """What a clip's voice is keyed on: the premade voice id, or the design description."""
+    if cast_entry.get("design"):
+        return "design:" + cast_entry["design"]["description"]
+    return cast_entry["voice_id"]
+
+
+def design_voice(cast_key, cast_entry):
+    """Voice Design: describe the voice, take the first preview and save it to the account.
+    Free accounts may use their own designed voices over the API (but not library voices)."""
+    desc = cast_entry["design"]["description"]
+    body = {"voice_description": desc, "text": PREVIEW_TEXT, "model_id": "eleven_ttv_v3", "seed": 1887}
+    try:
+        r = req("POST", "/v1/text-to-voice/design", body)
+    except RuntimeError as e:
+        log("  ttv v3 design unavailable, trying v2:", str(e)[:200])
+        body["model_id"] = "eleven_multilingual_ttv_v2"
+        r = req("POST", "/v1/text-to-voice/design", body)
+    previews = r.get("previews", [])
+    if not previews:
+        raise RuntimeError("voice design returned no previews")
+    gid = previews[0]["generated_voice_id"]
+    v = req("POST", "/v1/text-to-voice", {"voice_name": "PubSim " + cast_entry["name"], "voice_description": desc,
+                                          "generated_voice_id": gid})
+    log(f"  designed voice for {cast_key} ({body['model_id']}): {len(previews)} previews, kept the first")
+    return v["voice_id"]
+
+
+def ensure_voice(cast_key, cast_entry, manifest):
+    """Returns a usable voice id: premade voices directly, designed voices created on first use."""
+    if not cast_entry.get("design"):
+        return cast_entry["voice_id"]
+    designed = manifest.setdefault("designed_voices", {})
+    ident = cast_identity(cast_entry)
+    if cast_key in designed and designed[cast_key]["identity"] == ident:
+        return designed[cast_key]["voice_id"]
+    _, before, _ = subscription()
+    vid = design_voice(cast_key, cast_entry)
+    _, after, _ = subscription()
+    log(f"  voice design cost: {after - before} credits")
+    manifest["design_credits"] = manifest.get("design_credits", 0) + (after - before)
+    designed[cast_key] = {"voice_id": vid, "identity": ident}
     save_manifest(manifest)
-    return added[vid]
+    return vid
 
 
-def release_voice(cast_entry, manifest):
-    """Removes a library voice we added, freeing the slot (the free plan has only three)."""
-    added = manifest.get("added_voices", {})
-    vid = cast_entry["voice_id"]
-    if not cast_entry.get("public_owner_id") or vid not in added:
+def release_voice(cast_key, cast_entry, manifest):
+    """Deletes a designed voice once all of its lines exist, freeing the slot (the free plan has three)."""
+    designed = manifest.get("designed_voices", {})
+    if cast_key not in designed:
         return
     try:
-        req("DELETE", f"/v1/voices/{added[vid]}")
+        req("DELETE", f"/v1/voices/{designed[cast_key]['voice_id']}")
         log(f"  released voice slot: {cast_entry['name']}")
     except RuntimeError as e:
         log("  could not release voice", cast_entry["name"], e)
-    del added[vid]
+    del designed[cast_key]
     save_manifest(manifest)
 
 
@@ -202,36 +236,56 @@ def generate(phase, cap):
     os.makedirs(OUT_SFX, exist_ok=True)
     model = lines.get("model", "eleven_multilingual_v2")
     work = []
+    all_tts = {}   # every line per voice (any phase), to know when a designed voice is finished with
     for ln in lines["lines"]:
-        if phase == "sample" and not ln.get("sample"):
-            continue
         cast = lines["cast"][ln["voice"]]
+        if phase == "sample" and not ln.get("sample"):
+            k = clip_key("tts", cast_identity(cast), lines.get("model", "eleven_multilingual_v2"), ln["text"],
+                         cast.get("settings", {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}))
+            all_tts.setdefault(ln["voice"], []).append(k)
+            continue
         settings = cast.get("settings", {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True})
-        k = clip_key("tts", cast["voice_id"], model, ln["text"], settings)
+        k = clip_key("tts", cast_identity(cast), model, ln["text"], settings)
         work.append(("tts", k, ln, cast, settings))
+        all_tts.setdefault(ln["voice"], []).append(clip_key("tts", cast_identity(cast), model, ln["text"], settings))
     for fx in sfx:
         if phase == "sample" and not fx.get("sample"):
             continue
         k = clip_key("sfx", fx["prompt"], fx.get("duration"), fx.get("influence", 0.45))
         work.append(("sfx", k, fx, None, None))
     todo = [w for w in work if w[1] not in manifest["clips"]]
-    todo.sort(key=lambda w: (w[0], w[3]["voice_id"] if w[3] else ""))
+    designed_now = manifest.get("designed_voices", {})
+    todo.sort(key=lambda w: (w[0], 0 if w[0] == "tts" and w[2]["voice"] in designed_now else 1, w[2].get("voice", "")))
+
+    def finished(vkey):
+        return all(k in manifest["clips"] for k in all_tts.get(vkey, []))
     log(f"{len(work)} clips in scope, {len(todo)} still to generate")
     current_voice = None
+    failed_voices = set()
     generated = []
     for kind, k, item, cast, settings in todo:
-        if kind == "tts" and current_voice and current_voice[0] != cast["voice_id"]:
-            release_voice(current_voice[1], manifest)
+        if kind == "tts" and item["voice"] in failed_voices:
+            continue
+        if kind == "tts" and current_voice and current_voice != item["voice"]:
+            if finished(current_voice):
+                release_voice(current_voice, lines["cast"][current_voice], manifest)
             current_voice = None
-        est = len(item["text"]) * (1.0 if "multilingual" in model or "v3" in model else 0.5) if kind == "tts" else 40 * float(item.get("duration", 3.0)) + 20
+        if kind == "tts" and cast.get("design") and item["voice"] not in manifest.get("designed_voices", {}) \
+                and len(manifest.get("designed_voices", {})) >= int(lines.get("voice_slots", 3)):
+            log(f"SKIP {item['id']}: all voice slots hold voices with unfinished lines")
+            continue
+        # measured: sound effects ~10 credits per second; v3 speech 1 credit per character; a design ~ preview text
+        est = len(item["text"]) * (1.0 if "multilingual" in model or "v3" in model else 0.5) if kind == "tts" else 12 * float(item.get("duration", 3.0)) + 5
+        if kind == "tts" and cast.get("design") and item["voice"] not in manifest.get("designed_voices", {}):
+            est += len(PREVIEW_TEXT) * 1.5
         if spent_run + est > cap:
             log(f"STOP: next clip ({item['id']}, ~{est:.0f} credits) would exceed this run's cap")
             break
         tmp = os.path.join(HERE, "tmp.mp3")
         try:
             if kind == "tts":
-                vid = ensure_voice(cast, manifest)
-                current_voice = (cast["voice_id"], cast)
+                vid = ensure_voice(item["voice"], cast, manifest)
+                current_voice = item["voice"]
                 audio, hdr = req("POST", f"/v1/text-to-speech/{vid}", {"text": item["text"], "model_id": model, "voice_settings": settings},
                                  raw=True, params={"output_format": "mp3_44100_128"})
                 dst = os.path.join(OUT_VOICE, item["id"] + ".ogg")
@@ -245,6 +299,8 @@ def generate(phase, cap):
             log("ERROR", item["id"], e)
             if "quota" in str(e).lower() or "401" in str(e):
                 break
+            if kind == "tts":
+                failed_voices.add(item["voice"])   # don't retry the same failing voice line after line
             continue
         with open(tmp, "wb") as f:
             f.write(audio)
@@ -260,8 +316,10 @@ def generate(phase, cap):
         log(f"  {kind} {item['id']}: {cost:.0f} credits")
         generated.append((kind, item, dst, k))
         time.sleep(0.3)
-    if current_voice:
-        release_voice(current_voice[1], manifest)
+    # free the slots of designed voices whose lines are all done (sample runs keep theirs for the full run)
+    for vkey in list(manifest.get("designed_voices", {})):
+        if finished(vkey):
+            release_voice(vkey, lines["cast"][vkey], manifest)
     verify(generated, manifest)
     _, used1, limit = subscription()
     log(f"Credits after: used {used1} / {limit} (remaining {limit - used1}). This run actually used {used1 - used0}.")

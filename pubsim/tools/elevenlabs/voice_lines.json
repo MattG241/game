@@ -2,102 +2,111 @@
  "model": "eleven_v3",
  "cast": {
   "landlord": {
-   "name": "Landlord (Brendan)",
-   "voice_id": "Zm3m9lkSTa2T4oB6U1PH",
-   "public_owner_id": "13eb43b8ff5c39b30f9f97f1d0bb4629d3b0d8166ea9e03e446744e71893a808",
+   "name": "Pub landlord (designed)",
    "gender": "m",
    "age": "middle",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A warm, middle-aged Irish man in his fifties from County Clare, the landlord of a village pub. Soft West of Ireland accent, gravelly but kind, relaxed and wry, speaks at an easy unhurried pace. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "old_regular": {
-   "name": "Old regular (Alder)",
-   "voice_id": "nTMUXLFSfbWmdKKy7nDC",
-   "public_owner_id": "20fba41d288ee835b5e24d946dd0a7ca1015cf9a951cbf710d8532529656ffaf",
+   "name": "Old regular (designed)",
    "gender": "m",
    "age": "old",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "An elderly Irish man in his seventies from rural County Mayo, a lifelong pub regular. Thick, slow, rural west of Ireland accent, a little hoarse, gentle and dryly humorous. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "cheerful_local": {
-   "name": "Cheerful local (Zoey)",
-   "voice_id": "f4EpLLfw2IURnw62TRtz",
-   "public_owner_id": "1a258c5c7641cb79075fc472243388a07cc47c950f396c9cfea365918c7ede52",
+   "name": "Cheerful local (designed)",
    "gender": "f",
    "age": "young",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A bright, cheerful Irish woman in her late twenties from Cork city. Lively sing-song Cork accent, quick and friendly, smiling as she speaks. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "dubliner": {
-   "name": "Dublin customer (Dublin Grit)",
-   "voice_id": "8HqWeGHxemL3oTtnmuF7",
-   "public_owner_id": "8350d20d927677bfabd61c74496f428fc4ac257c7d261532b14fccafaea9b3cd",
+   "name": "Dublin customer (designed)",
    "gender": "m",
    "age": "middle",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A middle-aged working-class Dublin man in his forties. Strong inner-city Dublin accent, blunt, quick-witted and good-humoured, slightly gruff. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "musician": {
-   "name": "Galway musician (Sean)",
-   "voice_id": "kU1Fu9pyfEvPnMpoV67R",
-   "public_owner_id": "7b586f3b56d51996090f36e02ec12091470e69a0b01a7be87e5268a51ed76f2c",
+   "name": "Galway musician (designed)",
    "gender": "m",
    "age": "middle",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "An Irish traditional musician in his thirties from Galway, introducing songs in a pub. Soft Galway accent, warm, easy-going and a little shy, conversational. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "colleen": {
-   "name": "Older local woman (Colleen)",
-   "voice_id": "1OYA2kgM85gF2eGN8HEp",
-   "public_owner_id": "adb6262b177f7c1535f0538bbd843f425508e86ca85e7757b8fdb2f467af0827",
+   "name": "Older local woman (designed)",
    "gender": "f",
    "age": "middle",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A motherly Irish woman in her sixties from County Kerry. Soft, musical Kerry accent, warm, chatty and a little teasing. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "jordan": {
-   "name": "Young local woman (Jordan)",
-   "voice_id": "cMnMwhoOlFYOQDBWBwU1",
-   "public_owner_id": "fe36cb677f55527aaf3b4b2fe3e73b2d9d6fd0477dd5db733a0d59b14b849f40",
+   "name": "Young local woman (designed)",
    "gender": "f",
    "age": "young",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A young Irish woman in her early twenties from Dublin's southside. Light, modern Dublin accent, upbeat, casual and quick. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "andrew": {
-   "name": "Northern man (Andrew)",
-   "voice_id": "pg3548ZPhXWRcQhk1uvM",
-   "public_owner_id": "6c7f138616d4bcf145303fe75b7546fffe1374c44de036d9c203ca68f421f66c",
+   "name": "Northern man (designed)",
    "gender": "m",
    "age": "middle",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A middle-aged man from Belfast, Northern Ireland, in his forties. Clear Belfast accent, dry, deadpan humour, steady and confident. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "cillian": {
-   "name": "Young local man (Cillian)",
-   "voice_id": "B5jEZPqk2OJ2vkPw3wBM",
-   "public_owner_id": "66b39ec803bfc36c4cac78a564c5ddb20efa75bd7b461a09b58c304fa7407075",
+   "name": "Young local man (designed)",
    "gender": "m",
    "age": "young",
    "settings": {
     "stability": 0.5,
     "similarity_boost": 0.75
+   },
+   "design": {
+    "description": "A young Irish man in his mid twenties from County Galway. Friendly, energetic rural Irish accent, laid-back and cheeky. Perfect studio audio quality, close microphone, no background noise."
    }
   },
   "tourist_us": {
@@ -150,7 +159,7 @@
    "voice": "landlord",
    "tag": "closing",
    "text": "Time now, ladies and gents. Have ye no homes to go to?",
-   "sample": false
+   "sample": true
   },
   {
    "id": "landlord_closing_02",
@@ -325,7 +334,7 @@
    "voice": "cheerful_local",
    "tag": "order_stout",
    "text": "Pint of Galagers there, please!",
-   "sample": true
+   "sample": false
   },
   {
    "id": "cheerful_local_order_stout_02",
@@ -458,7 +467,7 @@
    "voice": "dubliner",
    "tag": "order_stout",
    "text": "Pint of Galagers, boss.",
-   "sample": true
+   "sample": false
   },
   {
    "id": "dubliner_order_stout_02",
@@ -570,7 +579,7 @@
    "voice": "musician",
    "tag": "music_intro",
    "text": "Right so, we'll start with one from Galway. Hope you like it.",
-   "sample": true
+   "sample": false
   },
   {
    "id": "musician_music_intro_02",
@@ -864,7 +873,7 @@
    "voice": "tourist_us",
    "tag": "order_stout",
    "text": "Hi! What's good here? Actually, I'll try the Galagers.",
-   "sample": false
+   "sample": true
   },
   {
    "id": "tourist_us_order_stout_02",
