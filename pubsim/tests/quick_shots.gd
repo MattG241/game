@@ -51,6 +51,29 @@ func _ready() -> void:
 				var g = w.player.release_glass()
 				if g:
 					g.queue_free()
+			"band", "fiddler":
+				GameState.cash = 3000.0
+				w.live.event_id = "old_country_jig" if v == "band" else "fiddles_fire"
+				w.live.finished_tonight = false
+				w.live._start(GameData.events_by_id[w.live.event_id])
+				await _wait(3.0)
+				if v == "band":
+					w.live._gather_audience("dance", 6)
+				await _wait(3.5)
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 55.0
+				if v == "band":
+					cam.global_transform = Transform3D(Basis(), Vector3(2.2, 1.6, 0.6)).looking_at(Vector3(5.6, 1.0, 3.6), Vector3.UP)
+				else:
+					cam.global_transform = Transform3D(Basis(), Vector3(-3.4, 1.5, 1.6)).looking_at(Vector3(-5.6, 0.9, 2.2), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.6)
+				await _shot(v)
+				main.hud.visible = true
+				w.live.stop_now()
+				w.player.camera.current = true
 			"faces":
 				# three people standing chatting, close up
 				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]

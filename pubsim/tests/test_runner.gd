@@ -818,7 +818,7 @@ func _test_music(w: World) -> void:
 	# the fiddler may say a few words before the first tune
 	await _wait_until(func(): return live.player3d.playing, 8.0)
 	check(live.player3d.playing and live.now_playing == "t07", "Fiddles by the Fire plays from the musician")
-	check(live.player3d.global_position.distance_to(Vector3(-5.2, 1.3, 2.2)) < 0.1, "music comes from the fireside where the fiddler sits")
+	check(live.player3d.global_position.distance_to(LiveMusic.FIRESIDE_SPOT + Vector3(0, 1.3, 0)) < 0.1, "music comes from the fireside where the fiddler sits")
 	await _frames(int(4.5 * 60))
 	check(md.situation == "live" and md.audible_players() == 0, "background music fades out while the band plays (no second copy)")
 	w.player.global_position = Vector3(-5.0, 0, -7.0)

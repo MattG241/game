@@ -278,10 +278,14 @@ func _update_spatial() -> void:
 
 
 # ------------------------------------------------------------------ musicians & crowd
+## Beside the hearth (not in front of it), so the fire still shows from the room.
+const FIRESIDE_SPOT := Vector3(-5.45, 0, 3.0)
+
+
 func performance_centre(ev: Dictionary) -> Vector3:
 	match str(ev.get("where", "stage")):
 		"fireside":
-			return Vector3(-5.2, 0, 2.2)
+			return FIRESIDE_SPOT
 		"table":
 			return Vector3(-4.4, 0, 0.9)
 	return PubLayout.STAGE_POS
@@ -330,6 +334,8 @@ func _spawn_musicians(ev: Dictionary) -> void:
 			world.seats_taken[int(sp["seat"])] = m
 			_reserved_seats.append(int(sp["seat"]))
 		m.make_musician(str(players[i]), 0.5)
+		if int(sp["seat"]) < 0:
+			m.add_stool()
 		musicians.append(m)
 
 
