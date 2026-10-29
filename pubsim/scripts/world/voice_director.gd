@@ -98,13 +98,14 @@ func _process(delta: float) -> void:
 func _can_start(speaker: Node, tag: String, important: bool) -> bool:
 	if not bool(GameState.settings.get("voices", true)):
 		return false
+	_active = _active.filter(func(p): return is_instance_valid(p))
 	if _active.size() >= MAX_VOICES:
 		if not important:
 			return false
 		# what you're dealing with (an order, an announcement) wins over background chatter
-		var oldest: Node = _active.pop_front()
+		var oldest: Variant = _active.pop_front()
 		if is_instance_valid(oldest):
-			oldest.queue_free()
+			(oldest as Node).queue_free()
 	if _gap > 0.0 and not important:
 		return false
 	if speaker:
