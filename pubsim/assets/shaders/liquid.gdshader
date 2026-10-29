@@ -79,8 +79,8 @@ void fragment() {
 			c = mix(body_color * 1.6, casc, edge * cascade_strength);
 		} else {
 			// settled body: ruby glints near the edges
-			float rim = pow(1.0 - abs(dot(NORMAL, VIEW)), 2.0);
-			c = mix(body_color, body_color * vec3(4.0, 1.4, 0.9), rim * 0.6);
+			float rim = pow(1.0 - abs(dot(NORMAL, VIEW)), 3.5);
+			c = mix(body_color * 0.8, body_color * vec3(4.0, 1.4, 0.9), rim * 0.55);
 		}
 		float glow = clarity * (0.35 + 0.15 * vnoise3(vec3(p.xz * 200.0, p.y * 60.0 - TIME * 2.0)));
 		ALBEDO = c;

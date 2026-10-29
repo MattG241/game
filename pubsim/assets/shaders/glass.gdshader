@@ -30,12 +30,16 @@ void fragment() {
 		float ang = atan(p.x, p.z);
 		vec2 dp = vec2(ang * 0.04, p.y) * 900.0;
 		vec2 cell = voronoi2(dp);
-		float bead = 1.0 - smoothstep(0.08, 0.2, cell.x);
-		bead *= step(0.55, cell.y);
-		float mist = 0.25 + 0.15 * vnoise3(p * 400.0);
+		float size = 0.06 + 0.12 * fract(cell.y * 7.31);
+		float bead = (1.0 - smoothstep(size * 0.6, size, cell.x)) * step(0.68, cell.y);
+		// the odd drop that has run down, leaving a clear trail through the mist
+		float lane = floor(ang * 40.0);
+		float run = step(0.86, fract(sin(lane * 12.9898) * 43758.5453));
+		float trail = run * smoothstep(0.35, 0.0, abs(fract(ang * 40.0) - 0.5)) * step(p.y, fill_y - 0.01);
+		float mist = (0.25 + 0.15 * vnoise3(p * 400.0)) * (1.0 - trail * 0.9);
 		float edge = smoothstep(0.0, 0.01, fill_y - p.y);
-		a += (mist * 0.25 + bead * 0.45) * cold * edge;
-		col = mix(col, vec3(0.95, 0.97, 1.0), (mist * 0.3 + bead * 0.5) * cold * edge);
+		a += (mist * 0.22 + bead * 0.3) * cold * edge;
+		col = mix(col, vec3(0.95, 0.97, 1.0), (mist * 0.28 + bead * 0.4) * cold * edge);
 		rough = mix(rough, 0.35, mist * cold * edge);
 	}
 	// printed brand, mapped round the curve of the glass
