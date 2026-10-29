@@ -1141,20 +1141,50 @@ func _exterior() -> void:
 	MeshKit.box(hs, Vector3(0.04, 0.6, 0.6), Vector3(0, 0, 0), MeshKit.mat("green_paint"), Vector3(0, PI / 2, 0))
 	for side in [-1, 1]:
 		MeshKit.quad(hs, Vector2(0.52, 0.52), Vector3(0, 0, side * 0.022), MeshKit.print_mat(BRAND + "galagers_badge.png", 0.0, 0.4), Vector3(0, 0.0 if side == 1 else PI, 0))
-	# terrace across the road
+	# terrace across the road: rendered houses with sash windows, panelled doors and chimneys
 	var colours := ["render_red", "render_cream", "render_blue", "render_yellow", "render_wall", "render_cream", "render_red"]
+	var door_cols := [Color(0.45, 0.06, 0.06), Color(0.05, 0.2, 0.12), Color(0.1, 0.12, 0.3), Color(0.06, 0.06, 0.06), Color(0.55, 0.35, 0.05)]
+	var zf := 13.88   # front face of the terrace
 	for i in colours.size():
 		var x := -15.0 + i * 5.0
 		var hgt := 6.0 + (i % 3) * 0.6
 		MeshKit.solid_box(g, Vector3(4.95, hgt, 1.0), Vector3(x, hgt / 2.0, 14.4), MeshKit.mat(colours[i]))
-		MeshKit.box(g, Vector3(5.1, 0.3, 1.3), Vector3(x, hgt + 0.15, 14.3), MeshKit.color_mat(Color(0.15, 0.15, 0.17), 0.8))
+		MeshKit.box(g, Vector3(5.1, 0.12, 0.2), Vector3(x, hgt - 0.05, zf - 0.08), MeshKit.color_mat(Color(0.12, 0.12, 0.13), 0.4))  # gutter
+		MeshKit.box(g, Vector3(5.0, 1.6, 0.2), Vector3(x, hgt + 0.55, 14.6), MeshKit.color_mat(Color(0.14, 0.15, 0.17), 0.7), Vector3(0.6, 0, 0))  # slate
+		var cx := x + (1.6 if i % 2 == 0 else -1.6)
+		MeshKit.box(g, Vector3(0.6, 1.0, 0.5), Vector3(cx, hgt + 0.9, 14.7), MeshKit.mat("brick"))
+		for k in 3:
+			MeshKit.cyl(g, 0.07, 0.08, 0.3, Vector3(cx - 0.18 + k * 0.18, hgt + 1.55, 14.7), MeshKit.color_mat(Color(0.55, 0.28, 0.16), 0.8), 8)
+		MeshKit.box(g, Vector3(4.95, 0.35, 0.08), Vector3(x, 0.17, zf - 0.02), MeshKit.color_mat(Color(0.25, 0.25, 0.26), 0.9))  # plinth
 		for wy in [1.6, 4.2]:
 			for wx in [-1.4, 1.4]:
 				var lit := (i * 3 + int(wy) + int(wx)) % 3 != 0
-				var wm := MeshKit.mat("window_warm") if lit else MeshKit.mat("window_night")
-				MeshKit.box(g, Vector3(0.9, 1.2, 0.05), Vector3(x + wx, wy, 13.88), wm)
-				MeshKit.box(g, Vector3(1.0, 0.08, 0.12), Vector3(x + wx, wy - 0.64, 13.86), MeshKit.mat("cream"))
-		MeshKit.box(g, Vector3(0.9, 2.1, 0.05), Vector3(x, 1.05, 13.88), MeshKit.color_mat(Color(0.1, 0.1, 0.12).lerp(Color(0.5, 0.1, 0.1), (i % 2) * 0.6), 0.4))
+				var wc := Vector3(x + wx, wy, zf)
+				MeshKit.box(g, Vector3(0.9, 1.2, 0.05), wc, MeshKit.mat("window_warm") if lit else MeshKit.mat("window_night"))
+				for bx in [-0.22, 0.22]:
+					MeshKit.box(g, Vector3(0.03, 1.2, 0.04), wc + Vector3(bx, 0, -0.035), MeshKit.mat("cream"))
+				MeshKit.box(g, Vector3(0.9, 0.04, 0.04), wc + Vector3(0, 0.0, -0.035), MeshKit.mat("cream"))
+				for sx2 in [-1, 1]:
+					MeshKit.box(g, Vector3(0.06, 1.3, 0.06), wc + Vector3(sx2 * 0.48, 0, -0.04), MeshKit.mat("cream"))
+				MeshKit.box(g, Vector3(1.1, 0.14, 0.08), wc + Vector3(0, 0.68, -0.04), MeshKit.mat("cream"))  # lintel
+				MeshKit.box(g, Vector3(1.08, 0.07, 0.16), wc + Vector3(0, -0.65, -0.07), MeshKit.mat("cream"))  # sill
+				if lit and (i + int(wx)) % 2 == 0:
+					MeshKit.box(g, Vector3(0.3, 1.1, 0.02), wc + Vector3(-0.28, 0, -0.03), MeshKit.color_mat(Color(0.5, 0.14, 0.1), 0.9))
+		# panelled front door with a fanlight, brass knocker and step
+		var dc: Color = door_cols[i % door_cols.size()]
+		var dpos := Vector3(x, 1.05, zf - 0.01)
+		MeshKit.box(g, Vector3(0.95, 2.1, 0.05), dpos, MeshKit.color_mat(dc, 0.35))
+		for py in [0.45, -0.4]:
+			for px in [-0.2, 0.2]:
+				MeshKit.box(g, Vector3(0.28, 0.6, 0.02), dpos + Vector3(px, py, -0.035), MeshKit.color_mat(dc.darkened(0.25), 0.4))
+		MeshKit.sphere(g, 0.035, dpos + Vector3(0, 0.25, -0.06), MeshKit.mat("brass"))
+		# a glazed transom over the door, glowing from the hall
+		MeshKit.box(g, Vector3(0.9, 0.32, 0.04), dpos + Vector3(0, 1.25, 0.0), MeshKit.mat("window_warm"))
+		for k in 4:
+			MeshKit.box(g, Vector3(0.025, 0.32, 0.03), dpos + Vector3(-0.33 + k * 0.22, 1.25, -0.03), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.1, 0.1, 0.07), dpos + Vector3(0, 1.08, -0.04), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.1, 0.1, 0.07), dpos + Vector3(0, 1.45, -0.04), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.2, 0.15, 0.35), Vector3(x, 0.07, zf - 0.17), MeshKit.color_mat(Color(0.4, 0.4, 0.41), 0.8))
 	# side buildings flanking the pub
 	MeshKit.solid_box(g, Vector3(8, 7, 10), Vector3(-11.2, 3.5, 0.2), MeshKit.mat("render_cream"))
 	MeshKit.solid_box(g, Vector3(8, 6.5, 10), Vector3(11.2, 3.25, 0.2), MeshKit.mat("brick"))

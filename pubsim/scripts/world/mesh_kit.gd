@@ -140,10 +140,10 @@ static func _std(key: String) -> StandardMaterial3D:
 			m.emission_enabled = true
 			m.emission = Color(0.05, 0.08, 0.12)
 		"window_warm":
-			m.albedo_color = Color(0.9, 0.62, 0.3)
+			m.albedo_color = Color(0.55, 0.36, 0.18)
 			m.emission_enabled = true
-			m.emission = Color(1.0, 0.62, 0.28)
-			m.emission_energy_multiplier = 1.2
+			m.emission = Color(1.0, 0.6, 0.3)
+			m.emission_energy_multiplier = 0.75
 		"bulb":
 			m.albedo_color = Color(1, 0.8, 0.5)
 			m.emission_enabled = true

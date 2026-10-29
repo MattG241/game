@@ -114,6 +114,7 @@ func _ready() -> void:
 					"facade": [Vector3(3.5, 1.7, 10.0), Vector3(0.0, 1.8, 5.0)],
 					"crowd": [Vector3(1.5, 1.6, -0.5), Vector3(-3.0, 1.0, 3.0)],
 					"bottles": [Vector3(-2.0, 1.75, -3.6), Vector3(-2.0, 1.7, -5.0)],
+					"terrace": [Vector3(-2.0, 1.7, 6.6), Vector3(0.0, 3.0, 14.0)],
 					"window": [Vector3(-4.0, 1.55, 3.7), Vector3(-4.2, 1.6, 5.2)],
 				}
 				if views_cam.has(v):
