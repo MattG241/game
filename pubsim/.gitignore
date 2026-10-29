@@ -5,3 +5,4 @@ build/
 *.p12
 *.idsig
 export_credentials.cfg
+__pycache__/
