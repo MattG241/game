@@ -1,6 +1,14 @@
 {
  "added_voices": {},
  "clips": {
+  "0ad75daee85ecc70": {
+   "credits": 20.0,
+   "file": "assets/sfx_el/success_sting.ogg",
+   "id": "success_sting",
+   "kind": "sfx",
+   "text": "Short warm celtic harp flourish, achievement",
+   "voice": ""
+  },
   "11d3151a218c72c0": {
    "credits": 54.0,
    "file": "assets/voice/tourist_us_order_stout_01.ogg",
@@ -10,6 +18,34 @@
    "text": "Hi! What's good here? Actually, I'll try the Galagers.",
    "transcript": "Hi, what's good here? Actually, I'll try the Gallaghers",
    "voice": "tourist_us"
+  },
+  "1f3bb69b183e4e57": {
+   "credits": 48.0,
+   "file": "assets/voice/andrew_order_stout_01.ogg",
+   "id": "andrew_order_stout_01",
+   "kind": "tts",
+   "match": 0.8,
+   "text": "Pint of Galagers, please, mate.",
+   "transcript": "Pint of Gallagher's please, mate",
+   "voice": "andrew"
+  },
+  "267f53f357613ec7": {
+   "credits": 10.0,
+   "file": "assets/sfx_el/bottle_open.ogg",
+   "id": "bottle_open",
+   "kind": "sfx",
+   "text": "Beer bottle cap popped off with a bottle opener",
+   "voice": ""
+  },
+  "296d34a413732924": {
+   "credits": 51.0,
+   "file": "assets/voice/cheerful_local_order_stout_01.ogg",
+   "id": "cheerful_local_order_stout_01",
+   "kind": "tts",
+   "match": 0.8,
+   "text": "Pint of Galagers there, please!",
+   "transcript": "Pint of Gallagher's there, please",
+   "voice": "cheerful_local"
   },
   "3721093df1ca4823": {
    "credits": 40.0,
@@ -27,6 +63,96 @@
    "text": "Full pint glass set down firmly on a wooden pub bar",
    "voice": ""
   },
+  "53289018b900552b": {
+   "credits": 10.0,
+   "file": "assets/sfx_el/stool_scrape.ogg",
+   "id": "stool_scrape",
+   "kind": "sfx",
+   "text": "Wooden bar stool scraping on a wooden floor",
+   "voice": ""
+  },
+  "56f8ed33ffc673b6": {
+   "credits": 15.0,
+   "file": "assets/sfx_el/till_drawer.ogg",
+   "id": "till_drawer",
+   "kind": "sfx",
+   "text": "Old cash register drawer opening with a bell ding and coins",
+   "voice": ""
+  },
+  "571070bc85eadf0b": {
+   "credits": 12.0,
+   "file": "assets/sfx_el/glass_clink.ogg",
+   "id": "glass_clink",
+   "kind": "sfx",
+   "text": "Two pint glasses clinking together in a toast",
+   "voice": ""
+  },
+  "5b04d3992aa60537": {
+   "credits": 120.0,
+   "file": "assets/sfx_el/fire_loop.ogg",
+   "id": "fire_loop",
+   "kind": "sfx",
+   "text": "Turf fire crackling softly in a stone fireplace",
+   "voice": ""
+  },
+  "5b19a518a2fbff6a": {
+   "credits": 30.0,
+   "file": "assets/sfx_el/foam_settle.ogg",
+   "id": "foam_settle",
+   "kind": "sfx",
+   "text": "Gentle fizz of fine bubbles settling in a glass of stout, close up",
+   "voice": ""
+  },
+  "6d7edb98745f2ac1": {
+   "credits": 150.0,
+   "file": "assets/sfx_el/pub_busy_loop.ogg",
+   "id": "pub_busy_loop",
+   "kind": "sfx",
+   "text": "Busy lively pub ambience, lots of overlapping chatter and laughter, glasses, no music",
+   "voice": ""
+  },
+  "7a176eb0c1f346b5": {
+   "credits": 30.0,
+   "file": "assets/sfx_el/wash_glass.ogg",
+   "id": "wash_glass",
+   "kind": "sfx",
+   "text": "Washing a pint glass in a metal bar sink with running water",
+   "voice": ""
+  },
+  "7ff87771e740dc18": {
+   "credits": 20.0,
+   "file": "assets/sfx_el/door_bell.ogg",
+   "id": "door_bell",
+   "kind": "sfx",
+   "text": "Old wooden pub door opening with a small brass bell jingling",
+   "voice": ""
+  },
+  "841df68cd63cd54e": {
+   "credits": 73.0,
+   "file": "assets/voice/old_regular_order_stout_01.ogg",
+   "id": "old_regular_order_stout_01",
+   "kind": "tts",
+   "match": 0.88,
+   "text": "Pint of Galagers, when you're ready. No rush.",
+   "transcript": "Pint of Gulligers when you're ready. No rush",
+   "voice": "old_regular"
+  },
+  "852815e2fe1a3e06": {
+   "credits": 30.0,
+   "file": "assets/sfx_el/laugh_group.ogg",
+   "id": "laugh_group",
+   "kind": "sfx",
+   "text": "Small group of people in a pub laughing heartily at a joke",
+   "voice": ""
+  },
+  "a58a2e21a9b8b315": {
+   "credits": 40.0,
+   "file": "assets/sfx_el/cheer_crowd.ogg",
+   "id": "cheer_crowd",
+   "kind": "sfx",
+   "text": "Pub crowd cheering and clapping after a song ends",
+   "voice": ""
+  },
   "ac4d3aae7066a0a0": {
    "credits": 15.0,
    "file": "assets/sfx_el/tap_lever.ogg",
@@ -34,14 +160,64 @@
    "kind": "sfx",
    "text": "Heavy brass beer tap lever pulled forward on a pub bar, mechanical clunk",
    "voice": ""
+  },
+  "b1d046323d4dae3f": {
+   "credits": 40.0,
+   "file": "assets/sfx_el/applause.ogg",
+   "id": "applause",
+   "kind": "sfx",
+   "text": "Warm applause from a small crowd in a cosy pub",
+   "voice": ""
+  },
+  "b72e0cdd8fce3c98": {
+   "credits": 8.0,
+   "file": "assets/sfx_el/dart_hit.ogg",
+   "id": "dart_hit",
+   "kind": "sfx",
+   "text": "Steel tip dart thudding into a bristle dartboard",
+   "voice": ""
+  },
+  "bab396df53074e68": {
+   "credits": 61.0,
+   "file": "assets/voice/landlord_last_orders_01.ogg",
+   "id": "landlord_last_orders_01",
+   "kind": "tts",
+   "match": 1.0,
+   "text": "Last orders, everyone! Last orders at the bar!",
+   "transcript": "Last orders everyone. Last orders at the bar",
+   "voice": "landlord"
+  },
+  "c25141ffd18de8f5": {
+   "credits": 120.0,
+   "file": "assets/sfx_el/rain_window_loop.ogg",
+   "id": "rain_window_loop",
+   "kind": "sfx",
+   "text": "Steady rain pattering against an old pub window at night, heard from inside",
+   "voice": ""
+  },
+  "dd2adf75e9aec7b1": {
+   "credits": 30.0,
+   "file": "assets/sfx_el/split_tension.ogg",
+   "id": "split_tension",
+   "kind": "sfx",
+   "text": "Low suspenseful drum roll building tension, short",
+   "voice": ""
+  },
+  "e3935c9edea30d1b": {
+   "credits": 150.0,
+   "file": "assets/sfx_el/pub_quiet_loop.ogg",
+   "id": "pub_quiet_loop",
+   "kind": "sfx",
+   "text": "Quiet pub ambience, a few people murmuring, occasional glass clink, no music",
+   "voice": ""
   }
  },
- "credits_spent": 119.0,
+ "credits_spent": 1187.0,
  "designed_voices": {},
  "last_balance": {
   "limit": 10000,
-  "remaining": 10000,
+  "remaining": 9943,
   "run_used": 0,
-  "used": 0
+  "used": 57
  }
 }
