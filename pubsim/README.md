@@ -128,6 +128,22 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - a voice-player race is fixed
   - CI now fails on any script error
 
+### Feedback round (0.2.0)
+- **Drinking looks right**: arms used to swing backwards (a pose sign error). A held pint is now carried
+  in front at waist height. A sip lifts the rim to the lips with the glass tipped back. Seated drinkers
+  reach for the glass on the table, drink and put it down again. The level only drops at the lips.
+- **Real session instruments**: a sculpted fiddle and bow, guitar, banjo, button accordion, bodhrán
+  and tipper, and a tin whistle, made by `tools/gen_instruments.py`. A shader paints the f-holes,
+  purfling, rosette, frets, goatskin and pearloid. Both hands reach the instrument:
+  - the bow travels across the strings
+  - the guitar is strummed and its neck fingered
+  - the bellows breathe
+  - the tipper strikes the drum
+- **More natural people**: real shoulder widths with sloping shoulders, larger heads, lower lids, softer
+  lips and a rounder talking mouth. Band members no longer come out dressed alike.
+- **Thick Irish accents**: the Irish customers' lines were re-recorded, one take per character, with
+  thick regional accent tags (see `docs/TESTING.md`). Voices get a light room reverb.
+
 ## The soundtrack: who plays what
 | # | Song | When it plays |
 | --- | --- | --- |

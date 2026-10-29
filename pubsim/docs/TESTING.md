@@ -18,7 +18,7 @@
 | Darts | Pass | geometry, scoring, AI turn, bust, checkout |
 | Live music, soundtrack, jukebox | Pass | headless audio (see below) |
 | **Voices and recorded effects** (new) | Pass | recorded lines indexed; an order plays the character's line; mouth moves; music dips; second voice held back (no pile-ups); drink-matched order lines; voices can be turned off; recorded tap effect replaces the synthesised one; ambience loops |
-| **Characters** (new) | Pass | regulars have their own voice and look; seated thighs point forward and knees bend; raised arms reach forward and bend at the elbow; a held pint is carried in front at waist height; a sip brings the rim to the lips (within 5 cm) with the glass tipped towards the drinker, then back down; an empty glass is left behind |
+| **Characters** (new) | Pass | regulars have their own voice and look; seated thighs point forward and knees bend; raised arms reach forward and bend at the elbow; a held pint is carried in front at waist height; a sip brings the rim to the lips (within 5 cm) with the glass tipped towards the drinker, then back down; an empty glass is left behind; each musician's hands reach their instrument (within 4 cm) |
 | **First-person hand** (new) | Pass | shown while holding a glass, hidden otherwise |
 | **Graphics presets** (new) | Pass | old Low/Medium settings map to Performance/Balanced; Ultra turns on 4x MSAA and shadows; Performance lowers resolution, shadows and crowd size; 30 FPS mode caps the frame rate |
 | **Camera handover** (new, regression) | Pass | a close-up started straight after another keeps its camera, and the view returns to you afterwards |

@@ -19,6 +19,14 @@ void fragment() {
 	// soft shade in the eye sockets
 	float sock = exp(-pow(length(vec2(abs(lp.x) - 0.035, lp.y - 0.014)) / 0.02, 2.0)) * step(lp.z, -0.06);
 	c *= 1.0 - sock * 0.18;
+	// under the eyes, the lines from nose to mouth, and a shadow under the lower lip
+	float bags = exp(-pow(length(vec2(abs(lp.x) - 0.034, (lp.y + 0.006) * 1.6)) / 0.014, 2.0)) * step(lp.z, -0.07);
+	c *= 1.0 - bags * 0.1;
+	float fold_x = abs(lp.x) - (0.026 + (lp.y + 0.03) * -0.25);
+	float fold = smoothstep(0.008, 0.0, abs(fold_x)) * smoothstep(-0.005, -0.02, lp.y) * smoothstep(-0.07, -0.055, lp.y) * step(lp.z, -0.075);
+	c *= 1.0 - fold * 0.06;
+	float under_lip = exp(-pow(length(vec2(lp.x * 0.6, lp.y + 0.078)) / 0.008, 2.0)) * step(lp.z, -0.08);
+	c *= 1.0 - under_lip * 0.15;
 	// stubble on the jaw
 	float jaw = smoothstep(-0.02, -0.05, lp.y) * step(lp.z, 0.0) * step(abs(lp.x), 0.075);
 	float dots = step(0.55, hash13(floor(lp * 900.0)));
@@ -32,10 +40,17 @@ void fragment() {
 	}
 	// lips and mouth
 	float mx = abs(lp.x);
-	float lip = step(mx, 0.024) * smoothstep(0.016, 0.012, abs(lp.y + 0.06)) * step(lp.z, -0.09) * smoothstep(0.026, 0.02, mx);
+	float lip = smoothstep(0.023, 0.017, mx) * smoothstep(0.0125, 0.008, abs(lp.y + 0.06)) * step(lp.z, -0.088);
 	c = mix(c, lip_color * (0.9 + 0.1 * fbm3(lp * 400.0)), lip * 0.85);
-	float slit = step(mx, 0.019 - mouth_open * 0.004) * step(abs(lp.y + 0.06), 0.0012 + mouth_open * 0.0065) * step(lp.z, -0.09);
-	c = mix(c, vec3(0.18, 0.05, 0.05), slit);
+	// the mouth: a closed line, or a soft oval that opens while talking, with a glimpse of teeth
+	float mw = 0.0175 - mouth_open * 0.005;
+	float mh = 0.0007 + mouth_open * 0.0042;
+	float dy = lp.y + 0.06;
+	float inside = (mx * mx) / (mw * mw) + (dy * dy) / (mh * mh);
+	float slit = smoothstep(1.0, 0.7, inside) * step(lp.z, -0.09);
+	vec3 mouth_c = vec3(0.16, 0.05, 0.05);
+	mouth_c = mix(mouth_c, vec3(0.72, 0.68, 0.62), step(0.35, dy / mh) * step(0.25, mouth_open) * step(mx, mw * 0.7));
+	c = mix(c, mouth_c, slit);
 	ALBEDO = c;
 	ROUGHNESS = 0.55 - lip * 0.2;
 	SPECULAR = 0.35;

@@ -134,21 +134,25 @@ def torso(fem):
         if fem:
             pelvis = ellipsoid(p, (0, 0.92, 0.0), (0.185, 0.12, 0.13))
             waist = round_cone(z_scaled, (0, 0.95, 0), (0, 1.2, 0), 0.15, 0.135) * 0.78
-            chest = ellipsoid(p, (0, 1.3, 0.0), (0.165, 0.13, 0.115))
-            bust = smin(sphere(p, (-0.065, 1.29, -0.085), 0.06), sphere(p, (0.065, 1.29, -0.085), 0.06), 0.03)
-            sh = round_cone(p, (-0.18, 1.425, 0.01), (0.18, 1.425, 0.01), 0.055, 0.055)
-            delt = smin(sphere(p, (-0.2, 1.405, 0.0), 0.05), sphere(p, (0.2, 1.405, 0.0), 0.05), 0.02)
-            neck = round_cone(p, (0, 1.44, 0.01), (0, 1.62, 0.0), 0.05, 0.043)
-            d = union([pelvis, waist, chest, bust, sh, delt, neck], 0.05)
+            chest = ellipsoid(p, (0, 1.3, 0.0), (0.148, 0.13, 0.112))
+            bust = smin(sphere(p, (-0.06, 1.29, -0.083), 0.058), sphere(p, (0.06, 1.29, -0.083), 0.058), 0.03)
+            # shoulders slope down from the neck to the arm sockets
+            sh = smin(round_cone(p, (-0.148, 1.405, 0.01), (-0.04, 1.47, 0.012), 0.048, 0.05),
+                      round_cone(p, (0.148, 1.405, 0.01), (0.04, 1.47, 0.012), 0.048, 0.05), 0.03)
+            delt = smin(sphere(p, (-0.165, 1.398, 0.0), 0.046), sphere(p, (0.165, 1.398, 0.0), 0.046), 0.02)
+            neck = round_cone(p, (0, 1.44, 0.01), (0, 1.62, 0.0), 0.056, 0.051)
+            d = union([pelvis, waist, chest, bust, sh, delt, neck], 0.045)
         else:
             pelvis = ellipsoid(p, (0, 0.92, 0.0), (0.17, 0.11, 0.12))
             waist = round_cone(z_scaled, (0, 0.95, 0), (0, 1.22, 0), 0.158, 0.17) * 0.78
-            chest = ellipsoid(p, (0, 1.3, -0.005), (0.2, 0.15, 0.13))
-            sh = round_cone(p, (-0.22, 1.43, 0.01), (0.22, 1.43, 0.01), 0.066, 0.066)
-            delt = smin(sphere(p, (-0.238, 1.405, 0.0), 0.058), sphere(p, (0.238, 1.405, 0.0), 0.058), 0.02)
-            trap = smin(round_cone(p, (-0.18, 1.45, 0.02), (0, 1.53, 0.02), 0.05, 0.06),
-                        round_cone(p, (0.18, 1.45, 0.02), (0, 1.53, 0.02), 0.05, 0.06), 0.03)
-            neck = round_cone(p, (0, 1.45, 0.01), (0, 1.62, 0.0), 0.06, 0.052)
+            chest = ellipsoid(p, (0, 1.3, -0.005), (0.176, 0.15, 0.128))
+            # shoulders slope down from the neck (trapezius) to the arm sockets
+            sh = smin(round_cone(p, (-0.175, 1.41, 0.01), (-0.05, 1.475, 0.015), 0.056, 0.06),
+                      round_cone(p, (0.175, 1.41, 0.01), (0.05, 1.475, 0.015), 0.056, 0.06), 0.03)
+            delt = smin(sphere(p, (-0.195, 1.398, 0.0), 0.054), sphere(p, (0.195, 1.398, 0.0), 0.054), 0.02)
+            trap = smin(round_cone(p, (-0.13, 1.44, 0.025), (0, 1.53, 0.02), 0.045, 0.058),
+                        round_cone(p, (0.13, 1.44, 0.025), (0, 1.53, 0.02), 0.045, 0.058), 0.03)
+            neck = round_cone(p, (0, 1.45, 0.01), (0, 1.62, 0.0), 0.062, 0.055)
             d = union([pelvis, waist, chest, sh, delt, trap, neck], 0.05)
         # soft cloth folds at the waist and under the arms
         d += noise3(p, 40.0, 1.0) * 0.0025
@@ -159,26 +163,33 @@ def torso(fem):
 def head(fem):
     def f(p):
         cran = ellipsoid(p, (0, 0.03, 0.012), (0.088, 0.1, 0.1))
-        jaw_w = 0.068 if fem else 0.078
-        face = ellipsoid(p, (0, -0.04, -0.028), (jaw_w, 0.072, 0.086))
-        chin = sphere(p, (0, -0.098, -0.066), 0.026 if fem else 0.03)
-        cheeks = smin(sphere(p, (-0.048, -0.008, -0.074), 0.028), sphere(p, (0.048, -0.008, -0.074), 0.028), 0.02)
-        brow = round_cone(p, (-0.046, 0.034, -0.086), (0.046, 0.034, -0.086), 0.015 if fem else 0.018, 0.015 if fem else 0.018)
-        nose = round_cone(p, (0, 0.02, -0.096), (0, -0.024, -0.116), 0.0085, 0.0135)
-        wings = smin(sphere(p, (-0.013, -0.027, -0.104), 0.0095), sphere(p, (0.013, -0.027, -0.104), 0.0095), 0.01)
-        lip_r = 0.0105 if fem else 0.009
-        lips = smin(round_cone(p, (-0.021, -0.053, -0.102), (0.021, -0.053, -0.102), lip_r, lip_r),
-                    round_cone(p, (-0.018, -0.067, -0.099), (0.018, -0.067, -0.099), lip_r * 1.05, lip_r * 1.05), 0.006)
+        jaw_w = 0.07 if fem else 0.08
+        face = ellipsoid(p, (0, -0.038, -0.03), (jaw_w, 0.074, 0.084))
+        jaw = smin(ellipsoid(p, (-0.04, -0.07, -0.035), (0.032, 0.03, 0.045)),
+                   ellipsoid(p, (0.04, -0.07, -0.035), (0.032, 0.03, 0.045)), 0.02)
+        chin = ellipsoid(p, (0, -0.098, -0.064), (0.024 if fem else 0.028, 0.022, 0.022))
+        cheeks = smin(sphere(p, (-0.047, -0.01, -0.07), 0.031), sphere(p, (0.047, -0.01, -0.07), 0.031), 0.02)
+        brow = round_cone(p, (-0.044, 0.034, -0.084), (0.044, 0.034, -0.084), 0.014 if fem else 0.017, 0.014 if fem else 0.017)
+        nose = round_cone(p, (0, 0.016, -0.095), (0, -0.024, -0.113), 0.0088, 0.012)
+        tip = sphere(p, (0, -0.024, -0.111), 0.0115)
+        wings = smin(sphere(p, (-0.0125, -0.027, -0.102), 0.0092), sphere(p, (0.0125, -0.027, -0.102), 0.0092), 0.01)
+        # lips follow the curve of the face: a soft upper lip with a cupid's bow, a fuller lower lip
+        up = smin(round_cone(p, (-0.02, -0.054, -0.097), (0.0, -0.0515, -0.1015), 0.0062, 0.0068),
+                  round_cone(p, (0.0, -0.0515, -0.1015), (0.02, -0.054, -0.097), 0.0068, 0.0062), 0.004)
+        low_r = 0.0082 if fem else 0.0074
+        low = round_cone(p, (-0.016, -0.066, -0.0955), (0.016, -0.066, -0.0955), low_r * 0.85, low_r * 0.85)
+        low = smin(low, sphere(p, (0, -0.0665, -0.0985), low_r), 0.006)
         ears = smin(ellipsoid(p, (-0.084, 0.0, 0.012), (0.008, 0.026, 0.018)),
                     ellipsoid(p, (0.084, 0.0, 0.012), (0.008, 0.026, 0.018)), 0.01)
-        neck = round_cone(p, (0, -0.06, 0.012), (0, -0.15, 0.02), 0.048 if fem else 0.055, 0.05 if fem else 0.058)
-        d = union([cran, face, chin, cheeks, brow, nose, wings, ears, neck], 0.022)
-        d = smin(d, lips, 0.008)
-        # eye sockets and the mouth line
-        sockets = smin(sphere(p, (-0.035, 0.012, -0.096), 0.019), sphere(p, (0.035, 0.012, -0.096), 0.019), 0.01)
-        d = smax(d, -sockets, 0.012)
-        mouth = round_cone(p, (-0.02, -0.06, -0.112), (0.02, -0.06, -0.112), 0.0025, 0.0025)
-        d = smax(d, -mouth, 0.004)
+        neck = round_cone(p, (0, -0.06, 0.012), (0, -0.15, 0.02), 0.053 if fem else 0.058, 0.056 if fem else 0.062)
+        d = union([cran, face, jaw, chin, cheeks, brow, nose, tip, wings, ears, neck], 0.022)
+        d = smin(d, smin(up, low, 0.003), 0.007)
+        # eye sockets, gentle, and the line between the lips
+        sockets = smin(ellipsoid(p, (-0.035, 0.012, -0.094), (0.019, 0.015, 0.016)),
+                       ellipsoid(p, (0.035, 0.012, -0.094), (0.019, 0.015, 0.016)), 0.01)
+        d = smax(d, -sockets, 0.01)
+        mouth = round_cone(p, (-0.019, -0.0595, -0.106), (0.019, -0.0595, -0.106), 0.0018, 0.0018)
+        d = smax(d, -mouth, 0.003)
         return d
     return f
 
@@ -347,7 +358,7 @@ def skirt(p):
 def main():
     for fem, tag in [(False, "m"), (True, "f")]:
         mesh_sdf(torso(fem), (-0.3, 0.76, -0.2), (0.3, 1.66, 0.2), 0.006, 2200, "torso_" + tag)
-        mesh_sdf(head(fem), (-0.11, -0.17, -0.14), (0.11, 0.16, 0.13), 0.0035, 2200, "head_" + tag)
+        mesh_sdf(head(fem), (-0.11, -0.17, -0.14), (0.11, 0.16, 0.13), 0.0026, 3000, "head_" + tag)
         mesh_sdf(upper_arm(fem), (-0.08, -0.34, -0.08), (0.08, 0.08, 0.08), 0.005, 300, "upperarm_" + tag)
         mesh_sdf(forearm(fem), (-0.06, -0.42, -0.08), (0.06, 0.06, 0.06), 0.003, 900, "forearm_l_" + tag)
         mesh_sdf(forearm(fem), (-0.06, -0.42, -0.08), (0.06, 0.06, 0.06), 0.003, 900, "forearm_r_" + tag, flip_x=True)

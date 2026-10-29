@@ -477,6 +477,25 @@ func _test_voices_and_people(w: World) -> void:
 	var reach: Vector3 = c._elbows[0].global_position - c._arms[0].global_position
 	check(reach.dot(fwd) > 0.2, "a raised arm reaches forward, not behind (%.2f)" % reach.dot(fwd))
 	c._arm_rot[0] = Vector3.ZERO
+	# musicians: both hands reach their instrument (neck, bow, keys, skin, strings)
+	var worst := 0.0
+	var worst_kind := ""
+	for kind in ["fiddle", "whistle", "accordion", "bodhran", "guitar", "banjo"]:
+		var mu := Customer.new()
+		mu.setup(w, {"gender": "m"}, 77)
+		w.add_child(mu)
+		mu.global_position = Vector3(0.5, 0, 2.6)
+		mu.make_musician(kind, 0.5)
+		await _frames(4)
+		var pose: Dictionary = mu._rig.pose(mu._anim_t, mu.beat)
+		for k in 2:
+			var want: Vector3 = mu._body.to_global(pose["l" if k == 0 else "r"])
+			var miss: float = mu._hands[k].global_position.distance_to(want)
+			if miss > worst:
+				worst = miss
+				worst_kind = kind
+		mu.queue_free()
+	check(worst < 0.04, "musicians' hands reach their instruments (worst miss %.3f m, %s)" % [worst, worst_kind])
 	# drinking: the pint is carried in front in the hand, and a sip brings the rim to the lips
 	var dg := PintGlass.new()
 	dg.contents.drink_id = "stout"

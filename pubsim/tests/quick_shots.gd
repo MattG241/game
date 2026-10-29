@@ -183,6 +183,30 @@ func _ready() -> void:
 				print("SEAT glass parent=%s spot=%s glass=%s kind=%s phase=%.2f dur=%.2f state=%s seated=%s body=%s" % [sc.glass.get_parent().name, str(sc._glass_spot), str(sc.glass.global_position), sc._sip_kind, sc._sip_phase, sc._sip_dur, sc.state, sc._seated, str(sc._body.to_local(sc._glass_spot))])
 				main.hud.visible = true
 				w.player.camera.current = true
+			"inst":
+				# each instrument close up, seated musician facing the camera
+				if w._cam_tween:
+					w._cam_tween.kill()
+				main.hud.visible = false
+				var ang := float(OS.get_environment("INST_ANGLE")) if OS.get_environment("INST_ANGLE") != "" else 0.5
+				for kind in ["fiddle", "whistle", "accordion", "bodhran", "guitar", "banjo"]:
+					var m := Customer.new()
+					m.setup(w, {"gender": "m"}, 4242)
+					w.add_child(m)
+					m.global_position = Vector3(0.5, 0, 2.6)
+					m.rotation.y = PI
+					m.make_musician(kind, 0.5)
+					m.add_stool()
+					var focus := m.global_position + Vector3(0, 0.95, 0)
+					cam.fov = 40.0
+					cam.global_transform = Transform3D(Basis(), focus + Vector3(sin(ang) * 1.5, 0.3, cos(ang) * 1.5)).looking_at(focus, Vector3.UP)
+					cam.current = true
+					await _wait(0.7)
+					await _shot("inst_" + kind)
+					m.queue_free()
+					await _wait(0.1)
+				main.hud.visible = true
+				w.player.camera.current = true
 			"faces":
 				# three people standing chatting, close up
 				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]
@@ -193,8 +217,8 @@ func _ready() -> void:
 					c.rotation.y = 0.0
 				if w._cam_tween:
 					w._cam_tween.kill()
-				cam.fov = 45.0
-				cam.global_transform = Transform3D(Basis(), Vector3(1.6, 1.55, 0.2)).looking_at(Vector3(1.6, 1.25, 2.1), Vector3.UP)
+				cam.fov = 45.0 if OS.get_environment("FACE_CLOSE") == "" else 18.0
+				cam.global_transform = Transform3D(Basis(), Vector3(1.6, 1.55, 0.2)).looking_at(Vector3(1.6, 1.25 if OS.get_environment("FACE_CLOSE") == "" else 1.6, 2.1), Vector3.UP)
 				cam.current = true
 				main.hud.visible = false
 				await _wait(1.0)

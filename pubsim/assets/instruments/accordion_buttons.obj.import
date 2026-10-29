@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://caqtj1rmcoqds"
+path="res://.godot/imported/accordion_buttons.obj-4b16e4bbbf9527b4a6ace841e9d71a51.mesh"
+
+[deps]
+
+files=["res://.godot/imported/accordion_buttons.obj-4b16e4bbbf9527b4a6ace841e9d71a51.mesh"]
+
+source_file="res://assets/instruments/accordion_buttons.obj"
+dest_files=["res://.godot/imported/accordion_buttons.obj-4b16e4bbbf9527b4a6ace841e9d71a51.mesh", "res://.godot/imported/accordion_buttons.obj-4b16e4bbbf9527b4a6ace841e9d71a51.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

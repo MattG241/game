@@ -4,7 +4,7 @@ extends Node3D
 
 signal left_pub(c: Customer)
 
-const LID_REST := 0.55
+const LID_REST := 0.56
 const SKIN := [Color(0.95, 0.78, 0.66), Color(0.86, 0.66, 0.5), Color(0.55, 0.38, 0.27), Color(0.36, 0.24, 0.17)]
 
 var world: Node
@@ -76,6 +76,7 @@ var _ik_w := 0.0               # how much the right arm follows the glass (0 = p
 var _ik_goal: Array = []       # [glass base, glass basis] in body space
 var _sip_dur := 1.0
 var _sip_kind := ""            # "sip", "table" (pick up, drink, put back) or "put" (put down)
+var _rig: MusicianRig = null    # musicians: the instrument and where the hands go
 var _glass_spot := Vector3.ZERO   # where a seated drinker keeps the glass on the table
 var _sip_gulp := 0.0           # how fast the level drops during this sip
 var _shown_left := 1.0         # how full the glass looks; drops only while they drink
@@ -99,7 +100,7 @@ var _rng := RandomNumberGenerator.new()
 
 func setup(w: Node, look: Dictionary, seed_v: int) -> void:
 	world = w
-	_rng.seed = seed_v
+	_rng.seed = hash(seed_v)   # nearby seeds (a band of musicians) would otherwise look alike
 	_build(look)
 
 
@@ -159,14 +160,14 @@ func _build(look: Dictionary) -> void:
 		_legs.append(hip)
 		_knees.append(knee)
 	# --- arms: upper arm from the shoulder, forearm and hand from the elbow
-	var sh_w := 0.205 if fem else 0.245
+	var sh_w := 0.17 if fem else 0.2
 	var sleeve_c := coat_c
 	var upper_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat, "split_y": -9.0})
 	var fore_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat,
 		"end_color": skin, "split_y": -0.255, "cuff": 0.0 if jumper else 1.0, "cuff_color": shirt_c})
 	for side in [-1, 1]:
 		var sh := Node3D.new()
-		sh.position = Vector3(side * sh_w, 1.41, 0)
+		sh.position = Vector3(side * sh_w, 1.395, 0)
 		_body.add_child(sh)
 		_part(sh, "upperarm_" + g, upper_m)
 		var el := Node3D.new()
@@ -186,18 +187,19 @@ func _build(look: Dictionary) -> void:
 			el.add_child(_grip)
 	# --- head: sculpted face, eyes, hair
 	_head = Node3D.new()
-	_head.position = Vector3(0, 1.665, 0)
+	_head.position = Vector3(0, 1.66, 0)
+	_head.scale = Vector3.ONE * 1.07
 	_body.add_child(_head)
 	var lip_c := skin.darkened(0.22).lerp(Color(0.62, 0.26, 0.28), 0.45 if fem else 0.2)
 	_face_m = MeshKit.shader_mat("res://assets/shaders/face.gdshader", {"skin": skin, "brow_color": hair_c.darkened(0.2),
 		"lip_color": lip_c, "stubble": 0.0 if fem else _rng.randf_range(0.0, 0.8), "blush": 0.45 if fem else 0.22})
 	_part(_head, "head_" + g, _face_m)
-	var white_m := MeshKit.color_mat(Color(0.86, 0.83, 0.78), 0.3)
+	var white_m := MeshKit.color_mat(Color(0.74, 0.7, 0.65), 0.25)
 	var iris_m := MeshKit.color_mat([Color(0.25, 0.42, 0.62), Color(0.32, 0.2, 0.1), Color(0.3, 0.46, 0.3), Color(0.16, 0.1, 0.07)][_rng.randi() % 4], 0.15)
 	var pupil_m := MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.1)
 	for side in [-1, 1]:
 		MeshKit.sphere(_head, 0.0105, Vector3(side * 0.035, 0.011, -0.0905), white_m, Vector3.ONE, 10)
-		MeshKit.sphere(_head, 0.0058, Vector3(side * 0.035, 0.011, -0.0985), iris_m, Vector3(1, 1, 0.45), 8)
+		MeshKit.sphere(_head, 0.0066, Vector3(side * 0.035, 0.011, -0.0982), iris_m, Vector3(1, 1, 0.45), 8)
 		MeshKit.sphere(_head, 0.0027, Vector3(side * 0.035, 0.011, -0.1012), pupil_m, Vector3(1, 1, 0.45), 6)
 	var hair_m := MeshKit.shader_mat("res://assets/shaders/hair.gdshader", {"color": hair_c})
 	var styles_f := ["long", "bob", "ponytail", "bun", "curly", "long"]
@@ -220,12 +222,16 @@ func _build(look: Dictionary) -> void:
 	# eyelids for blinking (kept separate so they can move)
 	# upper eyelids: resting over the top of the eye, closing fully for a blink
 	_lids = Node3D.new()
-	_lids.position = Vector3(0, 0.0215, -0.0905)
+	_lids.position = Vector3(0, 0.021, -0.0905)
 	_head.add_child(_lids)
 	var lid_m := MeshKit.color_mat(skin.darkened(0.08), 0.55)
 	for side in [-1, 1]:
 		MeshKit.sphere(_lids, 0.0118, Vector3(side * 0.035, 0.0, 0.0), lid_m, Vector3(1.0, 1.0, 1.0), 10)
 	_lids.scale = Vector3(1, LID_REST, 1)
+	# lower lids, so the eyes sit in the face instead of staring
+	for side in [-1, 1]:
+		var low := MeshKit.sphere(_head, 0.0116, Vector3(side * 0.035, -0.0004, -0.0905), lid_m, Vector3(1.0, 0.42, 1.0), 10)
+		low.name = "LowerLid"
 	_relax_pose()
 	# speech bubble & name
 	_bubble = Label3D.new()
@@ -298,7 +304,8 @@ func _solve_joints(delta: float) -> void:
 		elif pose.x < -0.3:
 			want = clampf(pose.x * 0.9, -1.9, -0.3)  # raised arm: bend the elbow to bring the hand in
 		_elbow_bend[i] = lerpf(_elbow_bend[i], want, minf(1.0, delta * 12.0))
-		_arms[i].rotation = Vector3(-pose.x, pose.y, pose.z)
+		# arms hang slightly away from the hips
+		_arms[i].rotation = Vector3(-pose.x, pose.y, pose.z + (-0.06 if i == 0 else 0.06))
 		_elbows[i].rotation.x = -_elbow_bend[i]
 		# keep whatever is in the hand upright relative to the body
 		_hands[i].rotation.x = pose.x + _elbow_bend[i]
@@ -308,7 +315,7 @@ func _solve_joints(delta: float) -> void:
 	if _blink_t <= 0.0:
 		_blink_t = _rng.randf_range(2.5, 6.0)
 	_lids.scale.y = 1.0 if _blink_t < 0.12 else LID_REST
-	_lids.position.y = 0.011 if _blink_t < 0.12 else 0.0215
+	_lids.position.y = 0.011 if _blink_t < 0.12 else 0.021
 	# breathing
 	_body.scale.x = _body.scale.y * (1.0 + sin(_anim_t * 1.6) * 0.006)
 	_social(delta)
@@ -332,6 +339,8 @@ func _solve_joints(delta: float) -> void:
 		_mouth_open = 0.0
 		_face_m.set_shader_parameter("mouth_open", 0.0)
 	_glass_arm(delta)
+	if _rig:
+		_apply_rig()
 
 
 func set_name_tag(text: String) -> void:
@@ -770,7 +779,7 @@ func _glass_arm(delta: float) -> void:
 	var gb := Basis()
 	if w > 0.0 and not _ik_goal.is_empty():
 		var gbasis: Basis = _ik_goal[1]
-		var sol := _solve_arm_ik(_ik_goal[0] + gbasis * Vector3(0, GRIP_UP, 0))
+		var sol := _solve_ik(1, _ik_goal[0] + gbasis * Vector3(0, GRIP_UP, 0), GRIP_Q, Vector3(0.6, -0.8, 0.25))
 		var fk := _arms[1].basis.get_rotation_quaternion()
 		_arms[1].basis = Basis(fk.slerp((sol[0] as Basis).get_rotation_quaternion(), w))
 		_elbows[1].rotation.x = lerpf(_elbows[1].rotation.x, sol[1], w)
@@ -780,12 +789,11 @@ func _glass_arm(delta: float) -> void:
 		glass.transform = glass.transform.interpolate_with(Transform3D(Basis(), Vector3(0, -GRIP_UP, 0)), minf(1.0, delta * 10.0))
 
 
-## Two-bone reach for the right arm: shoulder orientation and elbow bend that put the fist at
-## `target` (body space), with the elbow hanging down and out.
-func _solve_arm_ik(target: Vector3) -> Array:
-	var d := target - _arms[1].position
+## Two-bone reach: shoulder orientation and elbow bend that put the point `q` (elbow-local, in
+## the forearm) at `target` (body space), with the elbow pointing towards `pole`.
+func _solve_ik(i: int, target: Vector3, q: Vector3, pole: Vector3) -> Array:
+	var d := target - _arms[i].position
 	var a := UPPER_ARM
-	var q := GRIP_Q
 	var r := Vector2(q.y, q.z).length()
 	var off := atan2(-q.z, -q.y)
 	var b2 := q.length_squared()
@@ -796,8 +804,8 @@ func _solve_arm_ik(target: Vector3) -> Array:
 	var u0 := end0.normalized()
 	var p0 := (elbow0 - u0 * elbow0.dot(u0)).normalized()
 	var u1 := d.normalized() if d.length() > 0.001 else Vector3.DOWN
-	var pole := Vector3(0.6, -0.8, 0.25).normalized()
-	var p1 := pole - u1 * pole.dot(u1)
+	var pn := pole.normalized()
+	var p1 := pn - u1 * pn.dot(u1)
 	p1 = p1.normalized() if p1.length() > 0.001 else Vector3.BACK
 	var b0 := Basis(u0, p0, u0.cross(p0))
 	var b1 := Basis(u1, p1, u1.cross(p1))
@@ -998,85 +1006,43 @@ func add_stool() -> void:
 	MeshKit.contact_shadow(st, Vector3.ZERO, Vector2(0.5, 0.5), 0.4)
 
 
-## Turns this character into a seated musician holding an instrument.
+## Turns this character into a seated musician playing an instrument (see MusicianRig).
 func make_musician(kind: String, beat_s: float) -> void:
 	state = "musician"
 	instrument = kind
 	beat = maxf(beat_s, 0.2)
 	_set_seated(true)
 	_bubble.visible = false
-	_prop = Node3D.new()
-	_body.add_child(_prop)
-	var wood := MeshKit.color_mat(Color(0.45, 0.2, 0.07), 0.35)
-	var dark := MeshKit.color_mat(Color(0.1, 0.06, 0.03), 0.5)
-	match kind:
-		"fiddle":
-			# under the chin on the left shoulder, scroll pointing forward-left
-			_prop.position = Vector3(-0.1, 1.47, -0.14)
-			_prop.rotation = Vector3(0.25, 0.55, 0.65)
-			var varnish := MeshKit.color_mat(Color(0.55, 0.22, 0.06), 0.22)
-			varnish.clearcoat_enabled = true
-			MeshKit.sphere(_prop, 1.0, Vector3(0, 0, -0.055), varnish, Vector3(0.068, 0.024, 0.075))
-			MeshKit.sphere(_prop, 1.0, Vector3(0, 0, 0.06), varnish, Vector3(0.082, 0.026, 0.088))
-			MeshKit.box(_prop, Vector3(0.05, 0.03, 0.04), Vector3(0, 0, 0.0), varnish)  # waist
-			MeshKit.box(_prop, Vector3(0.022, 0.016, 0.2), Vector3(0, 0.012, -0.22), dark)  # neck and fingerboard
-			MeshKit.sphere(_prop, 0.018, Vector3(0, 0.012, -0.33), varnish)  # scroll
-			MeshKit.box(_prop, Vector3(0.014, 0.004, 0.36), Vector3(0, 0.03, -0.1), MeshKit.color_mat(Color(0.85, 0.85, 0.8), 0.3, 0.8))  # strings
-			MeshKit.box(_prop, Vector3(0.03, 0.008, 0.05), Vector3(0, 0.03, 0.1), dark)  # tailpiece
-			var bow := MeshKit.cyl(_right_hand, 0.004, 0.004, 0.6, Vector3(0.0, 0.0, 0.0), MeshKit.color_mat(Color(0.3, 0.2, 0.1), 0.5), 6, Vector3(0, 0, PI / 2.0))
-			_arm_rot[0] = Vector3(-1.6, 0, -0.5)
-			_arm_rot[1] = Vector3(-1.1, 0, 0.3)
-		"whistle":
-			_prop.position = Vector3(0, 1.58, -0.2)
-			_prop.rotation = Vector3(1.1, 0, 0)
-			MeshKit.cyl(_prop, 0.01, 0.01, 0.28, Vector3.ZERO, MeshKit.color_mat(Color(0.75, 0.75, 0.7), 0.25, 0.8), 8)
-			_arm_rot[0] = Vector3(-1.5, 0, -0.3)
-			_arm_rot[1] = Vector3(-1.3, 0, 0.3)
-		"bodhran":
-			_prop.position = Vector3(-0.12, 1.15, -0.28)
-			_prop.rotation = Vector3(PI / 2.0 - 0.3, 0, 0.2)
-			MeshKit.cyl(_prop, 0.22, 0.22, 0.07, Vector3.ZERO, MeshKit.color_mat(Color(0.85, 0.75, 0.55), 0.7), 20)
-			MeshKit.torus(_prop, 0.2, 0.225, Vector3(0, 0.0, 0), wood)
-			MeshKit.cyl(_right_hand, 0.008, 0.008, 0.2, Vector3.ZERO, wood, 6, Vector3(PI / 2.0, 0, 0))
-			_arm_rot[0] = Vector3(-0.9, 0, -0.4)
-		"accordion":
-			_prop.position = Vector3(0, 1.12, -0.26)
-			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(-0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
-			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
-			var bellows := MeshKit.box(_prop, Vector3(0.22, 0.28, 0.18), Vector3.ZERO, MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.6))
-			bellows.name = "Bellows"
-			_arm_rot[0] = Vector3(-0.9, 0, -0.3)
-			_arm_rot[1] = Vector3(-0.9, 0, 0.3)
-		"guitar", "banjo":
-			_prop.position = Vector3(0.0, 1.0, -0.2)
-			_prop.rotation = Vector3(0, 0, 0.9)
-			if kind == "guitar":
-				MeshKit.sphere(_prop, 0.17, Vector3(0, -0.05, 0), wood, Vector3(1.0, 1.25, 0.4))
-			else:
-				MeshKit.cyl(_prop, 0.14, 0.14, 0.06, Vector3(0, -0.05, 0), MeshKit.color_mat(Color(0.9, 0.88, 0.8), 0.5), 20, Vector3(PI / 2.0, 0, 0))
-			MeshKit.box(_prop, Vector3(0.04, 0.5, 0.025), Vector3(0, 0.33, 0), dark)
-			_arm_rot[0] = Vector3(-1.2, 0, -0.6)
-			_arm_rot[1] = Vector3(-0.7, 0, 0.2)
+	_rig = MusicianRig.new()
+	_rig.build(_body, _right_hand, kind)
+	_prop = _rig.prop
 
 
 func _play_anim(_delta: float) -> void:
 	var ph := _anim_t / beat * TAU
 	_body.position.y = -0.4 + absf(sin(ph * 0.5)) * 0.012
-	_head.rotation.x = sin(ph * 0.5) * 0.08
+	_head.rotation.x = sin(ph * 0.5) * 0.06
+	_head.rotation.y = 0.0
 	_leg_rot[0] = -1.45 + maxf(0.0, sin(ph)) * 0.12  # foot tapping
 	match instrument:
 		"fiddle":
-			_arm_rot[1].z = 0.3 + sin(ph * 0.5) * 0.45
-			_head.rotation.z = 0.25
+			_head.rotation.z = 0.28   # cheek down on the chin rest
+			_head.rotation.y = -0.25
+			_head.rotation.x = -0.12
 		"whistle":
-			_head.rotation.x = -0.1 + sin(ph * 0.5) * 0.05
-		"bodhran":
-			_arm_rot[1].x = -1.1 + absf(sin(ph * 0.5)) * 0.6
-		"accordion":
-			var b := _prop.get_node_or_null("Bellows") as Node3D
-			if b:
-				b.scale.x = 1.0 + 0.6 * sin(ph * 0.125)
-			_prop.get_child(0).position.x = -0.17 - 0.06 * sin(ph * 0.125)
-			_prop.get_child(1).position.x = 0.17 + 0.06 * sin(ph * 0.125)
-		"guitar", "banjo":
-			_arm_rot[1].x = -0.7 + sin(ph) * 0.25
+			_head.rotation.x = -0.06 + sin(ph * 0.5) * 0.03
+		"accordion", "guitar", "banjo", "bodhran":
+			_head.rotation.x = -0.18 + sin(ph * 0.5) * 0.05   # eyes on the hands
+			_head.rotation.y = 0.15 if instrument in ["guitar", "banjo"] else 0.0
+
+
+## Both arms reach for the instrument; whatever is in the right hand is turned to match.
+func _apply_rig() -> void:
+	var pose := _rig.pose(_anim_t, beat)
+	for i in 2:
+		var key := "l" if i == 0 else "r"
+		var sol := _solve_ik(i, pose[key], _hands[i].position, pose["p" + key])
+		_arms[i].basis = sol[0]
+		_elbows[i].rotation.x = sol[1]
+	if pose.has("held"):
+		_hands[1].basis = (_arms[1].basis * _elbows[1].basis).inverse() * (pose["held"] as Basis)
