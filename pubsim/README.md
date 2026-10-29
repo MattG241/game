@@ -147,6 +147,9 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   mouths, smile when they laugh, and close their fingers round a pint or an instrument. The existing
   animation drives their skeletons (walking, sitting, drinking, playing). See
   `tools/people/README.md`.
+- **Real furniture**: the pub tables, chairs, green fireside armchairs, the fiddler's stool, the old
+  cash register and a mantel clock are CC0 scanned models from Poly Haven, prepared in Blender
+  (`tools/props/`).
 - **Thick Irish accents**: lines were re-recorded one take per character with thick regional accent
   tags. This covers the old regular, the Cork local and most of the Dubliner's lines; the free credits
   ran out before the rest (see `docs/TESTING.md`). Voices also get a light room reverb.

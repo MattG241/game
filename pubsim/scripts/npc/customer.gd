@@ -992,15 +992,11 @@ func _social(delta: float) -> void:
 			_arm_rot[0] = Vector3.ZERO
 
 
-## A plain wooden stool for a musician playing away from the seats.
+## A wooden stool for a musician playing away from the seats.
 func add_stool() -> void:
 	var st := Node3D.new()
 	add_child(st)
-	var w := MeshKit.mat("oak_y")
-	MeshKit.cyl(st, 0.17, 0.17, 0.04, Vector3(0, 0.44, 0.02), MeshKit.mat("oak"), 16)
-	for i in 3:
-		var a := TAU * i / 3.0
-		MeshKit.cyl(st, 0.018, 0.022, 0.44, Vector3(sin(a) * 0.12, 0.22, cos(a) * 0.12 + 0.02), w, 6, Vector3(cos(a) * 0.12, 0, -sin(a) * 0.12))
+	MeshKit.prop(st, "music_stool", Vector3(0, 0, 0.03))   # a turned wooden stool
 	MeshKit.contact_shadow(st, Vector3.ZERO, Vector2(0.5, 0.5), 0.4)
 
 

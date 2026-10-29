@@ -204,12 +204,7 @@ func _bar() -> void:
 	var till := Node3D.new()
 	till.position = PubLayout.TILL_POS
 	g.add_child(till)
-	MeshKit.box(till, Vector3(0.36, 0.12, 0.3), Vector3(0, 0.06, 0), MeshKit.mat("iron"))
-	MeshKit.box(till, Vector3(0.3, 0.16, 0.06), Vector3(0, 0.2, -0.05), MeshKit.mat("iron"), Vector3(-0.4, 0, 0))
-	MeshKit.box(till, Vector3(0.26, 0.08, 0.02), Vector3(0, 0.24, -0.02), MeshKit.color_mat(Color(0.2, 0.5, 0.3), 0.4, 0, 0.6), Vector3(-0.4, 0, 0))
-	for i in 3:
-		for j in 4:
-			MeshKit.box(till, Vector3(0.04, 0.015, 0.035), Vector3(-0.09 + j * 0.06, 0.125, 0.04 + i * 0.045), MeshKit.color_mat(Color(0.85, 0.82, 0.75), 0.6))
+	MeshKit.prop(till, "till")   # an old brass-and-enamel cash register, keys towards the bartender
 	# tips jar
 	MeshKit.cyl(g, 0.06, 0.055, 0.14, PubLayout.TILL_POS + Vector3(-0.38, 0.07, 0.05), MeshKit.color_mat(Color(0.8, 0.9, 0.9, 0.35), 0.05))
 	MeshKit.label(g, "TIPS", PubLayout.TILL_POS + Vector3(-0.38, 0.08, 0.112), 28, Color(0.95, 0.85, 0.5), Vector3.ZERO, _title_font)
@@ -425,6 +420,8 @@ func _fireplace() -> void:
 	MeshKit.box(g, Vector3(0.1, 1.05, 1.25), Vector3(p.x + 0.12, 0.52, p.z), MeshKit.color_mat(Color(0.03, 0.025, 0.02), 1.0))
 	MeshKit.box(g, Vector3(0.9, 0.04, 2.0), Vector3(p.x + 0.45, 0.02, p.z), MeshKit.mat("stone_floor"))
 	MeshKit.solid(g, Vector3(0.6, 1.4, 1.9), Vector3(p.x + 0.3, 0.7, p.z))
+	# a mantel clock on the shelf, facing the room
+	MeshKit.prop(g, "mantel_clock", Vector3(p.x + 0.42, 1.5, p.z + 0.55), -PI / 2)
 	# chimney breast above
 	MeshKit.box(g, Vector3(0.4, 1.85, 1.9), Vector3(p.x + 0.2, 2.4, p.z), MeshKit.mat("plaster_old"))
 	# ash (unlit) vs turf fire (upgrade)
@@ -535,16 +532,13 @@ func _table_round(g: Node3D, p: Vector3, seats: int) -> void:
 	t.position = p
 	g.add_child(t)
 	MeshKit.contact_shadow(t, Vector3.ZERO, Vector2(1.5, 1.5), 0.5)
-	MeshKit.cyl(t, 0.42, 0.42, 0.05, Vector3(0, 0.74, 0), MeshKit.mat("bar_top"), 24)
-	MeshKit.torus(t, 0.405, 0.43, Vector3(0, 0.74, 0), MeshKit.mat("bar_top"))  # rounded edge
+	MeshKit.prop(t, "pub_table")   # a turned pedestal table
 	# a GALAGERS menu tent and a candle in an amber jar in the middle of the table
 	var menu_m := MeshKit.print_mat(BRAND + "galagers_menu.png", 0.0, 0.8)
 	for side in [-1, 1]:
 		MeshKit.quad(t, Vector2(0.09, 0.135), Vector3(0.0, 0.83, side * 0.022), menu_m, Vector3(side * -0.33, 0.0 if side == 1 else PI, 0))
 	MeshKit.cyl(t, 0.032, 0.03, 0.07, Vector3(0.1, 0.8, 0.06), MeshKit.color_mat(Color(0.75, 0.42, 0.12, 0.6), 0.1), 12)
 	MeshKit.sphere(t, 0.012, Vector3(0.1, 0.84, 0.06), MeshKit.mat("bulb"), Vector3(0.7, 1.4, 0.7))
-	MeshKit.cyl(t, 0.05, 0.06, 0.7, Vector3(0, 0.37, 0), MeshKit.mat("iron"), 10)
-	MeshKit.cyl(t, 0.25, 0.28, 0.04, Vector3(0, 0.02, 0), MeshKit.mat("iron"), 16)
 	var sb := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
@@ -573,15 +567,8 @@ func _chair(g: Node3D, p: Vector3, yaw: float) -> void:
 	c.position = p
 	c.rotation.y = yaw
 	g.add_child(c)
-	var wood := MeshKit.mat("oak_y")
 	MeshKit.contact_shadow(c, Vector3.ZERO, Vector2(0.65, 0.65), 0.45)
-	MeshKit.box(c, Vector3(0.42, 0.05, 0.4), Vector3(0, 0.46, 0), MeshKit.mat("oak"))
-	for lx in [-0.18, 0.18]:
-		for lz in [-0.17, 0.17]:
-			MeshKit.box(c, Vector3(0.04, 0.46, 0.04), Vector3(lx, 0.23, lz), wood)
-	MeshKit.box(c, Vector3(0.42, 0.5, 0.04), Vector3(0, 0.74, 0.19), wood)
-	for i in 3:
-		MeshKit.box(c, Vector3(0.03, 0.42, 0.02), Vector3(-0.12 + i * 0.12, 0.7, 0.18), MeshKit.mat("oak"))
+	MeshKit.prop(c, "pub_chair")   # a worn, dark-stained wooden chair, back away from the table
 	MeshKit.solid(c, Vector3(0.44, 0.9, 0.44), Vector3(0, 0.45, 0))
 
 
@@ -591,20 +578,8 @@ func _armchair(g: Node3D, p: Vector3, face: Vector3, table_pos: Vector3) -> void
 	c.position = p
 	c.rotation.y = yaw
 	g.add_child(c)
-	var fab := MeshKit.mat("leather_green")
 	MeshKit.contact_shadow(c, Vector3.ZERO, Vector2(1.1, 1.0), 0.55)
-	MeshKit.box(c, Vector3(0.75, 0.25, 0.7), Vector3(0, 0.3, 0), fab)
-	MeshKit.box(c, Vector3(0.6, 0.08, 0.58), Vector3(0, 0.45, -0.03), fab)  # seat cushion
-	MeshKit.box(c, Vector3(0.75, 0.6, 0.15), Vector3(0, 0.7, 0.3), fab)
-	MeshKit.cyl(c, 0.08, 0.08, 0.75, Vector3(0, 1.0, 0.3), fab, 14, Vector3(0, 0, PI / 2))  # top roll
-	for side in [-1, 1]:
-		MeshKit.box(c, Vector3(0.12, 0.25, 0.7), Vector3(side * 0.38, 0.55, 0), fab)
-		MeshKit.cyl(c, 0.075, 0.075, 0.72, Vector3(side * 0.38, 0.68, -0.01), fab, 14, Vector3(PI / 2, 0, 0))  # rolled arm
-	var button := MeshKit.color_mat(Color(0.03, 0.1, 0.05), 0.4)
-	for bx in 4:
-		for by in 2:
-			MeshKit.sphere(c, 0.012, Vector3(-0.24 + bx * 0.16 + by * 0.08, 0.62 + by * 0.16, 0.222), button)
-	MeshKit.box(c, Vector3(0.7, 0.18, 0.66), Vector3(0, 0.1, 0), MeshKit.mat("oak"))
+	MeshKit.prop(c, "fireside_chair")   # a green upholstered armchair
 	MeshKit.solid(c, Vector3(0.8, 0.9, 0.75), Vector3(0, 0.45, 0))
 	info["seats"].append({"pos": p, "yaw": yaw, "table": table_pos, "kind": "armchair", "sit_y": 0.0})
 	# small side table for the glass

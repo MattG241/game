@@ -7,3 +7,4 @@ build/
 export_credentials.cfg
 __pycache__/
 tools/people/build/
+tools/props/src/

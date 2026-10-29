@@ -456,6 +456,20 @@ static func solid_box(parent: Node, size: Vector3, pos: Vector3, material: Mater
 ## Merges the plain MeshInstance3D children of a node into one mesh with one surface per
 ## material, so a character's limb or head costs a few draw calls instead of a dozen.
 ## Children that have their own children (joints) are left alone.
+## A model from assets/props (CC0 Poly Haven models prepared in Blender by tools/props).
+static var _props := {}
+
+
+static func prop(parent: Node, name: String, pos := Vector3.ZERO, yaw := 0.0) -> Node3D:
+	if not _props.has(name):
+		_props[name] = load("res://assets/props/%s.glb" % name)
+	var n: Node3D = (_props[name] as PackedScene).instantiate()
+	n.position = pos
+	n.rotation.y = yaw
+	parent.add_child(n)
+	return n
+
+
 static func merge_children(node: Node3D, name := "Merged") -> MeshInstance3D:
 	var by_mat := {}
 	var order: Array = []
