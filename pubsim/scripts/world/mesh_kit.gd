@@ -344,6 +344,27 @@ static func _shadow_mat(tex_path: String, strength: float) -> StandardMaterial3D
 	return _shadow_mats[key]
 
 
+static var _halo_mats := {}
+
+
+## A soft glow sprite around a lamp: reads as bloom even on presets without glow.
+static func halo(parent: Node, pos: Vector3, size: float, color: Color) -> MeshInstance3D:
+	var key := color.to_html()
+	if not _halo_mats.has(key):
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load("res://assets/env/soft_puff.png")
+		m.albedo_color = color
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		_halo_mats[key] = m
+	var q := quad(parent, Vector2(size, size), pos, _halo_mats[key])
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return q
+
+
 ## A soft dark blob on the floor under furniture or a person: an approximation of ambient
 ## occlusion that grounds objects without real-time shadows.
 static func contact_shadow(parent: Node, pos: Vector3, size: Vector2, strength := 0.55, yaw := 0.0) -> MeshInstance3D:

@@ -358,38 +358,51 @@ func _back_bar() -> void:
 
 
 func _bottles(g: Node3D, base: Vector3, width: float) -> void:
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	var bottle := CylinderMesh.new()
-	bottle.top_radius = 0.018
-	bottle.bottom_radius = 0.04
-	bottle.height = 0.3
-	bottle.radial_segments = 10
-	bottle.rings = 2
-	var bm := StandardMaterial3D.new()
-	bm.vertex_color_use_as_albedo = true
-	bm.roughness = 0.12
-	bm.metallic = 0.1
-	bottle.material = bm
-	mm.mesh = bottle
+	# three bottle shapes (spirit, wine, squat liqueur), each one batched MultiMesh
+	var shapes := [
+		{"p": [Vector2(0.0, 0.0), Vector2(0.036, 0.0), Vector2(0.038, 0.012), Vector2(0.038, 0.19), Vector2(0.034, 0.215),
+			Vector2(0.016, 0.245), Vector2(0.013, 0.272), Vector2(0.0145, 0.3), Vector2(0.0, 0.3)], "l": [0.06, 0.15], "cap": 0.272},
+		{"p": [Vector2(0.0, 0.0), Vector2(0.034, 0.0), Vector2(0.036, 0.012), Vector2(0.036, 0.17), Vector2(0.03, 0.2),
+			Vector2(0.015, 0.235), Vector2(0.013, 0.29), Vector2(0.0145, 0.31), Vector2(0.0, 0.31)], "l": [0.05, 0.13], "cap": 0.255},
+		{"p": [Vector2(0.0, 0.0), Vector2(0.045, 0.0), Vector2(0.047, 0.02), Vector2(0.047, 0.12), Vector2(0.035, 0.15),
+			Vector2(0.016, 0.17), Vector2(0.014, 0.198), Vector2(0.016, 0.21), Vector2(0.0, 0.21)], "l": [0.035, 0.105], "cap": 0.19},
+	]
+	var glass := [Color(0.35, 0.15, 0.04), Color(0.08, 0.22, 0.09), Color(0.55, 0.3, 0.06), Color(0.7, 0.72, 0.7),
+		Color(0.32, 0.05, 0.08), Color(0.12, 0.14, 0.24), Color(0.45, 0.32, 0.12)]
+	var labels := [Color(0.93, 0.88, 0.75, 1.0), Color(0.08, 0.07, 0.07, 0.0), Color(0.75, 0.12, 0.1, 0.0),
+		Color(0.9, 0.82, 0.55, 1.0), Color(0.1, 0.3, 0.18, 0.0), Color(0.95, 0.95, 0.92, 1.0)]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 87
 	var per := int(width / 0.1)
-	mm.instance_count = per * 2
-	var palette := [Color(0.25, 0.1, 0.03), Color(0.08, 0.2, 0.08), Color(0.45, 0.25, 0.05), Color(0.6, 0.6, 0.55), Color(0.3, 0.05, 0.08), Color(0.1, 0.12, 0.2)]
-	var idx := 0
+	var picks: Array = [[], [], []]
 	for shelf_y in [1.27, 1.77]:
-		for i in per:
-			var x := base.x - width / 2.0 + i * 0.1 + rng.randf_range(-0.02, 0.02)
-			var s := rng.randf_range(0.8, 1.15)
-			var t := Transform3D(Basis().scaled(Vector3(s, s, s)), Vector3(x, shelf_y + 0.15 * s, base.z + rng.randf_range(-0.05, 0.05)))
-			mm.set_instance_transform(idx, t)
-			mm.set_instance_color(idx, palette[rng.randi() % palette.size()])
-			idx += 1
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	g.add_child(mmi)
+		var x := base.x - width / 2.0
+		while x < base.x + width / 2.0:
+			var k := rng.randi() % 3
+			var s := rng.randf_range(0.9, 1.1)
+			var t := Transform3D(Basis(Vector3.UP, rng.randf_range(-0.25, 0.25)).scaled(Vector3(s, s, s)),
+				Vector3(x, shelf_y + 0.02, base.z + rng.randf_range(-0.04, 0.04)))
+			picks[k].append([t, glass[rng.randi() % glass.size()], labels[rng.randi() % labels.size()]])
+			x += 0.085 + (0.02 if k == 2 else 0.0) + rng.randf_range(0.0, 0.025)
+	for k in 3:
+		var sh: Dictionary = shapes[k]
+		var mesh := MeshKit.lathe(PackedVector2Array(sh["p"]), 14, false)
+		var mat := MeshKit.shader_mat("res://assets/shaders/bottle.gdshader", {"label_y0": sh["l"][0], "label_y1": sh["l"][1], "cap_y": sh["cap"]})
+		mesh.surface_set_material(0, mat)
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.use_custom_data = true
+		mm.mesh = mesh
+		mm.instance_count = picks[k].size()
+		for i in picks[k].size():
+			var pk: Array = picks[k][i]
+			mm.set_instance_transform(i, pk[0])
+			mm.set_instance_color(i, pk[1])
+			mm.set_instance_custom_data(i, pk[2])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		g.add_child(mmi)
 
 
 # ------------------------------------------------------------------ fireplace
@@ -415,28 +428,69 @@ func _fireplace() -> void:
 	for i in 5:
 		MeshKit.box(fire, Vector3(0.12, 0.08, 0.22), Vector3((i % 2) * 0.1 - 0.05, 0.04 + (i / 2) * 0.06, -0.25 + i * 0.12), MeshKit.mat("turf"), Vector3(0, i * 0.5, 0.2))
 	MeshKit.box(fire, Vector3(0.3, 0.04, 0.6), Vector3(0, 0.02, 0), MeshKit.mat("ember"))
-	var parts := CPUParticles3D.new()
-	parts.amount = 28
-	parts.lifetime = 0.9
-	parts.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	parts.emission_box_extents = Vector3(0.1, 0.02, 0.28)
-	parts.direction = Vector3(0, 1, 0)
-	parts.spread = 12.0
-	parts.gravity = Vector3(0, 0.6, 0)
-	parts.initial_velocity_min = 0.25
-	parts.initial_velocity_max = 0.5
-	parts.scale_amount_min = 0.6
-	parts.scale_amount_max = 1.2
-	var grad := Gradient.new()
-	grad.set_color(0, Color(1.0, 0.75, 0.3, 0.9))
-	grad.set_color(1, Color(0.8, 0.15, 0.02, 0.0))
-	parts.color_ramp = grad
-	var qm := QuadMesh.new()
-	qm.size = Vector2(0.14, 0.2)
-	qm.material = MeshKit.mat("fire")
-	parts.mesh = qm
-	parts.position.y = 0.08
-	fire.add_child(parts)
+	# flames: crossed vertical quads with an animated flame shader, a few tongues along the turf
+	var tongues := [[Vector3(0.0, 0.05, -0.15), 0.42, 0.0], [Vector3(0.02, 0.05, 0.1), 0.5, 1.7],
+		[Vector3(-0.03, 0.05, 0.27), 0.34, 3.1], [Vector3(0.03, 0.05, -0.3), 0.3, 4.4]]
+	for tg in tongues:
+		var base: Vector3 = tg[0]
+		var hgt: float = tg[1]
+		for k in 2:
+			var fm := MeshKit.shader_mat("res://assets/shaders/flame.gdshader", {"seed": float(tg[2]) + k * 0.37, "speed": 0.9 + k * 0.2})
+			var q := MeshKit.quad(fire, Vector2(hgt * 0.75, hgt), base + Vector3(0, hgt / 2.0, 0), fm, Vector3(0, PI / 2.0 + (k - 0.5) * 1.1, 0))
+			q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# sparks that drift up the chimney
+	var sparks := CPUParticles3D.new()
+	sparks.amount = 14
+	sparks.lifetime = 1.6
+	sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	sparks.emission_box_extents = Vector3(0.08, 0.02, 0.25)
+	sparks.direction = Vector3(0, 1, 0)
+	sparks.spread = 25.0
+	sparks.gravity = Vector3(0, 0.4, 0)
+	sparks.initial_velocity_min = 0.3
+	sparks.initial_velocity_max = 0.8
+	sparks.scale_amount_min = 0.4
+	sparks.scale_amount_max = 1.0
+	var sgrad := Gradient.new()
+	sgrad.set_color(0, Color(1.0, 0.8, 0.4, 1.0))
+	sgrad.set_color(1, Color(1.0, 0.25, 0.05, 0.0))
+	sparks.color_ramp = sgrad
+	var sq := QuadMesh.new()
+	sq.size = Vector2(0.012, 0.012)
+	sq.material = MeshKit.mat("fire")
+	sparks.mesh = sq
+	sparks.position.y = 0.15
+	fire.add_child(sparks)
+	# a faint wisp of smoke drawn up the flue
+	var smoke := CPUParticles3D.new()
+	smoke.amount = 6
+	smoke.lifetime = 2.5
+	smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	smoke.emission_box_extents = Vector3(0.05, 0.02, 0.2)
+	smoke.direction = Vector3(-0.3, 1, 0)
+	smoke.spread = 10.0
+	smoke.gravity = Vector3(-0.1, 0.2, 0)
+	smoke.initial_velocity_min = 0.15
+	smoke.initial_velocity_max = 0.3
+	smoke.scale_amount_min = 1.0
+	smoke.scale_amount_max = 2.0
+	var smg := Gradient.new()
+	smg.set_color(0, Color(0.25, 0.22, 0.2, 0.0))
+	smg.add_point(0.3, Color(0.25, 0.22, 0.2, 0.18))
+	smg.set_color(2, Color(0.2, 0.2, 0.2, 0.0))
+	smoke.color_ramp = smg
+	var smm := StandardMaterial3D.new()
+	smm.albedo_texture = load("res://assets/env/soft_puff.png")
+	smm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smm.vertex_color_use_as_albedo = true
+	smm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	var smq := QuadMesh.new()
+	smq.size = Vector2(0.25, 0.25)
+	smq.material = smm
+	smoke.mesh = smq
+	smoke.position.y = 0.45
+	fire.add_child(smoke)
 	var light := OmniLight3D.new()
 	light.position = Vector3(0.4, 0.5, 0)
 	light.light_color = Color(1.0, 0.55, 0.22)
@@ -925,27 +979,103 @@ func _exterior() -> void:
 	var paving := MeshKit.shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.35, 0.35, 0.36), "axis": 2, "tile_size": Vector2(0.6, 0.6), "glaze": 0.3, "grout_color": Color(0.2, 0.2, 0.2)})
 	MeshKit.box(g, Vector3(40, 0.14, 1.6), Vector3(0, 0.0, 5.95), paving)
 	MeshKit.box(g, Vector3(40, 0.14, 1.4), Vector3(0, 0.0, 13.2), paving)
-	# pub facade dressing
-	var fascia := MeshKit.box(g, Vector3(9.4, 0.6, 0.12), Vector3(0, 2.75, PubLayout.ROOM_MAX.y + 0.2), MeshKit.mat("green_paint"))
-	var name_l := MeshKit.label(g, GameState.pub_name, Vector3(0, 2.75, PubLayout.ROOM_MAX.y + 0.27), 96, Color(0.95, 0.78, 0.38), Vector3.ZERO, _title_font)
+	# ---- the pub front: a traditional Irish shopfront under a rendered upper storey
+	var z0 := PubLayout.ROOM_MAX.y + 0.13
+	var gold := MeshKit.color_mat(Color(0.78, 0.6, 0.28), 0.35, 0.8)
+	var green := MeshKit.mat("green_paint")
+	var dark := MeshKit.mat("black_paint")
+	# upper storey with three sash windows, a cornice and a parapet over the slate roof
+	MeshKit.box(g, Vector3(14.2, 3.4, 0.3), Vector3(0, 3.3 + 1.7, PubLayout.ROOM_MAX.y), MeshKit.mat("render_cream"))
+	for wx in [-4.4, 0.0, 4.4]:
+		var lit: bool = wx != 0.0
+		MeshKit.box(g, Vector3(1.0, 1.45, 0.05), Vector3(wx, 4.75, z0 + 0.02), MeshKit.mat("window_warm") if lit else MeshKit.mat("window_night"))
+		for bx in [-0.25, 0.25]:
+			MeshKit.box(g, Vector3(0.035, 1.45, 0.06), Vector3(wx + bx, 4.75, z0 + 0.05), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.0, 0.05, 0.07), Vector3(wx, 4.75, z0 + 0.05), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.16, 0.08, 0.1), Vector3(wx, 5.5, z0 + 0.05), MeshKit.mat("cream"))
+		MeshKit.box(g, Vector3(1.2, 0.08, 0.2), Vector3(wx, 3.98, z0 + 0.09), MeshKit.mat("cream"))  # sill
+		for side in [-1, 1]:
+			MeshKit.box(g, Vector3(0.06, 1.55, 0.08), Vector3(wx + side * 0.55, 4.75, z0 + 0.05), MeshKit.mat("cream"))
+		if lit:
+			MeshKit.box(g, Vector3(0.42, 1.3, 0.02), Vector3(wx - 0.27, 4.75, z0 + 0.0), MeshKit.color_mat(Color(0.55, 0.15, 0.12), 0.9))  # curtain
+	MeshKit.box(g, Vector3(14.6, 0.16, 0.42), Vector3(0, 6.62, z0 + 0.06), MeshKit.mat("cream"))
+	MeshKit.box(g, Vector3(14.4, 0.5, 0.22), Vector3(0, 6.95, z0 - 0.05), MeshKit.mat("render_cream"))
+	var roof := MeshKit.box(g, Vector3(14.2, 0.2, 6.5), Vector3(0, 7.9, 2.4), MeshKit.color_mat(Color(0.12, 0.13, 0.15), 0.6), Vector3(-0.42, 0, 0))
+	roof.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for cx in [-5.6, 5.0]:
+		MeshKit.box(g, Vector3(0.7, 1.4, 0.6), Vector3(cx, 8.0, 1.2), MeshKit.mat("brick"))
+		for k in 2:
+			MeshKit.cyl(g, 0.09, 0.1, 0.35, Vector3(cx - 0.15 + k * 0.3, 8.85, 1.2), MeshKit.color_mat(Color(0.5, 0.25, 0.15), 0.8), 10)
+	# fascia: black board with gilt trim, a deep cornice and carved console brackets at each end
+	MeshKit.box(g, Vector3(14.2, 0.66, 0.14), Vector3(0, 2.76, z0 + 0.07), dark)
+	for ty in [2.45, 3.07]:
+		MeshKit.box(g, Vector3(14.2, 0.035, 0.16), Vector3(0, ty, z0 + 0.08), gold)
+	MeshKit.box(g, Vector3(14.6, 0.14, 0.4), Vector3(0, 3.16, z0 + 0.14), green)
+	MeshKit.box(g, Vector3(14.8, 0.06, 0.46), Vector3(0, 3.26, z0 + 0.16), green)
+	for side in [-1, 1]:
+		MeshKit.box(g, Vector3(0.3, 0.75, 0.3), Vector3(side * 7.0, 2.76, z0 + 0.14), green)
+		MeshKit.sphere(g, 0.11, Vector3(side * 7.0, 2.42, z0 + 0.22), gold, Vector3(1.0, 0.7, 0.6))
+	var name_l := MeshKit.label(g, GameState.pub_name, Vector3(0, 2.76, z0 + 0.15), 96, Color(0.95, 0.78, 0.38), Vector3.ZERO, _title_font)
 	name_l.pixel_size = 0.0035
+	name_l.outline_size = 6
+	name_l.outline_modulate = Color(0.25, 0.15, 0.05)
 	info["facade_label"] = name_l
-	for sx in [-4.75, 4.75]:
-		MeshKit.box(g, Vector3(0.3, 3.1, 0.2), Vector3(sx, 1.55, PubLayout.ROOM_MAX.y + 0.18), MeshKit.mat("green_paint"))
-	MeshKit.label(g, "Fine Ales · Trad Music", Vector3(0, 2.3, PubLayout.ROOM_MAX.y + 0.27), 40, Color(0.9, 0.85, 0.7), Vector3.ZERO)
-	for sx in [-2.05, 2.05]:
-		MeshKit.box(g, Vector3(0.84, 0.44, 0.04), Vector3(sx, 2.3, PubLayout.ROOM_MAX.y + 0.27), MeshKit.mat("black_paint"))
-		MeshKit.quad(g, Vector2(0.78, 0.39), Vector3(sx, 2.3, PubLayout.ROOM_MAX.y + 0.292), MeshKit.print_mat(BRAND + "galagers_sign.png", 0.9, 0.3))
-	# hanging sign with a shamrock
+	for sx in [-5.6, 5.6]:
+		MeshKit.box(g, Vector3(1.08, 0.54, 0.03), Vector3(sx, 2.76, z0 + 0.15), gold)
+		MeshKit.quad(g, Vector2(1.0, 0.5), Vector3(sx, 2.76, z0 + 0.168), MeshKit.print_mat(BRAND + "galagers_sign.png", 0.9, 0.3))
+	# fluted pilasters with gilt capitals between the windows and the door
+	for px in [-6.86, -5.12, -3.28, -0.78, 0.78, 2.68, 4.52, 6.86]:
+		MeshKit.box(g, Vector3(0.22, 2.42, 0.12), Vector3(px, 1.21, z0 + 0.06), green)
+		for fx in [-0.05, 0.0, 0.05]:
+			MeshKit.box(g, Vector3(0.015, 1.9, 0.02), Vector3(px + fx, 1.3, z0 + 0.125), MeshKit.color_mat(Color(0.02, 0.1, 0.06), 0.4))
+		MeshKit.box(g, Vector3(0.3, 0.1, 0.16), Vector3(px, 2.37, z0 + 0.08), gold)
+		MeshKit.box(g, Vector3(0.28, 0.26, 0.16), Vector3(px, 0.13, z0 + 0.08), dark)
+	# panelled stall risers under the windows, lettered in gold
+	for wd in [[-4.2, "FINE ALES"], [3.6, "TRAD MUSIC"]]:
+		var wxr: float = wd[0]
+		MeshKit.box(g, Vector3(1.64, 0.88, 0.06), Vector3(wxr, 0.45, z0 + 0.03), green)
+		MeshKit.box(g, Vector3(1.4, 0.6, 0.02), Vector3(wxr, 0.45, z0 + 0.07), MeshKit.color_mat(Color(0.02, 0.12, 0.07), 0.3))
+		var rl := MeshKit.label(g, str(wd[1]), Vector3(wxr, 0.45, z0 + 0.085), 52, Color(0.92, 0.74, 0.36), Vector3.ZERO, _title_font)
+		rl.pixel_size = 0.0022
+	# brass carriage lanterns either side of the door, with a soft glow
+	for side in [-1, 1]:
+		var lp := Vector3(side * 1.05, 2.05, z0 + 0.28)
+		MeshKit.box(g, Vector3(0.04, 0.04, 0.3), lp + Vector3(0, 0.12, -0.14), dark)
+		MeshKit.cyl(g, 0.02, 0.13, 0.12, lp + Vector3(0, 0.22, 0), dark, 4)
+		MeshKit.box(g, Vector3(0.18, 0.26, 0.18), lp, MeshKit.mat("window_warm"))
+		for cx2 in [-1, 1]:
+			for cz in [-1, 1]:
+				MeshKit.box(g, Vector3(0.02, 0.28, 0.02), lp + Vector3(cx2 * 0.09, 0, cz * 0.09), MeshKit.mat("brass"))
+		MeshKit.cyl(g, 0.06, 0.04, 0.06, lp + Vector3(0, -0.16, 0), MeshKit.mat("brass"), 8)
+		MeshKit.halo(g, lp, 0.9, Color(1.0, 0.7, 0.4, 0.55))
+		var ll := OmniLight3D.new()
+		ll.position = lp + Vector3(0, 0, 0.25)
+		ll.light_color = Color(1.0, 0.72, 0.42)
+		ll.light_energy = 0.9
+		ll.omni_range = 3.5
+		g.add_child(ll)
+	# hanging flower baskets at the ends of the front
+	for bx2 in [-6.2, 6.2]:
+		var bp := Vector3(bx2, 2.05, z0 + 0.45)
+		MeshKit.cyl(g, 0.005, 0.005, 0.35, bp + Vector3(0, 0.3, 0), MeshKit.mat("iron"), 4)
+		MeshKit.sphere(g, 0.22, bp, MeshKit.color_mat(Color(0.12, 0.3, 0.1), 0.9), Vector3(1.0, 0.75, 1.0))
+		var cols := [Color(0.85, 0.15, 0.2), Color(0.95, 0.5, 0.7), Color(0.95, 0.92, 0.85), Color(0.6, 0.2, 0.6)]
+		for k in 22:
+			var a := k * 2.39996
+			var r := 0.2 + 0.03 * sin(k * 1.7)
+			var yy := 0.1 - (k % 5) * 0.06
+			MeshKit.sphere(g, 0.035, bp + Vector3(cos(a) * r, yy, sin(a) * r), MeshKit.color_mat(cols[k % 4], 0.6), Vector3.ONE, 6)
+		for k in 6:
+			var a2 := k * 1.05
+			MeshKit.capsule(g, 0.025, 0.3, bp + Vector3(cos(a2) * 0.2, -0.22, sin(a2) * 0.2), MeshKit.color_mat(Color(0.15, 0.38, 0.12), 0.9))
+	# hanging shamrock sign on a wrought-iron bracket at the corner
 	var hs := Node3D.new()
-	hs.position = Vector3(1.4, 2.6, PubLayout.ROOM_MAX.y + 0.7)
+	hs.position = Vector3(7.3, 2.25, PubLayout.ROOM_MAX.y + 0.75)
 	g.add_child(hs)
-	MeshKit.cyl(hs, 0.015, 0.015, 0.7, Vector3(0, 0.35, -0.35), MeshKit.mat("iron"), 6, Vector3(PI / 2, 0, 0))
-	MeshKit.box(hs, Vector3(0.04, 0.55, 0.55), Vector3(0, 0, 0), MeshKit.mat("green_paint"), Vector3(0, PI / 2, 0))
-	for i in 3:
-		var a := TAU * i / 3.0 + PI / 2.0
-		MeshKit.sphere(hs, 0.09, Vector3(0.03, sin(a) * 0.09 + 0.02, cos(a) * 0.09), MeshKit.color_mat(Color(0.2, 0.6, 0.25), 0.5), Vector3(0.3, 1, 1))
-		MeshKit.sphere(hs, 0.09, Vector3(-0.03, sin(a) * 0.09 + 0.02, cos(a) * 0.09), MeshKit.color_mat(Color(0.2, 0.6, 0.25), 0.5), Vector3(0.3, 1, 1))
+	MeshKit.cyl(hs, 0.015, 0.015, 0.75, Vector3(0, 0.38, -0.37), MeshKit.mat("iron"), 6, Vector3(PI / 2, 0, 0))
+	MeshKit.box(hs, Vector3(0.04, 0.6, 0.6), Vector3(0, 0, 0), MeshKit.mat("green_paint"), Vector3(0, PI / 2, 0))
+	for side in [-1, 1]:
+		MeshKit.quad(hs, Vector2(0.52, 0.52), Vector3(0, 0, side * 0.022), MeshKit.print_mat(BRAND + "galagers_badge.png", 0.0, 0.4), Vector3(0, 0.0 if side == 1 else PI, 0))
 	# terrace across the road
 	var colours := ["render_red", "render_cream", "render_blue", "render_yellow", "render_wall", "render_cream", "render_red"]
 	for i in colours.size():
@@ -969,7 +1099,11 @@ func _exterior() -> void:
 		sl.position = Vector3(x, 0, 6.6)
 		g.add_child(sl)
 		MeshKit.cyl(sl, 0.05, 0.07, 3.6, Vector3(0, 1.8, 0), MeshKit.mat("black_paint"), 8)
-		MeshKit.box(sl, Vector3(0.3, 0.4, 0.3), Vector3(0, 3.75, 0), MeshKit.color_mat(Color(1, 0.8, 0.5), 0.3, 0, 2.0))
+		MeshKit.cyl(sl, 0.03, 0.24, 0.18, Vector3(0, 4.03, 0), MeshKit.mat("black_paint"), 6)
+		MeshKit.cyl(sl, 0.17, 0.12, 0.36, Vector3(0, 3.76, 0), MeshKit.mat("window_warm"), 6)
+		MeshKit.cyl(sl, 0.09, 0.09, 0.08, Vector3(0, 3.55, 0), MeshKit.mat("black_paint"), 8)
+		MeshKit.sphere(sl, 0.05, Vector3(0, 4.15, 0), MeshKit.mat("black_paint"))
+		MeshKit.halo(sl, Vector3(0, 3.76, 0), 1.4, Color(1.0, 0.68, 0.38, 0.5))
 		var lt := OmniLight3D.new()
 		lt.position = Vector3(0, 3.5, 0)
 		lt.light_color = Color(1.0, 0.75, 0.45)

@@ -8,6 +8,7 @@ signal finished(result: Dictionary)
 
 const FALLBACK_TARGET_Y := 0.098  # used only if data/brand.json is missing
 const REVEAL_TIME := 2.4          # slow-motion replay of the gulp, zoomed onto the G
+const RELAX_HOLD := Vector3(0.11, -0.2, -0.42)   # the pint in your hand, low right of view
 const SPLIT_POS := Vector3(0.9, PubLayout.BAR_TOP, -1.95)
 
 var world: Node
@@ -72,13 +73,15 @@ func begin(m: String, drink := "stout") -> void:
 		target = _split_cam()
 		_build_line()
 	else:
-		# by the fire, in the left armchair
-		var seat := Vector3(-5.5, 1.15, 0.45)
-		var look_at := Vector3(-6.6, 0.55, 2.2)
+		# sunk into the left armchair, the fire ahead and your pint in your hand
+		var seat := Vector3(-5.95, 1.08, 0.82)
+		var look_at := Vector3(-6.55, 0.62, 2.2)
 		target = Transform3D(Basis(), seat).looking_at(look_at, Vector3.UP)
 		_anchor.global_transform = target
 		_relax_cam_pos = seat
-		glass.position = Vector3(0.12, -0.32, -0.42)
+		glass.position = RELAX_HOLD
+		var hand := Player.build_hand()
+		glass.add_child(hand)
 	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.6).set_trans(Tween.TRANS_SINE)
 	if mode == "split":
@@ -164,7 +167,7 @@ func _process(delta: float) -> void:
 	if mode == "split":
 		_pose_split_glass()
 	else:
-		glass.position = Vector3(0.12, -0.32, -0.42).lerp(Vector3(0.02, -0.2, -0.3), _tilt)
+		glass.position = RELAX_HOLD.lerp(Vector3(0.05, -0.13, -0.34), _tilt)
 		glass.rotation.x = _tilt * 0.55
 	if state == "settling":
 		_settle_t -= delta

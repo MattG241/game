@@ -91,6 +91,10 @@ func has_hands_free() -> bool:
 ## A right hand gripping a pint (palm on the right, fingers round the far side, thumb across the
 ## front) with a rolled shirt sleeve. Merged into a few meshes; only shown while holding a glass.
 func _build_hand() -> Node3D:
+	return build_hand()
+
+
+static func build_hand() -> Node3D:
 	var h := Node3D.new()
 	h.name = "FirstPersonHand"
 	var skin := MeshKit.color_mat(Color(0.9, 0.71, 0.58), 0.55)
