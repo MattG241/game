@@ -84,8 +84,12 @@ shadows re-render the scene six times each, so they were removed.
 - **Frame rate and memory on a phone.** No FPS figures are claimed. Turn on *Settings → Show performance
   overlay* to see live FPS, draw calls and memory, and compare the four Quality presets.
 - **How the voices sound.** The free ElevenLabs plan only allows its premade voices (none are Irish), so
-  the accents come from eleven_v3 accent tags. Speech-to-text confirms the words; nobody has judged the
-  accents by ear. The mix of voices, effects and music was set by loudness, not by listening.
+  the accents come from eleven_v3 accent tags. The first recordings were one short line per request,
+  which v3 handles poorly (flat, synthetic delivery). The Irish customers' lines (orders, praise,
+  complaints, waiting, paying, goodbyes) were re-recorded as one take per character with a *thick*
+  regional accent tag, then cut into lines by the API's timestamps; a cut is used only if speech-to-text
+  confirms the words. The landlord, musician and chatter lines keep the first recordings. Nobody has
+  judged the accents by ear, and the mix was set by loudness, not by listening.
 - Android launch, orientation and background-resume on hardware (no device available to the developer).
 
 ## Feedback checklist for a phone test
