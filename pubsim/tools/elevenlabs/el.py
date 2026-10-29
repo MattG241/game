@@ -472,7 +472,7 @@ def batch(reqf):
     rate = 44100
     groups = {}
     for ln in lines["lines"]:
-        if ln["tag"] in tags:
+        if ln["tag"] in tags and (not reqf.get("voices") or ln["voice"] in reqf["voices"]):
             groups.setdefault(ln["voice"], []).append(ln)
     order = sorted(groups, key=lambda v: min(tags.index(l["tag"]) for l in groups[v]))
     spent = 0.0
@@ -483,7 +483,7 @@ def batch(reqf):
         cast = lines["cast"][vkey]
         group = sorted(groups[vkey], key=lambda l: tags.index(l["tag"]))
         settings = cast.get("settings", {"stability": 0.5, "similarity_boost": 0.75})
-        script = " ".join(t for t in [cast.get("accent_tag", ""), cast.get("batch_direction", "")] if t)
+        script = " ".join(t for t in [cast.get("batch_accent", cast.get("accent_tag", "")), cast.get("batch_direction", "")] if t)
         spans = []
         for ln in group:
             script += ("\n\n" if spans else (" " if script else ""))

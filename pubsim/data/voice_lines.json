@@ -11,7 +11,8 @@
    },
    "voice_id": "JBFqnCBsd6RMkjVDRZzb",
    "public_owner_id": "",
-   "accent_tag": "[Irish accent]"
+   "accent_tag": "[Irish accent]",
+   "batch_accent": "[thick Irish accent]"
   },
   "old_regular": {
    "name": "Old regular (Bill, premade)",
@@ -24,7 +25,8 @@
    "voice_id": "pqHfZKP75CvOlQylNhV4",
    "public_owner_id": "",
    "accent_tag": "[strong rural Irish accent]",
-   "batch_direction": "[relaxed, warm]"
+   "batch_direction": "[relaxed, warm]",
+   "batch_accent": "[thick rural Irish accent]"
   },
   "cheerful_local": {
    "name": "Cheerful local (Lily, premade)",
@@ -37,7 +39,8 @@
    "voice_id": "pFZP5JQG7iQjIQuC4Bku",
    "public_owner_id": "",
    "accent_tag": "[Cork Irish accent]",
-   "batch_direction": "[cheerful]"
+   "batch_direction": "[cheerful]",
+   "batch_accent": "[thick Cork accent]"
   },
   "dubliner": {
    "name": "Dublin customer (Callum, premade)",
@@ -50,7 +53,8 @@
    "voice_id": "N2lVS1w4EtoT3dr4eOWO",
    "public_owner_id": "",
    "accent_tag": "[strong Dublin accent]",
-   "batch_direction": "[cheeky]"
+   "batch_direction": "[cheeky]",
+   "batch_accent": "[thick Dublin accent]"
   },
   "musician": {
    "name": "Galway musician (Liam, premade)",
@@ -62,7 +66,8 @@
    },
    "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
    "public_owner_id": "",
-   "accent_tag": "[soft Irish accent]"
+   "accent_tag": "[soft Irish accent]",
+   "batch_accent": "[thick Galway Irish accent]"
   },
   "colleen": {
    "name": "Older local woman (Matilda, premade)",
@@ -75,7 +80,8 @@
    "voice_id": "XrExE9yKIg1WjnnlVkGX",
    "public_owner_id": "",
    "accent_tag": "[Kerry Irish accent]",
-   "batch_direction": "[warm]"
+   "batch_direction": "[warm]",
+   "batch_accent": "[thick Kerry accent]"
   },
   "jordan": {
    "name": "Young local woman (Jessica, premade)",
@@ -88,7 +94,8 @@
    "voice_id": "cgSgspJ2msm6clMCkdW9",
    "public_owner_id": "",
    "accent_tag": "[Dublin accent]",
-   "batch_direction": "[friendly]"
+   "batch_direction": "[friendly]",
+   "batch_accent": "[thick Dublin accent]"
   },
   "andrew": {
    "name": "Northern man (Daniel, premade)",
@@ -101,7 +108,8 @@
    "voice_id": "onwK4e9ZLuTAKqWW03F9",
    "public_owner_id": "",
    "accent_tag": "[Belfast accent]",
-   "batch_direction": "[dry, easygoing]"
+   "batch_direction": "[dry, easygoing]",
+   "batch_accent": "[thick Belfast accent]"
   },
   "cillian": {
    "name": "Young local man (Eric, premade)",
@@ -114,7 +122,8 @@
    "voice_id": "cjVigY5qzO86Huf0OWal",
    "public_owner_id": "",
    "accent_tag": "[Irish accent]",
-   "batch_direction": "[casual]"
+   "batch_direction": "[casual]",
+   "batch_accent": "[thick Irish accent]"
   },
   "tourist_us": {
    "name": "American tourist (Chris, premade)",
