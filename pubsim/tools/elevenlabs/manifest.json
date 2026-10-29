@@ -1,6 +1,16 @@
 {
  "added_voices": {},
  "clips": {
+  "11d3151a218c72c0": {
+   "credits": 54.0,
+   "file": "assets/voice/tourist_us_order_stout_01.ogg",
+   "id": "tourist_us_order_stout_01",
+   "kind": "tts",
+   "match": 0.89,
+   "text": "Hi! What's good here? Actually, I'll try the Galagers.",
+   "transcript": "Hi, what's good here? Actually, I'll try the Gallaghers",
+   "voice": "tourist_us"
+  },
   "3721093df1ca4823": {
    "credits": 40.0,
    "file": "assets/sfx_el/stout_pour.ogg",
@@ -26,11 +36,12 @@
    "voice": ""
   }
  },
- "credits_spent": 65.0,
+ "credits_spent": 119.0,
+ "designed_voices": {},
  "last_balance": {
   "limit": 10000,
-  "remaining": 9935,
-  "run_used": 65,
-  "used": 65
+  "remaining": 10000,
+  "run_used": 0,
+  "used": 0
  }
 }
