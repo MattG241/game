@@ -458,7 +458,7 @@ func _test_voices_and_people(w: World) -> void:
 		check(c._talk_left > 0.0 and MusicDirector._speech_left > music_duck_before, "they move their mouth and the music dips while speaking")
 		await _frames(20)
 		check(absf(c._jaw_lip.position.y + 0.005) > 0.0005, "the mouth opens and closes")
-		check(str(c._bubble.text).contains("Galagers"), "the bubble shows the words spoken (%s)" % c._bubble.text)
+		check(c._bubble.text == vd.last_text and vd.played.back().begins_with("old_regular_order_stout"), "the bubble shows the words spoken (%s)" % c._bubble.text)
 	# no pile-ups: a second line straight away is held back, unless it matters
 	var p2 := vd.played.size()
 	vd.speak(reg_f, "old_regular", "order_stout")
@@ -815,7 +815,8 @@ func _test_music(w: World) -> void:
 	check(live.playing and live.musicians.size() == 1, "the fiddler arrives and starts playing")
 	check(w.arrival_rate_per_hour() > base_rate * 1.1, "live music draws more customers (%.1f -> %.1f per hour)" % [base_rate, w.arrival_rate_per_hour()])
 	check(GameState.live_atmosphere > 0.0 and w.drink_speed_mult() < 1.0, "live music lifts atmosphere and customers linger")
-	await _frames(int(2.5 * 60))
+	# the fiddler may say a few words before the first tune
+	await _wait_until(func(): return live.player3d.playing, 8.0)
 	check(live.player3d.playing and live.now_playing == "t07", "Fiddles by the Fire plays from the musician")
 	check(live.player3d.global_position.distance_to(Vector3(-5.2, 1.3, 2.2)) < 0.1, "music comes from the fireside where the fiddler sits")
 	await _frames(int(4.5 * 60))

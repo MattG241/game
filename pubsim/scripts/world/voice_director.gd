@@ -30,6 +30,7 @@ var _gap := 0.0
 var _clock := 0.0
 var _active: Array[Node] = []
 var played: Array[String] = []   # ids of lines played (for tests and the debug overlay)
+var last_text := ""
 
 
 func _ready() -> void:
@@ -98,7 +99,12 @@ func _can_start(speaker: Node, tag: String, important: bool) -> bool:
 	if not bool(GameState.settings.get("voices", true)):
 		return false
 	if _active.size() >= MAX_VOICES:
-		return false
+		if not important:
+			return false
+		# what you're dealing with (an order, an announcement) wins over background chatter
+		var oldest: Node = _active.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
 	if _gap > 0.0 and not important:
 		return false
 	if speaker:
@@ -163,6 +169,7 @@ func speak(speaker: Node3D, voice: String, tag: String, important := false, drin
 	if _recent.size() > 12:
 		_recent.pop_front()
 	played.append(ln["id"])
+	last_text = str(ln["text"])
 	MusicDirector.duck_for_speech(stream.get_length() + 0.3)
 	return str(ln["text"])
 
