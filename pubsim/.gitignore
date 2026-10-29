@@ -6,3 +6,4 @@ build/
 *.idsig
 export_credentials.cfg
 __pycache__/
+tools/people/build/

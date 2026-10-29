@@ -141,6 +141,12 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - the tipper strikes the drum
 - **More natural people**: real shoulder widths with sloping shoulders, larger heads, lower lids, softer
   lips and a rounder talking mouth. Band members no longer come out dressed alike.
+- **Realistic people, built in Blender**: the customers are 16 rigged characters made from
+  MakeHuman's CC0 data: real skins, eyes, brows and lashes, hair, clothes and shoes.
+  `tools/people/` assembles them, and Blender builds and exports them. They blink, talk with their
+  mouths, smile when they laugh, and close their fingers round a pint or an instrument. The existing
+  animation drives their skeletons (walking, sitting, drinking, playing). See
+  `tools/people/README.md`.
 - **Thick Irish accents**: lines were re-recorded one take per character with thick regional accent
   tags. This covers the old regular, the Cork local and most of the Dubliner's lines; the free credits
   ran out before the rest (see `docs/TESTING.md`). Voices also get a light room reverb.

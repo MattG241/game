@@ -2,7 +2,10 @@
 
 | Asset | Source | Licence |
 | --- | --- | --- |
-| All 3D models (pub, furniture, taps, glasses, customers, street) | Generated procedurally by the game's GDScript (`scripts/world/pub_builder.gd`, `scripts/npc/customer.gd`, `scripts/world/mesh_kit.gd`) | Original work, part of this project |
+| 3D models of the pub, furniture, taps, glasses and street | Generated procedurally by the game's GDScript (`scripts/world/pub_builder.gd`, `scripts/world/mesh_kit.gd`) | Original work, part of this project |
+| People (`assets/people_mh/`): 16 rigged customers with skins, eyes, brows, lashes, hair, clothes and shoes | Assembled from MakeHuman data by `tools/people/mh_build.py` and built and exported in Blender 4.2 by `tools/people/blender_export.py`. Source data: the MakeHuman base mesh, macro and expression targets, game-engine rig and skin weights (from the MPFB2 repository's data folder, makehumancommunity/mpfb2) and the MakeHuman system asset pack (`makehuman_system_assets_cc0.zip`). The MakeHuman logo was painted out of the T-shirt textures, and some shirts were re-dyed | **CC0 1.0** (released as CC0 by Data Collection AB and the MakeHuman team). Only data files were used; no MakeHuman or MPFB code is included or run |
+| Session instruments (fiddle, bow, guitar, banjo, accordion, bodhrán, tin whistle) | Sculpted by `tools/gen_instruments.py`, painted by `assets/shaders/instrument.gdshader` | Original work |
+| First-person bartender's hand | Sculpted by `tools/gen_people.py` | Original work |
 | Materials: wood, tiles, plaster, stone, cobbles, glass, stout liquid | Original procedural shaders in `assets/shaders/` | Original work |
 | Photographs on the walls | Procedurally generated sepia landscapes (`PubBuilder.make_photo`) | Original work |
 | Synthesised sound effects (pour, bubbles, coins, bells, bodhrán, footsteps, UI...) and fallbacks for the recorded ones | Synthesised by `tools/gen_audio.py` (numpy oscillators, filtered noise, Karplus-Strong) | Original work |

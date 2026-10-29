@@ -18,7 +18,7 @@
 | Darts | Pass | geometry, scoring, AI turn, bust, checkout |
 | Live music, soundtrack, jukebox | Pass | headless audio (see below) |
 | **Voices and recorded effects** (new) | Pass | recorded lines indexed; an order plays the character's line; mouth moves; music dips; second voice held back (no pile-ups); drink-matched order lines; voices can be turned off; recorded tap effect replaces the synthesised one; ambience loops |
-| **Characters** (new) | Pass | regulars have their own voice and look; seated thighs point forward and knees bend; raised arms reach forward and bend at the elbow; a held pint is carried in front at waist height; a sip brings the rim to the lips (within 5 cm) with the glass tipped towards the drinker, then back down; an empty glass is left behind; each musician's hands reach their instrument (within 4 cm) |
+| **Characters** (new) | Pass | realistic MakeHuman people (Blender-built, CC0) on a game-engine skeleton driven by the animation joints; regulars have their own voice and model; seated thighs point forward and knees bend; raised arms reach forward and bend at the elbow; a held pint is carried in front at waist height; a sip brings the rim to the lips (within 5 cm) with the glass tipped towards the drinker, then back down; an empty glass is left behind; each musician's hands reach their instrument (within 4 cm) |
 | **First-person hand** (new) | Pass | shown while holding a glass, hidden otherwise |
 | **Graphics presets** (new) | Pass | old Low/Medium settings map to Performance/Balanced; Ultra turns on 4x MSAA and shadows; Performance lowers resolution, shadows and crowd size; 30 FPS mode caps the frame rate |
 | **Camera handover** (new, regression) | Pass | a close-up started straight after another keeps its camera, and the view returns to you afterwards |
@@ -66,19 +66,21 @@ Simulated playtests (a bot bartender serving at a fixed pace, in game time):
 
 ## Rendering load per graphics preset
 
-`tests/perf_probe.tscn` renders a busy evening: 25 people, a five-piece band, every upgrade, seen from
-behind the bar. It records the most expensive of ten frames. These are engine counts from a desktop
-software renderer, not phone frame rates.
+`tests/perf_probe.tscn` renders a busy evening: 25 people, a five-piece band and every upgrade, seen
+from behind the bar looking out into the room. It records the most expensive of ten frames. These are
+engine counts from a desktop software renderer, not phone frame rates.
 
-| Preset | Crowd cap | Draw calls | Objects | Triangles |
+| Preset | Crowd cap | Draw calls | Triangles | Before (sculpted people) |
 | --- | --- | --- | --- | --- |
-| Performance (75% resolution) | 10 | 95 | 458 | 45k |
-| Balanced | 14 | 96 | 459 | 45k |
-| High (tap shadows, 2x MSAA, dust) | 20 | 217 | 580 | 53k |
-| Ultra (fire shadows, 4x MSAA) | 24 | 217 | 580 | 53k |
+| Performance (75% resolution) | 10 | 1,346 | 220k | 1,677 / 242k |
+| Balanced | 14 | 1,354 | 206k | 1,685 / 234k |
+| High (tap shadows, 2x MSAA, dust) | 20 | 1,443 | 206k | 1,774 / 240k |
+| Ultra (fire shadows, 4x MSAA) | 24 | 1,931 | 286k | 2,318 / 324k |
 
-An earlier Ultra with shadow-casting pendant lamps measured 856 draw calls and 326k triangles. Point-light
-shadows re-render the scene six times each, so they were removed.
+The Blender-built people have far more detail close up, but cost less than the earlier sculpted ones.
+They are drawn as fewer pieces, and Godot's automatic levels of detail thin them out with distance.
+The probe used to face the back bar, which hid the crowd; earlier figures in this file came from
+that view. Point-light shadows re-render the scene six times each, so the pendant lamps cast none.
 
 ## Not verified
 - **Frame rate and memory on a phone.** No FPS figures are claimed. Turn on *Settings → Show performance

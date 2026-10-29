@@ -25,7 +25,7 @@ func _ready() -> void:
 	await get_tree().create_timer(6.0).timeout
 	main.hud.dismiss_celebration()
 	w.player.global_position = Vector3(-0.8, 0, -3.0)
-	w.player.rotation.y = 0.0
+	w.player.rotation.y = PI   # facing out over the bar into the room, crowd and band
 	print("PERF people in pub: %d" % w.customers.size())
 	for pr in ["performance", "balanced", "high", "ultra"]:
 		GameState.settings["graphics"] = pr

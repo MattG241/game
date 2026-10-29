@@ -135,6 +135,13 @@ func _ready() -> void:
 				while dc[0]._sip_phase > dc[0]._sip_dur * 0.5:
 					await get_tree().process_frame
 				await _shot("drink_sip")
+				var dk: Skeleton3D = dc[0]._skel
+				for bn in ["upperarm_r", "lowerarm_r", "hand_r", "clavicle_r"]:
+					var bi := dk.find_bone(bn)
+					var gp := dk.get_bone_global_pose(bi)
+					var gr := dk.get_bone_global_rest(bi)
+					print("BONE %s pose_o=%s rest_o=%s y=%s" % [bn, str(gp.origin), str(gr.origin), str(gp.basis.y)])
+				print("WRIST ", str(dc[0]._body.global_transform.affine_inverse() * dc[0]._elbows[1].get_child(0).global_transform))
 				for c in dc:
 					var lips: Vector3 = c._head.global_transform * Vector3(0, -0.05, -0.105)
 					var rim: Vector3 = c.glass.global_transform * Vector3(0, c.glass.height, 0.04)
@@ -145,7 +152,14 @@ func _ready() -> void:
 				# someone sits down with a pint, puts it on the table, then picks it up for a sip
 				var si := 0
 				var sd: Dictionary = w.seat_info(si)
-				var sc := w.spawn_customer()
+				var sc: Customer
+				if OS.get_environment("SEAT_MODEL") != "":
+					var sm := OS.get_environment("SEAT_MODEL")
+					sc = Customer.new()
+					sc.setup(w, {"model": sm, "gender": sm.substr(0, 1)}, 5)
+					w.add_child(sc)
+				else:
+					sc = w.spawn_customer()
 				var sg := PintGlass.new()
 				sg.contents.drink_id = "stout"
 				sg.contents.serve = "stout"
@@ -205,6 +219,28 @@ func _ready() -> void:
 					await _shot("inst_" + kind)
 					m.queue_free()
 					await _wait(0.1)
+				main.hud.visible = true
+				w.player.camera.current = true
+			"mh":
+				# the Blender-built MakeHuman characters, standing in the pub
+				var names := OS.get_environment("MH_NAMES").split(",", false)
+				var x := 0.0
+				for n in names:
+					var sc: PackedScene = load("res://assets/people_mh/%s.gltf" % n)
+					var inst: Node3D = sc.instantiate()
+					w.add_child(inst)
+					inst.global_position = Vector3(0.2 + x, 0, 2.6)
+					x += 0.75
+				if w._cam_tween:
+					w._cam_tween.kill()
+				var cx := 0.2 + (names.size() - 1) * 0.375
+				cam.fov = 40.0 if names.size() > 1 else 22.0
+				var cy := 1.2 if names.size() > 1 else 1.55
+				cam.global_transform = Transform3D(Basis(), Vector3(cx, cy + 0.1, 2.6 - (3.4 if names.size() > 1 else 1.6))).looking_at(Vector3(cx, cy, 2.6), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.8)
+				await _shot("mh")
 				main.hud.visible = true
 				w.player.camera.current = true
 			"faces":

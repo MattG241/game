@@ -4,8 +4,6 @@ extends Node3D
 
 signal left_pub(c: Customer)
 
-const LID_REST := 0.56
-const SKIN := [Color(0.95, 0.78, 0.66), Color(0.86, 0.66, 0.5), Color(0.55, 0.38, 0.27), Color(0.36, 0.24, 0.17)]
 
 var world: Node
 var display_name := "Customer"
@@ -42,10 +40,8 @@ var _audience_face := Vector3.ZERO
 var beat := 0.5
 var _prop: Node3D
 
-const GRIP_Q := Vector3(-0.075, -0.335, -0.015)   # right fist, elbow-local; the glass sits against the palm
 const GRIP_UP := 0.065                          # the hand wraps the glass this far above its base
 const HOLD_AT := Vector3(0.14, 0.97, -0.26)     # glass base, body-local: held in front at waist height
-const UPPER_ARM := 0.3
 const SIP_TIME := 3.4
 const TABLE_SIP_TIME := 5.0
 const PUT_TIME := 1.8
@@ -80,10 +76,20 @@ var _rig: MusicianRig = null    # musicians: the instrument and where the hands 
 var _glass_spot := Vector3.ZERO   # where a seated drinker keeps the glass on the table
 var _sip_gulp := 0.0           # how fast the level drops during this sip
 var _shown_left := 1.0         # how full the glass looks; drops only while they drink
-var _face_m: ShaderMaterial
+var model := ""
+var _skel: Skeleton3D
+var _bind_list: Array = []       # [bone index, joint node, bone rest in body space]
+var _face_meshes: Array = []     # [MeshInstance3D, {blend shape name: index}]
+var _fingers: Array = []         # [bone index, side, segment]
+var _abduct: Array[float] = []    # how far each arm rests out from the body (radians, about Z)
+var _upper_len := 0.3
+var _grip_q := Vector3(-0.075, -0.335, -0.015)
+var _lips_local := Vector3(0, -0.05, -0.105)
+var _scale_k := 1.0
+var _sit_drop := -0.4
+var _curl := 0.15
 var _mouth_open := 0.0
 var _talk_left := 0.0
-var _lids: Node3D
 var _blink_t := 3.0
 var _torso_node: Node3D
 var _partner: Node3D = null    # someone nearby they're chatting with
@@ -104,134 +110,108 @@ func setup(w: Node, look: Dictionary, seed_v: int) -> void:
 	_build(look)
 
 
+## The realistic people, built from MakeHuman's CC0 data in Blender (tools/people). Regulars
+## name their model in data/regulars.json; anyone else gets one of the right gender.
+const MODELS_M := ["m_young_a", "m_mid_a", "m_old_a", "m_mid_b", "m_young_b", "m_old_b", "m_mid_c", "m_young_c"]
+const MODELS_F := ["f_young_a", "f_mid_a", "f_old_a", "f_young_b", "f_young_c", "f_mid_b", "f_mid_c", "f_old_b"]
+static var _model_info := {}
+
+
+static func model_info(model: String) -> Dictionary:
+	if not _model_info.has(model):
+		var f := FileAccess.open("res://assets/people_mh/%s.json" % model, FileAccess.READ)
+		_model_info[model] = JSON.parse_string(f.get_as_text()) if f else {}
+	return _model_info[model]
+
+
 func _build(look: Dictionary) -> void:
 	gender = str(look.get("gender", "f" if _rng.randf() < 0.45 else "m"))
 	var fem := gender == "f"
-	var g := "f" if fem else "m"
+	model = str(look.get("model", ""))
+	if model == "":
+		var pool: Array = MODELS_F if fem else MODELS_M
+		model = pool[_rng.randi() % pool.size()]
+	var info := model_info(model)
 	_body = Node3D.new()
 	add_child(_body)
 	MeshKit.contact_shadow(self, Vector3.ZERO, Vector2(0.7, 0.7), 0.45)
-	var height: float = look.get("height", _rng.randf_range(0.94, 1.06) * (0.95 if fem else 1.0))
-	_body.scale = Vector3.ONE * height
-	var skin: Color = SKIN[int(look.get("skin", _rng.randi() % SKIN.size()))]
-	var coat_c: Color
-	if look.has("coat"):
-		coat_c = Color(look["coat"][0], look["coat"][1], look["coat"][2])
-	else:
-		coat_c = Color.from_hsv(_rng.randf(), _rng.randf_range(0.2, 0.55), _rng.randf_range(0.18, 0.5))
-	var hair_c: Color
-	if look.has("hair"):
-		hair_c = Color(look["hair"][0], look["hair"][1], look["hair"][2])
-	else:
-		hair_c = [Color(0.1, 0.07, 0.05), Color(0.3, 0.18, 0.08), Color(0.55, 0.22, 0.08), Color(0.75, 0.6, 0.35), Color(0.6, 0.6, 0.6)][_rng.randi() % 5]
-	var shirt_c: Color = [Color(0.92, 0.9, 0.85), Color(0.75, 0.82, 0.9), Color(0.85, 0.8, 0.7), Color(0.3, 0.32, 0.36)][_rng.randi() % 4]
-	var jumper: bool = bool(look.get("jumper", _rng.randf() < (0.45 if fem else 0.3)))
-	var skirt: bool = fem and bool(look.get("skirt", _rng.randf() < 0.4))
-	var style := 0 if jumper else (2 if fem and _rng.randf() < 0.5 else 1)
-	var top_pat := 2 if jumper else (1 if _rng.randf() < 0.45 else 0)
-	var denim := _rng.randf() < 0.45
-	var trouser_c := Color(0.16, 0.22, 0.36).lerp(Color(0.1, 0.12, 0.2), _rng.randf()) if denim else Color.from_hsv(_rng.randf_range(0.05, 0.65), 0.25, _rng.randf_range(0.1, 0.28))
-	var trouser_pat := 3 if denim else 0
-	var shoe_c: Color = [Color(0.08, 0.06, 0.05), Color(0.25, 0.14, 0.07), Color(0.12, 0.12, 0.13)][_rng.randi() % 3]
-	if skirt:
-		trouser_c = Color(0.1, 0.08, 0.08)   # dark tights under the skirt
-		trouser_pat = 0
-	# --- torso, painted with the outfit
-	var outfit := MeshKit.shader_mat("res://assets/shaders/outfit.gdshader", {"top_color": coat_c, "top_pattern": top_pat,
-		"shirt_color": shirt_c, "trouser_color": trouser_c, "trouser_pattern": trouser_pat, "skin": skin, "style": style,
-		"belt": 0.0 if skirt else 1.0})
-	_part(_body, "torso_" + g, outfit)
-	if skirt:
-		_part(_body, "skirt", MeshKit.shader_mat("res://assets/shaders/fabric.gdshader", {"base_color": coat_c.darkened(0.15), "pattern": 0}))
-	# --- legs: thigh from the hip, shin (with shoe) from the knee
-	var hip_w := 0.095 if fem else 0.09
-	var thigh_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": trouser_c, "pattern": trouser_pat, "split_y": -9.0})
-	var shin_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": trouser_c, "pattern": trouser_pat,
-		"end_color": shoe_c, "end_rough": 0.35, "split_y": -0.385})
+	var scene: Node3D = (load("res://assets/people_mh/%s.gltf" % model) as PackedScene).instantiate()
+	_body.add_child(scene)
+	_skel = scene.find_children("*", "Skeleton3D", true, false)[0]
+	for mi in scene.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var shapes := {}
+		for k in m.mesh.get_blend_shape_count():
+			shapes[str(m.mesh.get_blend_shape_name(k))] = k
+		if not shapes.is_empty():
+			_face_meshes.append([m, shapes])
+	var rest := func(bone: String) -> Transform3D:
+		return _skel.get_bone_global_rest(_skel.find_bone(bone))
+	# --- the animation joints sit on the model's joints; their turns are copied to its bones
 	for side in [-1, 1]:
+		var sfx := "_l" if side == -1 else "_r"
+		var hip_p: Vector3 = rest.call("thigh" + sfx).origin
+		var knee_p: Vector3 = rest.call("calf" + sfx).origin
 		var hip := Node3D.new()
-		hip.position = Vector3(side * hip_w, 0.86, 0)
+		hip.position = hip_p
 		_body.add_child(hip)
-		_part(hip, "thigh_" + g, thigh_m)
 		var knee := Node3D.new()
-		knee.position = Vector3(0, -0.42, 0)
+		knee.position = knee_p - hip_p
 		hip.add_child(knee)
-		_part(knee, "shin_" + g, shin_m)
 		_legs.append(hip)
 		_knees.append(knee)
-	# --- arms: upper arm from the shoulder, forearm and hand from the elbow
-	var sh_w := 0.17 if fem else 0.2
-	var sleeve_c := coat_c
-	var upper_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat, "split_y": -9.0})
-	var fore_m := MeshKit.shader_mat("res://assets/shaders/limb.gdshader", {"cloth": sleeve_c, "pattern": top_pat,
-		"end_color": skin, "split_y": -0.255, "cuff": 0.0 if jumper else 1.0, "cuff_color": shirt_c})
-	for side in [-1, 1]:
+		_bind("thigh" + sfx, hip)
+		_bind("calf" + sfx, knee)
+		var sh_p: Vector3 = rest.call("upperarm" + sfx).origin
+		var el_p: Vector3 = rest.call("lowerarm" + sfx).origin
+		var wr_p: Vector3 = rest.call("hand" + sfx).origin
+		# the model's arms rest a little away from the body; the shoulder joint carries that angle,
+		# so in its own frame the arm still hangs straight down (what the reach solver expects)
+		var abduct := atan2(el_p.x - sh_p.x, sh_p.y - el_p.y)
+		_abduct.append(abduct)
+		var hang := Basis(Vector3.BACK, abduct).inverse()
 		var sh := Node3D.new()
-		sh.position = Vector3(side * sh_w, 1.395, 0)
+		sh.position = sh_p
+		sh.rotation.z = abduct
 		_body.add_child(sh)
-		_part(sh, "upperarm_" + g, upper_m)
 		var el := Node3D.new()
-		el.position = Vector3(0, -0.3, 0)
+		el.position = hang * (el_p - sh_p)
 		sh.add_child(el)
-		_part(el, ("forearm_l_" if side == -1 else "forearm_r_") + g, fore_m)
-		var hand := Node3D.new()
-		hand.position = Vector3(side * -0.01, -0.33, -0.04)
+		var wrist := Node3D.new()
+		wrist.position = hang * (wr_p - el_p)
+		el.add_child(wrist)
+		var hand := Node3D.new()          # the palm: what instruments are held by
+		hand.position = wrist.position + Vector3(0, -0.075, -0.005)
 		el.add_child(hand)
 		_arms.append(sh)
 		_elbows.append(el)
 		_hands.append(hand)
+		_bind("upperarm" + sfx, sh, sh.basis)
+		_bind("lowerarm" + sfx, el, sh.basis)
+		_bind("hand" + sfx, wrist, sh.basis)
 		if side == 1:
 			_right_hand = hand
+			_upper_len = sh_p.distance_to(el_p)
+			_grip_q = hand.position + Vector3(-0.045, 0.01, -0.01)   # the glass sits against the palm
 			_grip = Node3D.new()
-			_grip.position = GRIP_Q
+			_grip.position = _grip_q
 			el.add_child(_grip)
-	# --- head: sculpted face, eyes, hair
+	for f in ["index", "middle", "ring", "pinky"]:
+		for k in 3:
+			for sfx in ["_l", "_r"]:
+				var bi := _skel.find_bone("%s_%02d%s" % [f, k + 1, sfx])
+				if bi >= 0:
+					_fingers.append([bi, -1 if sfx == "_l" else 1, k])
 	_head = Node3D.new()
-	_head.position = Vector3(0, 1.66, 0)
-	_head.scale = Vector3.ONE * 1.07
+	_head.position = rest.call("head").origin
 	_body.add_child(_head)
-	var lip_c := skin.darkened(0.22).lerp(Color(0.62, 0.26, 0.28), 0.45 if fem else 0.2)
-	_face_m = MeshKit.shader_mat("res://assets/shaders/face.gdshader", {"skin": skin, "brow_color": hair_c.darkened(0.2),
-		"lip_color": lip_c, "stubble": 0.0 if fem else _rng.randf_range(0.0, 0.8), "blush": 0.45 if fem else 0.22})
-	_part(_head, "head_" + g, _face_m)
-	var white_m := MeshKit.color_mat(Color(0.74, 0.7, 0.65), 0.25)
-	var iris_m := MeshKit.color_mat([Color(0.25, 0.42, 0.62), Color(0.32, 0.2, 0.1), Color(0.3, 0.46, 0.3), Color(0.16, 0.1, 0.07)][_rng.randi() % 4], 0.15)
-	var pupil_m := MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.1)
-	for side in [-1, 1]:
-		MeshKit.sphere(_head, 0.0105, Vector3(side * 0.035, 0.011, -0.0905), white_m, Vector3.ONE, 10)
-		MeshKit.sphere(_head, 0.0066, Vector3(side * 0.035, 0.011, -0.0982), iris_m, Vector3(1, 1, 0.45), 8)
-		MeshKit.sphere(_head, 0.0027, Vector3(side * 0.035, 0.011, -0.1012), pupil_m, Vector3(1, 1, 0.45), 6)
-	var hair_m := MeshKit.shader_mat("res://assets/shaders/hair.gdshader", {"color": hair_c})
-	var styles_f := ["long", "bob", "ponytail", "bun", "curly", "long"]
-	var styles_m := ["short", "short", "curly", "short", "bald", "short"]
-	var style_h: String = look.get("hair_style", (styles_f if fem else styles_m)[_rng.randi() % 6])
-	if style_h == "messy":
-		style_h = "curly"
-	if style_h != "bald":
-		_part(_head, "hair_" + style_h, hair_m)
-	if look.get("beard", (not fem) and _rng.randf() < 0.3):
-		_part(_head, "beard", hair_m)
-	if look.get("cap", (not fem) and _rng.randf() < 0.15):
-		_part(_head, "cap", MeshKit.shader_mat("res://assets/shaders/fabric.gdshader", {"base_color": Color.from_hsv(_rng.randf(), 0.25, 0.25), "pattern": 1}))
-	if look.get("glasses", _rng.randf() < 0.15):
-		var gm := MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.3, 0.5)
-		for side in [-1, 1]:
-			MeshKit.torus(_head, 0.017, 0.021, Vector3(side * 0.035, 0.012, -0.112), gm, Vector3(PI / 2, 0, 0))
-		MeshKit.box(_head, Vector3(0.016, 0.003, 0.003), Vector3(0, 0.016, -0.114), gm)
-	MeshKit.merge_children(_head, "HeadDetails")
-	# eyelids for blinking (kept separate so they can move)
-	# upper eyelids: resting over the top of the eye, closing fully for a blink
-	_lids = Node3D.new()
-	_lids.position = Vector3(0, 0.021, -0.0905)
-	_head.add_child(_lids)
-	var lid_m := MeshKit.color_mat(skin.darkened(0.08), 0.55)
-	for side in [-1, 1]:
-		MeshKit.sphere(_lids, 0.0118, Vector3(side * 0.035, 0.0, 0.0), lid_m, Vector3(1.0, 1.0, 1.0), 10)
-	_lids.scale = Vector3(1, LID_REST, 1)
-	# lower lids, so the eyes sit in the face instead of staring
-	for side in [-1, 1]:
-		var low := MeshKit.sphere(_head, 0.0116, Vector3(side * 0.035, -0.0004, -0.0905), lid_m, Vector3(1.0, 0.42, 1.0), 10)
-		low.name = "LowerLid"
+	_bind("head", _head)
+	var anchors: Dictionary = info.get("anchors", {})
+	var lips: Array = anchors.get("lips", [0, 1.62, -0.11])
+	_lips_local = Vector3(lips[0], lips[1], lips[2]) - _head.position
+	_scale_k = _arms[0].position.y / 1.395
+	_sit_drop = -(_legs[0].position.y - 0.58)
+	var height := float(anchors.get("height", 1.75)) / 1.75
 	_relax_pose()
 	# speech bubble & name
 	_bubble = Label3D.new()
@@ -258,22 +238,39 @@ func _build(look: Dictionary) -> void:
 	add_child(_name_tag)
 
 
-static var _people_meshes := {}
+func _bind(bone: String, joint: Node3D, joint_rest := Basis()) -> void:
+	var bi := _skel.find_bone(bone)
+	if bi >= 0:
+		_bind_list.append([bi, joint, joint_rest.inverse() * _skel.get_bone_global_rest(bi).basis])
 
 
-## A sculpted body part from assets/people (made by tools/gen_people.py), shared between people.
-static func people_mesh(name: String) -> Mesh:
-	if not _people_meshes.has(name):
-		_people_meshes[name] = load("res://assets/people/%s.obj" % name)
-	return _people_meshes[name]
+## Copies the joints' turns onto the model's bones, and curls the fingers round whatever is held.
+func _sync_bones() -> void:
+	if _skel == null:
+		return
+	var inv_body := _body.global_transform.affine_inverse()
+	for b in _bind_list:
+		var jt: Transform3D = inv_body * (b[1] as Node3D).global_transform
+		_skel.set_bone_global_pose(b[0], Transform3D(jt.basis.orthonormalized() * (b[2] as Basis), jt.origin))
+	var holding := (glass != null and glass.get_parent() == _grip) or state == "musician"
+	_curl = lerpf(_curl, 1.0 if holding else 0.15, 0.2)
+	for f in _fingers:
+		var bi: int = f[0]
+		if f.size() < 5:
+			var rest_g := _skel.get_bone_global_rest(bi).basis
+			f.append(_skel.get_bone_rest(bi).basis.get_rotation_quaternion())
+			f.append((rest_g.inverse() * Vector3(0, 0, -float(f[1]))).normalized())
+		var amount: float = _curl * [0.9, 1.15, 0.8][int(f[2])]
+		if state == "musician" and int(f[1]) == -1:
+			amount *= 0.7   # the left hand holds a neck or a strap, not a fist
+		_skel.set_bone_pose_rotation(bi, (f[3] as Quaternion) * Quaternion(f[4] as Vector3, amount))
 
 
-func _part(parent: Node3D, mesh_name: String, mat: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = people_mesh(mesh_name)
-	mi.material_override = mat
-	parent.add_child(mi)
-	return mi
+func _set_face(shape: String, value: float) -> void:
+	for fm in _face_meshes:
+		var shapes: Dictionary = fm[1]
+		if shapes.has(shape):
+			(fm[0] as MeshInstance3D).set_blend_shape_value(shapes[shape], value)
 
 
 func _relax_pose() -> void:
@@ -305,7 +302,7 @@ func _solve_joints(delta: float) -> void:
 			want = clampf(pose.x * 0.9, -1.9, -0.3)  # raised arm: bend the elbow to bring the hand in
 		_elbow_bend[i] = lerpf(_elbow_bend[i], want, minf(1.0, delta * 12.0))
 		# arms hang slightly away from the hips
-		_arms[i].rotation = Vector3(-pose.x, pose.y, pose.z + (-0.06 if i == 0 else 0.06))
+		_arms[i].rotation = Vector3(-pose.x, pose.y, pose.z + _abduct[i])
 		_elbows[i].rotation.x = -_elbow_bend[i]
 		# keep whatever is in the hand upright relative to the body
 		_hands[i].rotation.x = pose.x + _elbow_bend[i]
@@ -314,8 +311,7 @@ func _solve_joints(delta: float) -> void:
 	_blink_t -= delta
 	if _blink_t <= 0.0:
 		_blink_t = _rng.randf_range(2.5, 6.0)
-	_lids.scale.y = 1.0 if _blink_t < 0.12 else LID_REST
-	_lids.position.y = 0.011 if _blink_t < 0.12 else 0.021
+	_set_face("blink", 1.0 if _blink_t < 0.12 else 0.0)
 	# breathing
 	_body.scale.x = _body.scale.y * (1.0 + sin(_anim_t * 1.6) * 0.006)
 	_social(delta)
@@ -333,14 +329,15 @@ func _solve_joints(delta: float) -> void:
 	if _talk_left > 0.0:
 		_talk_left -= delta
 		_mouth_open = absf(sin(_anim_t * 17.0)) * 0.6 + absf(sin(_anim_t * 7.3)) * 0.4
-		_face_m.set_shader_parameter("mouth_open", _mouth_open)
+		_set_face("mouth_open", _mouth_open * 0.55)
 		_head.rotation.x += sin(_anim_t * 4.0) * 0.004
 	elif _mouth_open > 0.0:
 		_mouth_open = 0.0
-		_face_m.set_shader_parameter("mouth_open", 0.0)
+		_set_face("mouth_open", 0.0)
 	_glass_arm(delta)
 	if _rig:
 		_apply_rig()
+	_sync_bones()
 
 
 func set_name_tag(text: String) -> void:
@@ -505,7 +502,7 @@ func _arrive() -> void:
 
 
 func _idle_anim(delta: float) -> void:
-	var base_y := -0.4 if _seated else 0.0
+	var base_y := _sit_drop if _seated else 0.0
 	_body.position.y = base_y + sin(_anim_t * 1.3) * 0.005
 	_head.rotation.y = sin(_anim_t * 0.4) * 0.25
 	if music_enjoy > 0.0:
@@ -617,7 +614,7 @@ func _set_seated(on: bool) -> void:
 		Sfx.play_at("stool", global_position + Vector3(0, 0.4, 0), world, -12.0)
 	_seated = on
 	if on:
-		_body.position.y = -0.4
+		_body.position.y = _sit_drop
 		_leg_rot[0] = -1.45
 		_leg_rot[1] = -1.45
 	else:
@@ -728,7 +725,7 @@ func _glass_goal() -> Array:
 	if glass == null or not is_instance_valid(glass) or state in ["musician", "audience"]:
 		return []
 	var held := glass.get_parent() == _grip
-	var hold := [HOLD_AT + Vector3(0, sin(_anim_t * 1.3) * 0.004, 0), Basis()]
+	var hold := [HOLD_AT * _scale_k + Vector3(0, sin(_anim_t * 1.3) * 0.004, 0), Basis()]
 	if _seated:
 		hold[0] += Vector3(0, 0.12, -0.04)   # above the lap
 	if _sip_phase <= 0.0 or _sip_kind == "":
@@ -746,7 +743,7 @@ func _glass_goal() -> Array:
 	_head.rotation.x = lerpf(_head.rotation.x, 0.06 + 0.22 * empty, sw)
 	var tilt := lerpf(0.45, 1.25, empty)
 	var g := Basis(Vector3.RIGHT, tilt)
-	var lips := _head.transform * Vector3(0, -0.05, -0.105)
+	var lips := _head.transform * _lips_local
 	var at_lips := [lips + Vector3(0, 0, -0.008) - g * Vector3(0, glass.height, 0.04), g]
 	return _mix(on_table if _sip_kind == "table" else hold, at_lips, sw)
 
@@ -779,7 +776,7 @@ func _glass_arm(delta: float) -> void:
 	var gb := Basis()
 	if w > 0.0 and not _ik_goal.is_empty():
 		var gbasis: Basis = _ik_goal[1]
-		var sol := _solve_ik(1, _ik_goal[0] + gbasis * Vector3(0, GRIP_UP, 0), GRIP_Q, Vector3(0.6, -0.8, 0.25))
+		var sol := _solve_ik(1, _ik_goal[0] + gbasis * Vector3(0, GRIP_UP, 0), _grip_q, Vector3(0.6, -0.8, 0.25))
 		var fk := _arms[1].basis.get_rotation_quaternion()
 		_arms[1].basis = Basis(fk.slerp((sol[0] as Basis).get_rotation_quaternion(), w))
 		_elbows[1].rotation.x = lerpf(_elbows[1].rotation.x, sol[1], w)
@@ -793,7 +790,7 @@ func _glass_arm(delta: float) -> void:
 ## the forearm) at `target` (body space), with the elbow pointing towards `pole`.
 func _solve_ik(i: int, target: Vector3, q: Vector3, pole: Vector3) -> Array:
 	var d := target - _arms[i].position
-	var a := UPPER_ARM
+	var a := _upper_len
 	var r := Vector2(q.y, q.z).length()
 	var off := atan2(-q.z, -q.y)
 	var b2 := q.length_squared()
@@ -953,6 +950,7 @@ func _apply_reaction(delta: float) -> void:
 			_arm_rot[1] = Vector3(-2.6, 0, 0.3)
 	elif _react_kind == "laugh":
 		_head.rotation.x = 0.25 + sin(_react_anim * 22.0) * 0.08
+		_set_face("smile", clampf(_react_anim, 0.0, 1.0))
 		_body.position.y += absf(sin(_react_anim * 18.0)) * 0.01
 	if _react_anim <= 0.0 and state != "audience":
 		_arm_rot[0] = Vector3.ZERO
@@ -1014,13 +1012,15 @@ func make_musician(kind: String, beat_s: float) -> void:
 	_set_seated(true)
 	_bubble.visible = false
 	_rig = MusicianRig.new()
+	_rig.size_k = _scale_k
+	_rig.lips = _head.position + _lips_local
 	_rig.build(_body, _right_hand, kind)
 	_prop = _rig.prop
 
 
 func _play_anim(_delta: float) -> void:
 	var ph := _anim_t / beat * TAU
-	_body.position.y = -0.4 + absf(sin(ph * 0.5)) * 0.012
+	_body.position.y = _sit_drop + absf(sin(ph * 0.5)) * 0.012
 	_head.rotation.x = sin(ph * 0.5) * 0.06
 	_head.rotation.y = 0.0
 	_leg_rot[0] = -1.45 + maxf(0.0, sin(ph)) * 0.12  # foot tapping

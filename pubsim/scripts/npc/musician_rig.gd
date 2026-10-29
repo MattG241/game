@@ -16,6 +16,8 @@ var prop: Node3D
 var held: Node3D          # bow or tipper, child of the right hand
 var _parts := {}
 var _base := Transform3D()
+var size_k := 1.0               # the musician's size relative to the layout below (shoulders at 1.395)
+var lips := Vector3(0, 1.605, -0.112)
 
 
 static func mesh(name: String) -> Mesh:
@@ -116,7 +118,7 @@ func build(body: Node3D, right_hand: Node3D, k: String) -> void:
 		"fiddle":
 			# under the chin on the left collarbone, scroll forward-left, top rolled towards the bow
 			var b := frame_z(-Vector3(-0.55, 0.1, -1.0), Vector3(0.45, 1.0, 0.0))
-			var chin := Vector3(-0.07, 1.47, -0.075)
+			var chin := Vector3(-0.07, 1.47, -0.075) * size_k
 			_base = Transform3D(b, chin - b * Vector3(-0.038, 0.026, 0.17))
 			_add(prop, "fiddle_body", "fiddle")
 			_add(prop, "fiddle_fittings", "ebony")
@@ -128,13 +130,13 @@ func build(body: Node3D, right_hand: Node3D, k: String) -> void:
 			_strings(prop, st, 0.0009)
 			held = _bow()
 		"whistle":
-			_base = Transform3D(Basis(Vector3.RIGHT, 0.74), Vector3(0, 1.605, -0.118))
+			_base = Transform3D(Basis(Vector3.RIGHT, 0.74), lips + Vector3(0, 0.0, -0.006))
 			MeshKit.cyl(prop, 0.0065, 0.0065, 0.29, Vector3(0, -0.175, 0), mat("whistle"), 10)
 			MeshKit.cyl(prop, 0.0078, 0.0068, 0.065, Vector3(0, -0.032, 0), mat("whistle_top"), 10)
 			for i in 6:
 				MeshKit.sphere(prop, 0.0026, Vector3(0, -0.105 - i * 0.022, -0.0055), MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.5), Vector3(1, 1, 0.4), 6)
 		"accordion":
-			_base = Transform3D(Basis(Vector3.UP, 0.12), Vector3(0.0, 1.1, -0.22))
+			_base = Transform3D(Basis(Vector3.UP, 0.12), Vector3(0.0, 1.1, -0.22) * size_k)
 			_parts["l"] = _add(prop, "accordion_end_l", "accordion")
 			var r := Node3D.new()
 			prop.add_child(r)
@@ -144,13 +146,13 @@ func build(body: Node3D, right_hand: Node3D, k: String) -> void:
 			_parts["bellows"] = _add(prop, "accordion_bellows", "bellows")
 		"bodhran":
 			var b := frame_z(Vector3(-0.55, 0.05, 0.84), Vector3.UP)
-			_base = Transform3D(b, Vector3(-0.14, 1.17, -0.3))
+			_base = Transform3D(b, Vector3(-0.14, 1.17, -0.3) * size_k)
 			_add(prop, "bodhran_frame", "bodhran")
 			_add(prop, "bodhran_skin", "skin")
 			held = _tipper()
 		"guitar", "banjo":
 			var b := frame_x(Vector3(-1.0, 0.45, -0.22), Vector3(0.05, 0.05, 1.0))
-			_base = Transform3D(b, Vector3(0.11, 1.07, -0.24))
+			_base = Transform3D(b, Vector3(0.11, 1.07, -0.24) * size_k)
 			if kind == "guitar":
 				_add(prop, "guitar_body", "guitar")
 				_add(prop, "guitar_fittings", "guitar_frets")
