@@ -72,6 +72,36 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
 - **Darts** (301 against a regular), **Split the G** challenge, a **pint by the fire**.
 - **Awards** with prize money, and celebration cards for big renovations.
 
+### Second pass
+- **GALAGERS Irish Stout**: an original house stout brand. It has a fiddle emblem in a Celtic ring and
+  a Cinzel serif wordmark, in black, ivory, antique gold, copper and burgundy. It appears on:
+  - the pint glass, with a big readable G and condensation on a fresh pint
+  - the tap badges, the illuminated back-bar sign, the drip and bar mats, and coasters
+  - posters, an etched mirror, the keg label, bottle crates, the facade, table menus and a menu board.
+
+  The artwork comes from `tools/gen_brand.py`. Swap `assets/brand/` and `data/brand.json` to rebrand.
+- **Split the G**: stop your gulp with the line between stout and head exactly halfway through the G.
+  - The target is the measured centre of the printed G, and the glass turns so the G faces you.
+  - A slow-motion replay glides the line down before the score.
+  - The crowd reacts, and your best score is saved.
+- **A calmer, fairer bar**: people come in, sit and chat, and are called up to order at a pace based on
+  how fast *you* actually serve. Orders are capped, and the HUD shows the queue and the next order's
+  countdown. Choose Relaxed, Balanced or Busier in Settings. See `docs/TESTING.md` for old vs new numbers.
+- **Voices and recorded sound** (made once with ElevenLabs, bundled offline):
+  - customers order, praise, complain and say goodbye; regulars have their own voices
+  - the landlord calls last orders, and the band introduces tunes
+  - the room reacts to Split the G
+  - mouths move and the music dips under speech
+  - recorded tap, glass, till, door, darts, crowd, rain and fire sounds.
+- **Realism pass**:
+  - brass, chrome and glass reflect the room
+  - wood grain, plaster, tile and stone relief; leather and metal wear
+  - soft contact shadows under furniture and people
+  - jointed characters with faces, jackets, jumpers and skirts
+  - your own hand holding the pint
+  - timber, ivory and brass menus.
+- **Graphics presets**: Performance, Balanced, High and Ultra, plus a 30 FPS battery-saver mode.
+
 ## The soundtrack: who plays what
 | # | Song | When it plays |
 | --- | --- | --- |

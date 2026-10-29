@@ -16,7 +16,7 @@ const RECORDED := {
 	"crowd_loop": "pub_busy_loop", "quiet_crowd_loop": "pub_quiet_loop", "rain_loop": "rain_window_loop",
 	"fire_loop": "fire_loop", "applause": "applause", "bottle_open": "bottle_open", "stool": "stool_scrape",
 	"foam_settle": "foam_settle", "wash": "wash_glass", "success": "success_sting", "split_tension": "split_tension",
-	"stout_pour": "stout_pour",
+	"pour_loop": "stout_pour",
 }
 
 var streams: Dictionary = {}

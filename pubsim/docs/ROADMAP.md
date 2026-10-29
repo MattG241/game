@@ -11,4 +11,8 @@ and have tests.
   darts against regulars; the "Split the G" precision drinking challenge; your own after-shift pint.
 - **Phase 4:** staff hiring (bartender, glass collector), food (toasties, stew), furniture placement
   with snap points, room expansions, events, objectives.
-- **Phase 5:** performance tuning on device, polish, save migration.
+- **Second pass (done):** GALAGERS brand everywhere, Split the G scoring on the measured G, paced
+  orders with caps and difficulty modes, ElevenLabs voices and effects (offline), realism pass,
+  first-person hand, timber/brass UI, Performance/Balanced/High/Ultra presets.
+- **Phase 5:** performance tuning on device (FPS figures from a real phone), voice casting with
+  native Irish voices if a paid ElevenLabs plan is used, polish.

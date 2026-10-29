@@ -13,8 +13,9 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SFX = os.path.join(HERE, "..", "assets", "sfx_el")
-LOOPS = ["pub_quiet_loop", "pub_busy_loop", "rain_window_loop", "fire_loop"]
+LOOPS = ["pub_quiet_loop", "pub_busy_loop", "rain_window_loop", "fire_loop", "stout_pour"]
 FADE = 1.5
+FADE_FOR = {"stout_pour": 0.8}   # short clip: a shorter cross-fade keeps most of it
 
 for name in LOOPS:
     src = os.path.join(SFX, name + ".ogg")
@@ -27,7 +28,7 @@ for name in LOOPS:
         with wave.open(wav) as w:
             rate = w.getframerate()
             a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32)
-        n = int(FADE * rate)
+        n = int(FADE_FOR.get(name, FADE) * rate)
         t = np.linspace(0.0, 1.0, n, endpoint=False)
         fade_in = np.sin(t * np.pi / 2)
         fade_out = np.cos(t * np.pi / 2)

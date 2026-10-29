@@ -624,7 +624,7 @@ func _game() -> void:
 		"Collect empty glasses and wash them at the sink. Change empty kegs in the cellar (door at the back left behind the bar). Order stock from the Stock tab. Close up after midnight to see your day's accounts.", 20)
 	var cr := _card()
 	_text(cr, "Credits", 26, UITheme.GOLD)
-	_text(cr, "An original game. All 3D models, textures, sound effects and music are generated procedurally by the game's own code; the tunes are original compositions. Fonts: Uncial Antiqua and Nunito (SIL Open Font License). Built with Godot Engine (MIT). Kilbrack, Lough Glas, Red Fox, Orchard Gate and Ballyfinn are fictional brands.", 18, UITheme.MUTED)
+	_text(cr, "An original game. The 3D pub, people, materials and GALAGERS brand art are made by the game's own code. Soundtrack: 20 songs by the pub's owner, made with Suno. Voices and recorded sound effects generated with ElevenLabs (non-commercial use). Fonts: Uncial Antiqua, Nunito, Cinzel (SIL Open Font License). Built with Godot Engine (MIT). GALAGERS, Lough Glas, Red Fox, Orchard Gate, Ballyfinn and Brannock's are fictional brands.", 18, UITheme.MUTED)
 
 
 # ------------------------------------------------------------------ end of day
