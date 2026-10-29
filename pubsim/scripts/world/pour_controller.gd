@@ -12,7 +12,7 @@ var tilt := 0.0            # degrees, smoothed
 var tilt_input := 0.0      # 0..1 from the tilt slider
 var lever := 0.0           # 0..1 from the tap handle
 var _stream: MeshInstance3D
-var _stream_mat: StandardMaterial3D
+var _stream_mat: ShaderMaterial
 var _prev_spilled := 0.0
 var _was_flowing := false
 var _empty_warned := false
@@ -30,9 +30,7 @@ func _ready() -> void:
 	cm.radial_segments = 8
 	cm.rings = 1
 	_stream.mesh = cm
-	_stream_mat = StandardMaterial3D.new()
-	_stream_mat.albedo_color = Color(0.42, 0.26, 0.14)
-	_stream_mat.roughness = 0.2
+	_stream_mat = MeshKit.shader_mat("res://assets/shaders/stream.gdshader")
 	_stream.material_override = _stream_mat
 	_stream.visible = false
 	_stream.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -63,8 +61,10 @@ func begin(id: String, tap_info: Dictionary) -> void:
 	cam.global_transform = player.camera.global_transform
 	cam.current = true
 	var g0: Vector3 = tap["glass"]
-	var target := Transform3D(Basis(), g0 + Vector3(-0.2, 0.25, -0.44))
-	target = target.looking_at(g0 + Vector3(0.03, 0.16, 0.0), Vector3.UP)
+	# from the bartender's side and a little to the left: the glass fills the frame with the nozzle
+	# and the falling stream above it, the brass font behind
+	var target := Transform3D(Basis(), g0 + Vector3(0.15, 0.19, -0.48))
+	target = target.looking_at(g0 + Vector3(0.06, 0.15, 0.0), Vector3.UP)
 	_cam_tween = world.new_cam_tween()
 	_cam_tween.tween_property(cam, "global_transform", target, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	world.hud.enter_pour_mode(self)
@@ -154,7 +154,7 @@ func _update_tap_visual(flow: float, delta: float) -> void:
 		_stream.scale = Vector3(0.6 + _flow_vis * 0.6, len, 0.6 + _flow_vis * 0.6)
 		var d := GameData.drink(drink_id)
 		var col: Array = d.get("color", [0.4, 0.25, 0.1])
-		_stream_mat.albedo_color = Color(0.62, 0.44, 0.28) if serve == "stout" else Color(col[0], col[1], col[2]).lightened(0.2)
+		_stream_mat.set_shader_parameter("color", Color(0.62, 0.44, 0.28) if serve == "stout" else Color(col[0], col[1], col[2]).lightened(0.2))
 
 
 func _report_stop() -> void:

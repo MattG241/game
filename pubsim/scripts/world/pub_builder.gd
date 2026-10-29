@@ -212,7 +212,12 @@ func _bar() -> void:
 	MeshKit.label(g, "TIPS", PubLayout.TILL_POS + Vector3(-0.38, 0.08, 0.112), 28, Color(0.95, 0.85, 0.5), Vector3.ZERO, _title_font)
 	# GALAGERS rubber drip mat under the taps and bar mats at the serving spots
 	var flat := Vector3(-PI / 2, 0, 0)
-	MeshKit.quad(g, Vector2(0.72, 0.27), Vector3(-1.75, top + 0.026, PubLayout.TAP_Z - 0.08), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.8), flat)
+	# ribbed black rubber drip mat over the tray, its GALAGERS print reading for the bartender
+	var mat_pos := Vector3(-1.75, top + 0.028, PubLayout.TAP_Z - 0.08)
+	MeshKit.box(g, Vector3(0.78, 0.008, 0.3), mat_pos, MeshKit.color_mat(Color(0.03, 0.03, 0.03), 0.75))
+	for r in 9:
+		MeshKit.box(g, Vector3(0.74, 0.004, 0.006), mat_pos + Vector3(0, 0.005, -0.12 + r * 0.03), MeshKit.color_mat(Color(0.06, 0.06, 0.06), 0.6))
+	MeshKit.quad(g, Vector2(0.6, 0.225), mat_pos + Vector3(0, 0.0075, 0), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.8), Vector3(-PI / 2, PI, 0))
 	var mat_m := MeshKit.print_mat(BRAND + "galagers_keg.png", 0.0, 0.85)
 	for x in PubLayout.BAR_SPOT_X:
 		if absf(x - PubLayout.TILL_POS.x) < 0.5:
