@@ -43,6 +43,7 @@ func build(parent: Node3D) -> Dictionary:
 	_cellar()
 	_exterior()
 	_upgrade_extras()
+	_darts_corner()
 	return info
 
 
@@ -889,6 +890,43 @@ func _exterior() -> void:
 	info["rain"].append(rain)
 	# environment-ish backdrop: hills silhouette far away
 	MeshKit.box(g, Vector3(80, 12, 1), Vector3(0, 6, 40), MeshKit.color_mat(Color(0.05, 0.06, 0.08), 1.0))
+
+
+# ------------------------------------------------------------------ darts
+func _darts_corner() -> void:
+	var g := _group("Darts")
+	_tag("dartboard", g)
+	var b := PubLayout.DARTBOARD
+	# cabinet doors either side of the board
+	MeshKit.box(g, Vector3(0.04, 0.62, 0.62), b + Vector3(0.02, 0, 0), MeshKit.mat("oak_z"))
+	for side in [-1, 1]:
+		MeshKit.box(g, Vector3(0.03, 0.62, 0.3), b + Vector3(-0.0, 0, side * 0.47), MeshKit.mat("oak_z"))
+	var board := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.451, 0.451)
+	board.mesh = qm
+	board.material_override = MeshKit.shader_mat("res://assets/shaders/dartboard.gdshader")
+	board.position = b + Vector3(-0.002, 0, 0)
+	board.rotation.y = -PI / 2.0
+	g.add_child(board)
+	var order := [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+	for i in 20:
+		var a := TAU * i / 20.0
+		var lp := b + Vector3(-0.006, cos(a) * 0.198, sin(a) * 0.198)
+		var l := MeshKit.label(g, str(order[i]), lp, 30, Color(0.95, 0.92, 0.8), Vector3(0, -PI / 2.0, 0))
+		l.pixel_size = 0.0011
+	# chalk scoreboard and the oche line
+	MeshKit.box(g, Vector3(0.03, 0.5, 0.4), b + Vector3(0, -0.05, -0.85), MeshKit.mat("chalk"))
+	MeshKit.label(g, "301", b + Vector3(-0.02, 0.1, -0.85), 40, Color(0.95, 0.95, 0.9), Vector3(0, -PI / 2.0, 0), _title_font)
+	MeshKit.box(g, Vector3(0.05, 0.012, 0.6), Vector3(PubLayout.OCHE_X, 0.006, b.z), MeshKit.mat("brass"))
+	var lamp := SpotLight3D.new()
+	lamp.position = b + Vector3(-0.7, 0.9, 0)
+	lamp.rotation_degrees = Vector3(-50, -90, 0)
+	lamp.light_color = Color(1.0, 0.85, 0.6)
+	lamp.light_energy = 1.2
+	lamp.spot_range = 2.0
+	lamp.spot_angle = 30.0
+	g.add_child(lamp)
 
 
 # ------------------------------------------------------------------ upgrade-only extras

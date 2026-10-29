@@ -40,7 +40,7 @@ const KEG_POS := {"stout": Vector3(-6.5, 0.0, -6.0), "lager": Vector3(-6.5, 0.0,
 const STOCK_PILE := Vector3(-4.6, 0.0, -7.8)
 
 const FIREPLACE := Vector3(-7.0, 0.0, 2.2)
-const DARTBOARD := Vector3(6.97, 1.73, 0.4)
+const DARTBOARD := Vector3(6.85, 1.73, 0.4)
 const OCHE_X := 4.6
 const STAGE_POS := Vector3(5.6, 0.0, 3.7)
 const PLAYER_START := Vector3(-0.6, 0.0, -3.2)

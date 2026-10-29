@@ -12,6 +12,8 @@ var info: Dictionary
 var player: Player
 var hud: Node
 var pour: Node
+var drink_scene: DrinkScene
+var darts: DartsGame
 var env: Environment
 var close_cam: Camera3D
 var nav_region: NavigationRegion3D
@@ -145,6 +147,9 @@ func _make_interactables() -> void:
 		var kid: String = id
 		I.make(self, PubLayout.KEG_POS[id] + Vector3(0, 0.6, 0), "keg_" + id, func(): return _keg_prompt(kid), func(): _keg_action(kid), 1.2)
 	I.make(self, PubLayout.STOCK_PILE + Vector3(0, 0.6, 0), "stock", func(): return "Order stock (phone)", func(): hud.open_menu("stock"))
+	I.make(self, Vector3(PubLayout.OCHE_X + 0.4, 1.3, PubLayout.DARTBOARD.z), "darts", _darts_prompt, func(): start_darts(), 0.0, 2.4)
+	I.make(self, DrinkScene.SPLIT_POS + Vector3(0, 0.2, 0.25), "split", _split_prompt, func(): start_split(), 0.0, 1.8)
+	I.make(self, Vector3(-6.0, 0.9, 0.9), "fireside", _fireside_prompt, func(): start_relax(), 0.0, 2.0)
 
 
 func _hint(text: String) -> String:
@@ -335,6 +340,60 @@ func _keg_action(id: String) -> void:
 		Sfx.play("keg", -2.0)
 		notify("Fresh %s connected." % GameData.drink(id)["stock_unit"], "good")
 		_refresh_stock_pile()
+
+
+func in_minigame() -> bool:
+	return (pour and pour.active) or (drink_scene and drink_scene.active) or (darts and darts.active)
+
+
+func _darts_prompt() -> String:
+	if not GameState.has_upgrade("dartboard") or not player.has_hands_free():
+		return ""
+	return "Play darts against %s" % darts_opponent_name()
+
+
+func darts_opponent() -> String:
+	for c in customers:
+		if c.regular_id != "" and c.state in ["drinking", "stand_drink"]:
+			return c.regular_id
+	return "packie"
+
+
+func darts_opponent_name() -> String:
+	return str(GameData.regulars_by_id.get(darts_opponent(), {}).get("name", "Packie Walsh")).split(" ")[0]
+
+
+func start_darts() -> void:
+	if not in_minigame() and GameState.has_upgrade("dartboard"):
+		darts.begin(darts_opponent())
+
+
+func _split_prompt() -> String:
+	if not player.has_hands_free():
+		return ""
+	return "Try the Split the Knot challenge"
+
+
+func start_split() -> void:
+	if not in_minigame():
+		drink_scene.begin("split", "stout")
+
+
+func _fireside_prompt() -> String:
+	if not player.has_hands_free():
+		return ""
+	if pub_closed_for_you():
+		return "Sit by the fire with your own pint"
+	return "Sit by the fire with a Kilbrack Zero"
+
+
+func pub_closed_for_you() -> bool:
+	return GameState.phase == "prep" or (GameState.phase in ["closing", "last_orders"] and customers.is_empty())
+
+
+func start_relax() -> void:
+	if not in_minigame():
+		drink_scene.begin("relax", "stout" if pub_closed_for_you() else "zero")
 
 
 # ------------------------------------------------------------------ glasses

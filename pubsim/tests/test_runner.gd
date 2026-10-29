@@ -407,3 +407,113 @@ func _test_loop() -> void:
 	await _frames(10)
 	check(main.world != null and GameState.has_upgrade("lamps"), "continuing restores the pub")
 	check(main.world.info["upgrade_show"]["lamps"][0].visible, "purchased upgrade still visible after reload")
+	await _test_minigames(main.world)
+
+
+func _test_minigames(w: World) -> void:
+	_log("== Integration: darts ==")
+	check(DartsGame.score_at(Vector2.ZERO)[0] == 50, "bullseye scores 50")
+	check(DartsGame.score_at(Vector2(0, 0.012))[0] == 25, "outer bull scores 25")
+	check(DartsGame.score_at(Vector2(0, 0.103))[0] == 60, "treble 20 scores 60")
+	check(DartsGame.score_at(Vector2(0, 0.166))[0] == 40, "double 20 scores 40")
+	check(DartsGame.score_at(Vector2(0, 0.05))[0] == 20, "single 20 scores 20")
+	var a := TAU / 20.0 * 5.0  # fifth segment clockwise from the top is 6
+	check(DartsGame.score_at(Vector2(sin(a), cos(a)) * 0.05)[0] == 6, "segment layout follows the standard board (6 at 3 o'clock)")
+	check(DartsGame.score_at(Vector2(0, -0.103))[0] == 9, "treble 3 at the bottom scores 9")
+	check(DartsGame.score_at(Vector2(0.2, 0.1))[0] == 0, "outside the board scores 0")
+	check(w._darts_prompt() == "", "darts need the dartboard upgrade")
+	GameState.upgrades["dartboard"] = 1
+	GameState.upgrades_changed.emit()
+	w.player.global_position = Vector3(PubLayout.OCHE_X - 0.6, 0, PubLayout.DARTBOARD.z)
+	w.player.rotation.y = -PI / 2.0
+	await _frames(3)
+	check(w._darts_prompt().begins_with("Play darts"), "dartboard offers a game once bought")
+	w.start_darts()
+	await _frames(40)
+	var dg := w.darts
+	check(dg.active and main.hud.darts_root.visible, "darts mode starts with its own controls")
+	# aim at treble 20 and throw three darts through the real drag/release path
+	for i in 3:
+		dg.aim = Vector2(0, 0.103)
+		dg.aiming = true
+		dg._sway_t = 0.0
+		dg.release_throw()
+		await _wait_until(func(): return not dg._busy, 3.0)
+		await _frames(45)
+	check(dg.scores[0] < 301, "player's throws score (%d left)" % dg.scores[0])
+	var ok := await _wait_until(func(): return dg.turn == 0 and dg.darts_left == 3 and not dg._busy, 20.0)
+	check(ok and dg.scores[1] < 301, "opponent takes a turn and scores (%d left)" % dg.scores[1])
+	# a deliberate bust: needing 10, hitting 20 resets the turn
+	dg.scores[0] = 10
+	dg.turn_start = 10
+	dg.darts_left = 3
+	dg.aim = Vector2(0, 0.05)
+	dg.aiming = true
+	dg._sway_t = 0.0
+	dg.release_throw()
+	await _wait_until(func(): return dg.turn == 1 or dg.scores[0] != 10, 3.0)
+	check(dg.scores[0] == 10, "going below zero is a bust")
+	await _wait_until(func(): return dg.turn == 0 and not dg._busy, 20.0)
+	# finish: needing exactly 20
+	dg.scores[0] = 20
+	dg.turn_start = 20
+	dg.aim = Vector2(0, 0.05)
+	dg.aiming = true
+	dg._sway_t = 0.0
+	dg.release_throw()
+	await _wait_until(func(): return dg.winner >= 0, 3.0)
+	check(dg.winner == 0 and int(GameState.stats["darts_wins"]) >= 1, "checking out exactly wins the game")
+	dg.end()
+	await _frames(40)
+	check(not dg.active and w.player.input_enabled, "leaving darts returns control")
+
+	_log("== Integration: Split the Knot ==")
+	w.player.global_position = Vector3(0.9, 0, -0.9)
+	w.player.rotation.y = 0.0
+	await _frames(3)
+	w.start_split()
+	await _frames(45)
+	var ds := w.drink_scene
+	check(ds.active and main.hud.drink_root.visible, "Split the Knot starts")
+	var body0 := ds.glass.contents.body
+	await _frames(30)
+	check(is_equal_approx(ds.glass.contents.body, body0), "nothing is drunk until you hold")
+	ds.press()
+	await _frames(int(2.6 * 60))
+	ds.release()
+	var after_short := ds.glass.contents.body
+	check(after_short < body0 - 0.05, "holding drinks continuously (%.3f -> %.3f)" % [body0, after_short])
+	await _wait_until(func(): return ds.state == "replay", 5.0)
+	var err := ds.error_mm()
+	var res: Dictionary = ds._result
+	check(ds.state == "replay" and res.has("score"), "result shown after the gulp")
+	check(is_equal_approx(float(res["error_mm"]), err), "score measures the liquid line against the knot (%.1f mm)" % err)
+	check(GameState.best_split_mm >= 0.0, "best score recorded")
+	# a longer gulp drinks more: skill, not chance
+	ds.retry()
+	await _frames(40)
+	ds.press()
+	await _frames(int(3.4 * 60))
+	ds.release()
+	check(ds.glass.contents.body < after_short, "a longer hold goes further down the glass")
+	await _wait_until(func(): return ds.state == "replay", 5.0)
+	# a perfect stop scores 100
+	ds.glass.contents.body = (DrinkScene.TARGET_Y - PintGlass.BASE) / ds.glass.inner_height
+	ds._score()
+	check(int(ds._result["score"]) == 100 and str(ds._result["verdict"]) == "Split the Knot!", "stopping exactly on the line splits the knot")
+	ds.end()
+	await _frames(40)
+	check(not ds.active and w.player.input_enabled, "leaving the challenge returns control")
+	_log("== Integration: a pint by the fire ==")
+	w.start_relax()
+	await _frames(45)
+	check(ds.active and ds.mode == "relax", "fireside pint starts")
+	check(ds.drink_id == "zero" or w.pub_closed_for_you(), "alcohol-free while the pub is open")
+	var b0 := ds.glass.contents.body
+	ds.press()
+	await _frames(90)
+	ds.release()
+	check(ds.glass.contents.body < b0, "sipping lowers the pint")
+	ds.end()
+	await _frames(40)
+	check(w.player.input_enabled, "back on your feet after the pint")

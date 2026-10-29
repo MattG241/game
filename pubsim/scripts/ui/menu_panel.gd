@@ -10,7 +10,7 @@ var title: Label
 var tab_bar: HBoxContainer
 var _summary_mode := false
 
-const TABS := [["upgrades", "Upgrades"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["settings", "Settings"], ["game", "Game"]]
+const TABS := [["upgrades", "Upgrades"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
 
 
 func _ready() -> void:
@@ -98,6 +98,8 @@ func show_tab(t: String) -> void:
 			_ledger()
 		"settings":
 			_settings()
+		"activities":
+			_activities()
 		"game":
 			_game()
 
@@ -264,6 +266,37 @@ func _ledger() -> void:
 	_text(st, "Career", 26, UITheme.GOLD)
 	var gs := GameState.stats
 	_text(st, "Pints poured %d · Perfect pints %d · Best pour %d · Customers served %d · Glasses washed %d · Days run %d" % [int(gs["pints_poured"]), int(gs["perfect_pints"]), int(gs["best_pour"]), int(gs["served"]), int(gs["glasses_washed"]), int(gs["days"])], 20)
+
+
+# ------------------------------------------------------------------ activities
+func _activity(title_t: String, desc: String, btn: String, cb: Callable, enabled := true, why := "") -> void:
+	var v := _card()
+	var h := HBoxContainer.new()
+	v.add_child(h)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(info)
+	_text(info, title_t, 26, UITheme.GOLD)
+	_text(info, desc, 20)
+	if not enabled and why != "":
+		_text(info, why, 18, Color(1, 0.65, 0.5))
+	var b := UITheme.button(btn, func():
+		hud.close_menu()
+		cb.call(), 22)
+	b.custom_minimum_size = Vector2(200, 70)
+	b.disabled = not enabled
+	h.add_child(b)
+
+
+func _activities() -> void:
+	var w: World = hud.world
+	var best := "No attempts yet." if GameState.best_split_mm < 0.0 else "Best: %.1f mm from the line in %d attempts." % [GameState.best_split_mm, int(GameState.stats["split_attempts"])]
+	_activity("Split the Knot", "One gulp from a full pint: stop with the line between the stout and the head exactly on the bar through the Kilbrack Knot on the glass. Purely virtual practice. " + best, "Play", w.start_split)
+	var has_board := GameState.has_upgrade("dartboard")
+	_activity("Darts: 301", "A friendly game against %s. Drag to aim, let go to throw; the aim drifts, so time it. Wins %d of %d." % [w.darts_opponent_name(), int(GameState.stats["darts_wins"]), int(GameState.stats["darts_games"])],
+		"Play", w.start_darts, has_board, "Buy the Dartboard & Oche upgrade first.")
+	var closed := w.pub_closed_for_you()
+	_activity("A pint by the fire", "Sit in the armchair and enjoy a pint at your own pace. %s" % ("The pub's closed, so it's a Kilbrack Stout." if closed else "You're working, so it's an alcohol-free Kilbrack Zero."), "Sit down", w.start_relax)
 
 
 # ------------------------------------------------------------------ settings

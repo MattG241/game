@@ -62,6 +62,16 @@ func start_world() -> void:
 	pour.world = world
 	world.pour = pour
 	world.add_child(pour)
+	var ds := DrinkScene.new()
+	ds.name = "DrinkScene"
+	ds.world = world
+	world.drink_scene = ds
+	world.add_child(ds)
+	var dg := DartsGame.new()
+	dg.name = "Darts"
+	dg.world = world
+	world.darts = dg
+	world.add_child(dg)
 	add_child(hud)
 	world.on_ready_with_hud()
 
@@ -71,7 +81,7 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT:
 			if world and GameState.in_game:
 				GameState.save_game()
-				if OS.has_feature("mobile") and hud and not get_tree().paused and not (world.pour and world.pour.active):
+				if OS.has_feature("mobile") and hud and not get_tree().paused and not world.in_minigame():
 					hud.open_menu("game")
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			if hud and world:
@@ -79,6 +89,10 @@ func _notification(what: int) -> void:
 					hud.menu._close()
 				elif world.pour and world.pour.active:
 					world.pour.end(false)
+				elif world.drink_scene and world.drink_scene.active:
+					world.drink_scene.end()
+				elif world.darts and world.darts.active:
+					world.darts.end()
 				else:
 					hud.open_menu("game")
 			elif title:

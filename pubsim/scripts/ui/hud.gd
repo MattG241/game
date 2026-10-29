@@ -36,6 +36,21 @@ var pour_ctrl: PourController
 var result_card: PanelContainer
 var result_label: RichTextLabel
 var menu: MenuPanel
+# mini-games
+var drink_root: Control
+var drink_btn: TouchButton
+var drink_leave: TouchButton
+var drink_retry: TouchButton
+var drink_label: Label
+var drink_result: Label
+var drink_ctrl: DrinkScene
+var darts_root: Control
+var darts_pad: TouchPad
+var darts_score: Label
+var darts_status: Label
+var darts_leave: TouchButton
+var darts_again: TouchButton
+var darts_ctrl: DartsGame
 var _result_t := 0.0
 var _order_t := 0.0
 var _subtitle_t := 0.0
@@ -57,6 +72,7 @@ func _ready() -> void:
 	_build_actions()
 	_build_pour_ui()
 	_build_overlays()
+	_build_minigame_ui()
 	menu = MenuPanel.new()
 	menu.hud = self
 	frame.add_child(menu)
@@ -295,6 +311,143 @@ static func _place(c: Control, preset: int, pos: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = pos.y + sz.y
 
 
+func _build_minigame_ui() -> void:
+	drink_root = Control.new()
+	drink_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drink_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drink_root.visible = false
+	frame.add_child(drink_root)
+	drink_label = UITheme.label("", 26)
+	drink_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drink_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(drink_label, Control.PRESET_CENTER_TOP, Vector2(-420, 6), Vector2(840, 90))
+	drink_root.add_child(drink_label)
+	drink_result = UITheme.label("", 34, UITheme.GOLD, MeshKit.font_title())
+	drink_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drink_result.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(drink_result, Control.PRESET_CENTER, Vector2(-420, 120), Vector2(840, 140))
+	drink_root.add_child(drink_result)
+	drink_btn = TouchButton.new("Hold to drink")
+	drink_btn.font_size = 30
+	_place(drink_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-300, -170), Vector2(300, 170))
+	drink_btn.pressed.connect(func(): if drink_ctrl: drink_ctrl.press())
+	drink_btn.released.connect(func(): if drink_ctrl: drink_ctrl.release())
+	drink_root.add_child(drink_btn)
+	drink_leave = TouchButton.new("Leave", Color(0.3, 0.18, 0.08, 0.92))
+	_place(drink_leave, Control.PRESET_BOTTOM_LEFT, Vector2(0, -90), Vector2(200, 84))
+	drink_leave.pressed.connect(func(): if drink_ctrl: drink_ctrl.end())
+	drink_root.add_child(drink_leave)
+	drink_retry = TouchButton.new("Try again")
+	_place(drink_retry, Control.PRESET_BOTTOM_LEFT, Vector2(216, -90), Vector2(220, 84))
+	drink_retry.pressed.connect(func(): if drink_ctrl: drink_ctrl.retry())
+	drink_root.add_child(drink_retry)
+	darts_root = Control.new()
+	darts_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	darts_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	darts_root.visible = false
+	frame.add_child(darts_root)
+	darts_pad = TouchPad.new()
+	darts_pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	darts_pad.dragged.connect(func(rel): if darts_ctrl: darts_ctrl.drag(rel))
+	darts_pad.released.connect(func(): if darts_ctrl: darts_ctrl.release_throw())
+	darts_root.add_child(darts_pad)
+	var sp := PanelContainer.new()
+	sp.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.06, 0.08, 0.07, 0.9), Color(0.6, 0.5, 0.3), 14, 2))
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(sp, Control.PRESET_CENTER_TOP, Vector2(-330, 0), Vector2(660, 60))
+	darts_root.add_child(sp)
+	darts_score = UITheme.label("", 30, UITheme.CREAM, MeshKit.font_title())
+	darts_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sp.add_child(darts_score)
+	darts_status = UITheme.label("", 24)
+	darts_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	darts_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(darts_status, Control.PRESET_CENTER_BOTTOM, Vector2(-420, -190), Vector2(840, 80))
+	darts_root.add_child(darts_status)
+	darts_leave = TouchButton.new("Leave the oche", Color(0.3, 0.18, 0.08, 0.92))
+	_place(darts_leave, Control.PRESET_BOTTOM_LEFT, Vector2(0, -90), Vector2(240, 84))
+	darts_leave.pressed.connect(func(): if darts_ctrl: darts_ctrl.end())
+	darts_root.add_child(darts_leave)
+	darts_again = TouchButton.new("Rematch")
+	_place(darts_again, Control.PRESET_BOTTOM_LEFT, Vector2(256, -90), Vector2(200, 84))
+	darts_again.pressed.connect(func():
+		if darts_ctrl:
+			var opp := darts_ctrl.opponent
+			darts_ctrl.end()
+			await get_tree().create_timer(0.5).timeout
+			darts_ctrl.begin(opp))
+	darts_root.add_child(darts_again)
+
+
+func _hide_gameplay(on: bool) -> void:
+	touch.reset()
+	touch.gameplay = not on
+	for n in [ctx_btn, alt_btn, crosshair, prompt_label, held_label, orders_box, menu_btn, ff_btn, tip_panel, tip_close]:
+		n.visible = not on
+	if not on:
+		tip_panel.visible = tip_label.text != ""
+		tip_close.visible = tip_panel.visible
+		ctx_btn.visible = false
+		alt_btn.visible = false
+
+
+func enter_drink_mode(ds: DrinkScene) -> void:
+	drink_ctrl = ds
+	_hide_gameplay(true)
+	drink_root.visible = true
+	drink_result.text = ""
+	drink_retry.visible = false
+	drink_btn.visible = true
+	if ds.mode == "split":
+		var best := "" if GameState.best_split_mm < 0.0 else "  Your best: %.1f mm." % GameState.best_split_mm
+		drink_label.text = "Split the Knot: hold to take ONE gulp. Let go when you think the line between the stout and the head will sit exactly on the bar through the knot.%s" % best
+	else:
+		drink_label.text = "Your own pint by the fire. Hold to sip, at your own pace."
+
+
+func update_drink_ui(ds: DrinkScene) -> void:
+	drink_btn.visible = ds.state in ["ready", "drinking", "between"]
+	drink_btn.set_label("Drinking..." if ds.state == "drinking" else ("Hold to sip" if ds.mode == "relax" else "Hold to drink"))
+
+
+func set_drink_text(t: String) -> void:
+	drink_label.text = t
+
+
+func show_split_result(res: Dictionary) -> void:
+	drink_result.text = "%s\n%s" % [res["verdict"], res["where"]]
+	drink_label.text = "Score %d%s\n%s" % [res["score"], "  ·  New personal best!" if res["best"] else "", res["reaction"]]
+	drink_retry.visible = true
+	drink_btn.visible = false
+
+
+func exit_drink_mode() -> void:
+	drink_ctrl = null
+	drink_root.visible = false
+	_hide_gameplay(false)
+
+
+func enter_darts_mode(dg: DartsGame) -> void:
+	darts_ctrl = dg
+	_hide_gameplay(true)
+	darts_root.visible = true
+	darts_again.visible = false
+	update_darts_ui(dg, "")
+
+
+func update_darts_ui(dg: DartsGame, status: String) -> void:
+	darts_score.text = "You  %d     %s  %d     Darts left %d" % [dg.scores[0], dg.opponent_name, dg.scores[1], dg.darts_left]
+	if status != "":
+		darts_status.text = status
+	darts_again.visible = dg.winner >= 0
+
+
+func exit_darts_mode() -> void:
+	darts_ctrl = null
+	darts_root.visible = false
+	_hide_gameplay(false)
+
+
 # ------------------------------------------------------------------ per frame
 func _process(delta: float) -> void:
 	if world == null:
@@ -311,7 +464,7 @@ func _process(delta: float) -> void:
 			int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)]
 	world.player.move_input = touch.move
 	var pouring := pour_root.visible
-	if not pouring and not menu.visible:
+	if not pouring and not menu.visible and not drink_root.visible and not darts_root.visible:
 		_update_context()
 	if pouring and pour_ctrl:
 		_update_pour_ui()
@@ -426,11 +579,8 @@ func refresh_orders() -> void:
 # ------------------------------------------------------------------ pour mode
 func enter_pour_mode(ctrl: PourController) -> void:
 	pour_ctrl = ctrl
-	touch.reset()
-	touch.gameplay = false
+	_hide_gameplay(true)
 	pour_root.visible = true
-	for n in [ctx_btn, alt_btn, crosshair, prompt_label, held_label, orders_box, menu_btn, ff_btn, tip_panel, tip_close]:
-		n.visible = false
 	tilt_slider.set_value(0.0)
 	lever_slider.set_value(0.0)
 	pour_feedback.text = ""
@@ -442,13 +592,8 @@ func enter_pour_mode(ctrl: PourController) -> void:
 
 func exit_pour_mode() -> void:
 	pour_ctrl = null
-	touch.reset()
-	touch.gameplay = true
 	pour_root.visible = false
-	for n in [crosshair, prompt_label, held_label, orders_box, menu_btn, ff_btn]:
-		n.visible = true
-	tip_panel.visible = tip_label.text != ""
-	tip_close.visible = tip_panel.visible
+	_hide_gameplay(false)
 
 
 func set_pour_feedback(t: String) -> void:
@@ -523,7 +668,7 @@ func subtitle(who: String, text: String) -> void:
 
 # ------------------------------------------------------------------ menus
 func open_menu(tab: String) -> void:
-	if pour_root.visible:
+	if pour_root.visible or drink_root.visible or darts_root.visible:
 		return
 	touch.reset()
 	touch.enabled = false
