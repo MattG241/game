@@ -1,1 +1,1 @@
-{"phase": "sample", "max_credits": 600, "note": "sample 2: free tier blocks library voices (HTTP 402), so test Voice Design with 2 Irish voices (3 lines) + 1 premade tourist line"}
+{"phase": "sample", "max_credits": 1500, "all_sfx": true, "note": "sample 3: free plan allows only premade voices (library voices 402, Voice Design 403). 4 lines with eleven_v3 accent tags to judge by ear, plus all remaining sound effects"}

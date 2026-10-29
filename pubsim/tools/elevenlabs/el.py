@@ -225,7 +225,27 @@ def verify(generated, manifest):
     save_manifest(manifest)
 
 
-def generate(phase, cap):
+def spoken(cast, text):
+    """eleven_v3 takes audio tags; free plans only get premade voices (none are Irish), so the
+    accent is asked for with a tag such as [Irish accent]."""
+    tag = cast.get("accent_tag", "")
+    return f"{tag} {text}" if tag else text
+
+
+def premade_ok(voice_id, cache):
+    """Free check that a voice exists and is usable before paying for any line."""
+    if voice_id not in cache:
+        try:
+            v = req("GET", f"/v1/voices/{voice_id}")
+            cache[voice_id] = True
+            log(f"  voice {voice_id}: {v.get('name')} ({v.get('category')}) {v.get('labels', {})}")
+        except RuntimeError as e:
+            cache[voice_id] = False
+            log(f"  voice {voice_id} unavailable: {str(e)[:160]}")
+    return cache[voice_id]
+
+
+def generate(phase, cap, all_sfx=False):
     lines = load_json(os.path.join(HERE, "voice_lines.json"), {"cast": {}, "lines": []})
     sfx = load_json(os.path.join(HERE, "sfx.json"), [])
     manifest = load_json(MANIFEST, {"clips": {}, "credits_spent": 0})
@@ -240,16 +260,16 @@ def generate(phase, cap):
     for ln in lines["lines"]:
         cast = lines["cast"][ln["voice"]]
         if phase == "sample" and not ln.get("sample"):
-            k = clip_key("tts", cast_identity(cast), lines.get("model", "eleven_multilingual_v2"), ln["text"],
+            k = clip_key("tts", cast_identity(cast), lines.get("model", "eleven_multilingual_v2"), spoken(cast, ln["text"]),
                          cast.get("settings", {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}))
             all_tts.setdefault(ln["voice"], []).append(k)
             continue
         settings = cast.get("settings", {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True})
-        k = clip_key("tts", cast_identity(cast), model, ln["text"], settings)
+        k = clip_key("tts", cast_identity(cast), model, spoken(cast, ln["text"]), settings)
         work.append(("tts", k, ln, cast, settings))
-        all_tts.setdefault(ln["voice"], []).append(clip_key("tts", cast_identity(cast), model, ln["text"], settings))
+        all_tts.setdefault(ln["voice"], []).append(k)
     for fx in sfx:
-        if phase == "sample" and not fx.get("sample"):
+        if phase == "sample" and not fx.get("sample") and not all_sfx:
             continue
         k = clip_key("sfx", fx["prompt"], fx.get("duration"), fx.get("influence", 0.45))
         work.append(("sfx", k, fx, None, None))
@@ -261,10 +281,14 @@ def generate(phase, cap):
         return all(k in manifest["clips"] for k in all_tts.get(vkey, []))
     log(f"{len(work)} clips in scope, {len(todo)} still to generate")
     current_voice = None
+    voice_cache = {}
     failed_voices = set()
     generated = []
     for kind, k, item, cast, settings in todo:
         if kind == "tts" and item["voice"] in failed_voices:
+            continue
+        if kind == "tts" and not cast.get("design") and not premade_ok(cast["voice_id"], voice_cache):
+            failed_voices.add(item["voice"])
             continue
         if kind == "tts" and current_voice and current_voice != item["voice"]:
             if finished(current_voice):
@@ -275,7 +299,7 @@ def generate(phase, cap):
             log(f"SKIP {item['id']}: all voice slots hold voices with unfinished lines")
             continue
         # measured: sound effects ~10 credits per second; v3 speech 1 credit per character; a design ~ preview text
-        est = len(item["text"]) * (1.0 if "multilingual" in model or "v3" in model else 0.5) if kind == "tts" else 12 * float(item.get("duration", 3.0)) + 5
+        est = len(spoken(cast, item["text"]) if kind == "tts" else "") * (1.0 if "multilingual" in model or "v3" in model else 0.5) if kind == "tts" else 12 * float(item.get("duration", 3.0)) + 5
         if kind == "tts" and cast.get("design") and item["voice"] not in manifest.get("designed_voices", {}):
             est += len(PREVIEW_TEXT) * 1.5
         if spent_run + est > cap:
@@ -286,7 +310,7 @@ def generate(phase, cap):
             if kind == "tts":
                 vid = ensure_voice(item["voice"], cast, manifest)
                 current_voice = item["voice"]
-                audio, hdr = req("POST", f"/v1/text-to-speech/{vid}", {"text": item["text"], "model_id": model, "voice_settings": settings},
+                audio, hdr = req("POST", f"/v1/text-to-speech/{vid}", {"text": spoken(cast, item["text"]), "model_id": model, "voice_settings": settings},
                                  raw=True, params={"output_format": "mp3_44100_128"})
                 dst = os.path.join(OUT_VOICE, item["id"] + ".ogg")
             else:
@@ -337,7 +361,7 @@ def main():
     if phase == "check":
         check()
     else:
-        generate(phase, float(reqf.get("max_credits", 0)))
+        generate(phase, float(reqf.get("max_credits", 0)), bool(reqf.get("all_sfx", False)))
 
 
 if __name__ == "__main__":
