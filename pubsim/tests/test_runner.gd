@@ -466,11 +466,38 @@ func _test_voices_and_people(w: World) -> void:
 	# characters bend at the knee when they sit
 	c._set_seated(true)
 	await _frames(3)
-	check(c._knees[0].rotation.x > 1.2, "seated characters bend their knees (%.2f)" % c._knees[0].rotation.x)
+	check(c._knees[0].rotation.x < -1.2, "seated characters bend their knees (%.2f)" % c._knees[0].rotation.x)
+	var lap: Vector3 = c._knees[0].global_position - c._legs[0].global_position
+	var fwd: Vector3 = -c.global_transform.basis.z
+	check(lap.dot(fwd) > 0.3, "seated thighs point forward, not back (%.2f)" % lap.dot(fwd))
 	c._set_seated(false)
-	c._arms[1].rotation.x = -1.6
+	c._arm_rot[0].x = -1.6
 	await _frames(15)
-	check(c._elbows[1].rotation.x < -0.8, "raising a glass bends the elbow")
+	check(c._elbows[0].rotation.x > 0.8, "a raised arm bends at the elbow")
+	var reach: Vector3 = c._elbows[0].global_position - c._arms[0].global_position
+	check(reach.dot(fwd) > 0.2, "a raised arm reaches forward, not behind (%.2f)" % reach.dot(fwd))
+	c._arm_rot[0] = Vector3.ZERO
+	# drinking: the pint is carried in front in the hand, and a sip brings the rim to the lips
+	var dg := PintGlass.new()
+	dg.contents.drink_id = "stout"
+	dg.contents.serve = "stout"
+	dg.contents.body = 0.88
+	dg.contents.foam = 0.1
+	c.receive_drink(dg)
+	c.state = "stand_drink"
+	c._sip_t = 999.0
+	await _frames(60)
+	var ahead: float = (dg.global_position - c.global_position).dot(fwd)
+	check(dg.get_parent() == c._grip and ahead > 0.12, "a held pint is carried in front of them (%.2f m)" % ahead)
+	check(dg.global_position.y > c.global_position.y + 0.8 and dg.global_position.y < c.global_position.y + 1.2, "held at waist height (%.2f m)" % (dg.global_position.y - c.global_position.y))
+	c._sip_t = 0.0
+	await _frames(95)
+	var lips: Vector3 = c._head.global_transform * Vector3(0, -0.05, -0.105)
+	var rim: Vector3 = dg.global_transform * Vector3(0, dg.height, 0.04)
+	check(rim.distance_to(lips) < 0.05, "a sip brings the rim to the lips (%.3f m away)" % rim.distance_to(lips))
+	check(dg.global_transform.basis.y.dot(fwd) < -0.2, "the glass tips towards the drinker")
+	await _frames(150)
+	check(c._sip_phase <= 0.0 and (dg.global_position - c.global_position).dot(fwd) > 0.12, "and back down in front of them afterwards")
 	c.leave()
 	reg_f.leave()
 	# regression: starting a close-up right after leaving another must keep the new view

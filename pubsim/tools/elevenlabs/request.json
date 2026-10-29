@@ -1,1 +1,1 @@
-{"phase": "full", "max_credits": 6500, "note": "full script on premade voices with v3 accent tags (free plan). Spent before this run: 1,187 per request headers. Cap keeps the total under 8,500 and 1,500+ in reserve."}
+{"phase": "batch", "tags": ["order_stout", "order_other", "praise"], "max_credits": 1900, "reserve": 1500, "note": "Re-record the most-heard customer lines (orders and praise), one take per character so eleven_v3 has context; the single-line clips sounded flat. About 1,800 credits; at least 1,500 stay in reserve."}

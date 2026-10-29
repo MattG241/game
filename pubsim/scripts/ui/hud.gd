@@ -733,6 +733,8 @@ func toast(text: String, kind := "info") -> void:
 
 
 func set_tip(text: String) -> void:
+	if tip_label == null:
+		return   # a tutorial step can fire while a reloaded HUD is still being built
 	tip_label.text = text
 	var show := text != "" and not pour_root.visible
 	tip_panel.visible = show

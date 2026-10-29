@@ -32,6 +32,18 @@ func _ready() -> void:
 			var idx := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(idx, b)
 			AudioServer.set_bus_send(idx, "Master")
+	# a touch of room on voices, so they sound like people in the pub rather than a dry recording
+	var speech := AudioServer.get_bus_index("Speech")
+	if speech >= 0 and AudioServer.get_bus_effect_count(speech) == 0:
+		var room := AudioEffectReverb.new()
+		room.room_size = 0.32
+		room.damping = 0.6
+		room.spread = 0.7
+		room.hipass = 0.3
+		room.predelay_msec = 18.0
+		room.dry = 1.0
+		room.wet = 0.11
+		AudioServer.add_bus_effect(speech, room)
 	for i in 12:
 		var p := AudioStreamPlayer.new()
 		p.bus = "Effects"

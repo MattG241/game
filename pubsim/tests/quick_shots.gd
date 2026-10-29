@@ -101,6 +101,88 @@ func _ready() -> void:
 				await _shot(v)
 				ds.end()
 				await _wait(0.6)
+			"drinkers":
+				# a standing drinker side-on and one facing the camera, frozen through a sip
+				var dc: Array = []
+				for i in 2:
+					var c := w.spawn_customer()
+					c.global_position = [Vector3(1.0, 0, 2.0), Vector3(1.9, 0, 2.0)][i]
+					var g := PintGlass.new()
+					g.contents.drink_id = "stout"
+					g.contents.serve = "stout"
+					g.contents.stage = 3
+					g.contents.body = 0.88
+					g.contents.foam = 0.1
+					c.receive_drink(g)
+					c.state = "stand_drink"
+					c._react_t = 0.0
+					c.rotation.y = [PI * 0.5, 0.0][i]
+					c._sip_t = 999.0
+					dc.append(c)
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 40.0
+				cam.global_transform = Transform3D(Basis(), Vector3(1.45, 1.5, 0.2)).looking_at(Vector3(1.45, 1.25, 2.0), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(1.0)
+				await _shot("drink_hold")
+				for c in dc:
+					c._sip_t = 0.0
+				while dc[0]._sip_phase <= 0.0 or dc[0]._sip_phase > dc[0]._sip_dur * 0.85:
+					await get_tree().process_frame
+				await _shot("drink_lift")
+				while dc[0]._sip_phase > dc[0]._sip_dur * 0.5:
+					await get_tree().process_frame
+				await _shot("drink_sip")
+				for c in dc:
+					var lips: Vector3 = c._head.global_transform * Vector3(0, -0.05, -0.105)
+					var rim: Vector3 = c.glass.global_transform * Vector3(0, c.glass.height, 0.04)
+					print("SIP phase=%.2f kind=%s w=%.2f rim-lips=%.3f goal=%s glass=%s" % [c._sip_phase, c._sip_kind, c._ik_w, rim.distance_to(lips), str(c._ik_goal), str(c._body.to_local(c.glass.global_position))])
+				main.hud.visible = true
+				w.player.camera.current = true
+			"seated":
+				# someone sits down with a pint, puts it on the table, then picks it up for a sip
+				var si := 0
+				var sd: Dictionary = w.seat_info(si)
+				var sc := w.spawn_customer()
+				var sg := PintGlass.new()
+				sg.contents.drink_id = "stout"
+				sg.contents.serve = "stout"
+				sg.contents.stage = 3
+				sg.contents.body = 0.88
+				sg.contents.foam = 0.1
+				sc.receive_drink(sg)
+				sc._react_t = 99.0
+				sc.global_position = sd["pos"]
+				sc.seat = si
+				sc._seat_yaw = sd["yaw"]
+				sc._after_path = "seated"
+				sc._arrive()
+				sc._sip_t = 999.0
+				var side: Vector3 = sc.global_transform.basis.x
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 42.0
+				cam.global_transform = Transform3D(Basis(), sd["pos"] + side * 1.7 + Vector3(0, 1.25, 0) - sc.global_transform.basis.z * 0.25).looking_at(sd["pos"] + Vector3(0, 0.95, 0) - sc.global_transform.basis.z * 0.25, Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.5)
+				await _shot("seat_put")
+				while sc._sip_kind != "":
+					await get_tree().process_frame
+				await _wait(0.5)
+				await _shot("seat_rest")
+				sc._sip_t = 0.0
+				while sc._sip_phase <= 0.0 or sc._sip_phase > sc._sip_dur * 0.88:
+					await get_tree().process_frame
+				await _shot("seat_reach")
+				while sc._sip_phase > sc._sip_dur * 0.5:
+					await get_tree().process_frame
+				await _shot("seat_sip")
+				print("SEAT glass parent=%s spot=%s glass=%s kind=%s phase=%.2f dur=%.2f state=%s seated=%s body=%s" % [sc.glass.get_parent().name, str(sc._glass_spot), str(sc.glass.global_position), sc._sip_kind, sc._sip_phase, sc._sip_dur, sc.state, sc._seated, str(sc._body.to_local(sc._glass_spot))])
+				main.hud.visible = true
+				w.player.camera.current = true
 			"faces":
 				# three people standing chatting, close up
 				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]

@@ -42,6 +42,14 @@ var _audience_face := Vector3.ZERO
 var beat := 0.5
 var _prop: Node3D
 
+const GRIP_Q := Vector3(-0.075, -0.335, -0.015)   # right fist, elbow-local; the glass sits against the palm
+const GRIP_UP := 0.065                          # the hand wraps the glass this far above its base
+const HOLD_AT := Vector3(0.14, 0.97, -0.26)     # glass base, body-local: held in front at waist height
+const UPPER_ARM := 0.3
+const SIP_TIME := 3.4
+const TABLE_SIP_TIME := 5.0
+const PUT_TIME := 1.8
+
 var _path: PackedVector3Array = PackedVector3Array()
 var _path_i := 0
 var _after_path := ""
@@ -58,6 +66,19 @@ var _arms: Array[Node3D] = []     # shoulder joints
 var _knees: Array[Node3D] = []
 var _elbows: Array[Node3D] = []
 var _hands: Array[Node3D] = []
+## Poses are written here, with negative x meaning forward (thigh, upper arm) and positive x
+## meaning the knee folds back; _solve_joints maps them onto the joints.
+var _arm_rot: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var _leg_rot: Array[float] = [0.0, 0.0]
+var _elbow_bend: Array[float] = [-0.12, -0.12]
+var _grip: Node3D              # right fist; a held glass sits here
+var _ik_w := 0.0               # how much the right arm follows the glass (0 = posed)
+var _ik_goal: Array = []       # [glass base, glass basis] in body space
+var _sip_dur := 1.0
+var _sip_kind := ""            # "sip", "table" (pick up, drink, put back) or "put" (put down)
+var _glass_spot := Vector3.ZERO   # where a seated drinker keeps the glass on the table
+var _sip_gulp := 0.0           # how fast the level drops during this sip
+var _shown_left := 1.0         # how full the glass looks; drops only while they drink
 var _face_m: ShaderMaterial
 var _mouth_open := 0.0
 var _talk_left := 0.0
@@ -160,6 +181,9 @@ func _build(look: Dictionary) -> void:
 		_hands.append(hand)
 		if side == 1:
 			_right_hand = hand
+			_grip = Node3D.new()
+			_grip.position = GRIP_Q
+			el.add_child(_grip)
 	# --- head: sculpted face, eyes, hair
 	_head = Node3D.new()
 	_head.position = Vector3(0, 1.665, 0)
@@ -260,22 +284,25 @@ func talk_for(seconds: float) -> void:
 ## the back leg bends when walking, shins hang when seated, a held glass stays upright.
 func _solve_joints(delta: float) -> void:
 	for i in _legs.size():
-		var hx := _legs[i].rotation.x
+		var hx := _leg_rot[i]
 		var bend := maxf(0.0, hx) * 1.1 + 0.04
 		if hx < -1.0:
 			bend = -hx  # seated: shins hang straight down
-		_knees[i].rotation.x = bend
+		_legs[i].rotation.x = -hx
+		_knees[i].rotation.x = -bend
 	for i in _arms.size():
-		var sx := _arms[i].rotation.x
+		var pose: Vector3 = _arm_rot[i]
 		var want := -0.12
 		if state == "musician":
 			want = -0.35   # instrument poses are set at the shoulder; keep the elbow soft
-		elif sx < -0.3:
-			want = clampf(sx * 0.9, -1.9, -0.3)  # raised arm: bend the elbow to bring the hand in
-		_elbows[i].rotation.x = lerpf(_elbows[i].rotation.x, want, minf(1.0, delta * 12.0))
+		elif pose.x < -0.3:
+			want = clampf(pose.x * 0.9, -1.9, -0.3)  # raised arm: bend the elbow to bring the hand in
+		_elbow_bend[i] = lerpf(_elbow_bend[i], want, minf(1.0, delta * 12.0))
+		_arms[i].rotation = Vector3(-pose.x, pose.y, pose.z)
+		_elbows[i].rotation.x = -_elbow_bend[i]
 		# keep whatever is in the hand upright relative to the body
-		_hands[i].rotation.x = -(sx + _elbows[i].rotation.x)
-		_hands[i].rotation.z = -_arms[i].rotation.z
+		_hands[i].rotation.x = pose.x + _elbow_bend[i]
+		_hands[i].rotation.z = -pose.z
 	# blink every few seconds
 	_blink_t -= delta
 	if _blink_t <= 0.0:
@@ -304,6 +331,7 @@ func _solve_joints(delta: float) -> void:
 	elif _mouth_open > 0.0:
 		_mouth_open = 0.0
 		_face_m.set_shader_parameter("mouth_open", 0.0)
+	_glass_arm(delta)
 
 
 func set_name_tag(text: String) -> void:
@@ -418,18 +446,18 @@ func _walk(delta: float) -> void:
 	var yaw := atan2(-to.x, -to.z)
 	rotation.y = lerp_angle(rotation.y, yaw, minf(1.0, delta * 8.0))
 	var sw := sin(_anim_t * 7.5) * 0.45
-	_legs[0].rotation.x = sw
-	_legs[1].rotation.x = -sw
-	_arms[0].rotation.x = -sw * 0.6
-	_arms[1].rotation.x = sw * 0.6 if glass == null else -0.5
+	_leg_rot[0] = sw
+	_leg_rot[1] = -sw
+	_arm_rot[0].x = -sw * 0.6
+	_arm_rot[1].x = sw * 0.6 if glass == null else -0.5
 	_body.position.y = absf(cos(_anim_t * 7.5)) * 0.025
 
 
 func _arrive() -> void:
-	_legs[0].rotation.x = 0
-	_legs[1].rotation.x = 0
-	_arms[0].rotation.x = 0
-	_arms[1].rotation.x = 0 if glass == null else -0.5
+	_leg_rot[0] = 0
+	_leg_rot[1] = 0
+	_arm_rot[0].x = 0
+	_arm_rot[1].x = 0 if glass == null else -0.5
 	_body.position.y = 0
 	var next := _after_path
 	_after_path = ""
@@ -449,7 +477,9 @@ func _arrive() -> void:
 			state = "drinking"
 			rotation.y = _seat_yaw
 			_set_seated(true)
-			_place_glass_on_table()
+			_pick_glass_spot()
+			if glass and glass.get_parent() == _grip:
+				_start_glass_move("put", PUT_TIME)
 		"audience":
 			state = "audience"
 		"mingle":
@@ -474,7 +504,7 @@ func _idle_anim(delta: float) -> void:
 		_head.rotation.x = sin(_anim_t * speed) * 0.08 * music_enjoy
 		_body.rotation.z = sin(_anim_t * speed * 0.3) * 0.04 * music_enjoy
 		if _seated and music_style in ["dance", "sing"]:
-			_legs[1].rotation.x = -1.45 + maxf(0.0, sin(_anim_t * speed)) * 0.15  # tapping a foot
+			_leg_rot[1] = -1.45 + maxf(0.0, sin(_anim_t * speed)) * 0.15  # tapping a foot
 	else:
 		_body.rotation.z = 0.0
 	_apply_reaction(delta)
@@ -541,13 +571,14 @@ func receive_drink(g: PintGlass) -> void:
 	glass = g
 	if g.get_parent():
 		g.get_parent().remove_child(g)
-	_right_hand.add_child(g)
-	g.position = Vector3.ZERO
+	_grip.add_child(g)
+	g.position = Vector3(0, -GRIP_UP, 0)
 	g.rotation = Vector3.ZERO
-	_arms[1].rotation.x = -0.5
 	served_count += 1
 	drinks_had += 1
 	drink_left = 1.0
+	_shown_left = 1.0
+	_sip_t = _rng.randf_range(3.0, 6.0)
 	state = "react"
 	_react_t = 2.2
 	hide_bubble()
@@ -578,24 +609,48 @@ func _set_seated(on: bool) -> void:
 	_seated = on
 	if on:
 		_body.position.y = -0.4
-		for leg in _legs:
-			leg.rotation.x = -1.45
+		_leg_rot[0] = -1.45
+		_leg_rot[1] = -1.45
 	else:
 		_body.position.y = 0.0
-		for leg in _legs:
-			leg.rotation.x = 0.0
+		_leg_rot[0] = 0.0
+		_leg_rot[1] = 0.0
 
 
+## Where a seated drinker keeps the glass: on the table, in easy reach of the right hand.
+func _pick_glass_spot() -> void:
+	if seat < 0:
+		return
+	var tp: Vector3 = world.seat_info(seat)["table"]
+	var b := global_transform.basis
+	var near := global_position - b.z * 0.46 + b.x * 0.14
+	near.y = tp.y
+	_glass_spot = near if near.distance_to(tp) < 0.32 else tp
+
+
+## Puts the glass straight down on the table (no animation).
 func _place_glass_on_table() -> void:
 	if glass == null or seat < 0:
 		return
-	var sd: Dictionary = world.seat_info(seat)
-	var tp: Vector3 = sd["table"]
-	_right_hand.remove_child(glass)
+	_pick_glass_spot()
+	_set_glass_down()
+
+
+func _set_glass_down() -> void:
+	if glass.get_parent():
+		glass.get_parent().remove_child(glass)
 	world.add_child(glass)
-	glass.global_position = tp
+	glass.global_position = _glass_spot
 	glass.rotation = Vector3.ZERO
-	_arms[1].rotation.x = 0.0
+
+
+## The glass goes into the right hand, keeping where it is; it then settles into the grip.
+func _take_glass() -> void:
+	var t := glass.global_transform
+	if glass.get_parent():
+		glass.get_parent().remove_child(glass)
+	_grip.add_child(glass)
+	glass.global_transform = t
 
 
 func _drinking(delta: float) -> void:
@@ -603,39 +658,150 @@ func _drinking(delta: float) -> void:
 	if glass == null:
 		_finish_drink()
 		return
-	drink_left -= delta * drink_rate * world.drink_speed_mult()
+	drink_left = maxf(0.0, drink_left - delta * drink_rate * world.drink_speed_mult())
+	if drink_left <= 0.0 and _shown_left <= 0.001 and _sip_phase <= 0.0:
+		_finish_drink()
+		return
+	_sip_t -= delta
+	if _sip_phase <= 0.0 and (_sip_t <= 0.0 or drink_left <= 0.0):
+		_sip_t = _rng.randf_range(6.0, 12.0)
+		if glass.get_parent() == _grip:
+			_start_glass_move("sip", SIP_TIME)
+		elif _seated:
+			_start_glass_move("table", TABLE_SIP_TIME)
+		else:
+			_take_glass()
+			_start_glass_move("sip", SIP_TIME)
+	# the level only drops while the glass is at their lips: each sip catches up with what they've drunk
+	if _sip_phase > 0.0 and _sip_weight(1.0 - _sip_phase / _sip_dur) > 0.9:
+		_shown_left = move_toward(_shown_left, drink_left, delta * maxf(0.12, _sip_gulp))
 	var c := glass.contents
-	var lvl := maxf(0.0, drink_left)
 	# drinking takes the liquid first; the head thins and leaves lacing on the glass
 	if c.total() > 0.0:
 		c.cascade = 0.0
-		c.body = maxf(0.0, lvl * 0.88)
-		if lvl < 0.08:
+		c.body = maxf(0.0, _shown_left * 0.88)
+		if _shown_left < 0.08:
 			c.foam *= 0.97
 		glass.lace_top = maxf(glass.lace_top, minf(c.total(), 1.0))
-	_sip_t -= delta
-	if _sip_t <= 0.0:
-		_sip_t = _rng.randf_range(7.0, 14.0)
-		_sip_phase = 2.4
+
+
+func _start_glass_move(kind: String, seconds: float) -> void:
+	# a sip takes down what they've drunk since the last one, within the time the glass is at the lips
+	var at_lips := 0.41 if kind == "sip" else 0.28
+	_sip_gulp = maxf(0.0, _shown_left - drink_left) / (seconds * at_lips * 0.9)
+	_sip_kind = kind
+	_sip_dur = seconds
+	_sip_phase = seconds
+
+
+## 0..1: how far the glass is up at the lips at this point of a sip.
+func _sip_weight(p: float) -> float:
+	match _sip_kind:
+		"sip":
+			if p < 0.27:
+				return smoothstep(0.0, 1.0, p / 0.27)
+			if p < 0.68:
+				return 1.0
+			return 1.0 - smoothstep(0.0, 1.0, (p - 0.68) / 0.32)
+		"table":
+			if p < 0.14 or p >= 0.84:
+				return 0.0
+			if p < 0.36:
+				return smoothstep(0.0, 1.0, (p - 0.14) / 0.22)
+			if p < 0.64:
+				return 1.0
+			return 1.0 - smoothstep(0.0, 1.0, (p - 0.64) / 0.2)
+	return 0.0
+
+
+## Where the glass should be, in body space: [base position, orientation], or [] to leave the arm posed.
+func _glass_goal() -> Array:
+	if glass == null or not is_instance_valid(glass) or state in ["musician", "audience"]:
+		return []
+	var held := glass.get_parent() == _grip
+	var hold := [HOLD_AT + Vector3(0, sin(_anim_t * 1.3) * 0.004, 0), Basis()]
+	if _seated:
+		hold[0] += Vector3(0, 0.12, -0.04)   # above the lap
+	if _sip_phase <= 0.0 or _sip_kind == "":
+		return hold if held else []
+	var p := 1.0 - _sip_phase / _sip_dur
+	var on_table := [_body.to_local(_glass_spot), Basis()]
+	if _sip_kind == "put":
+		return _mix(hold, on_table, smoothstep(0.0, 1.0, p / 0.7)) if p < 0.7 else []
+	if _sip_kind == "table" and p >= 0.84:
+		return []
+	var sw := _sip_weight(p)
+	# look ahead and tip the head back as the glass comes up, more as it empties
+	var empty := 1.0 - _shown_left
+	_head.rotation.y = lerp_angle(_head.rotation.y, 0.0, sw)
+	_head.rotation.x = lerpf(_head.rotation.x, 0.06 + 0.22 * empty, sw)
+	var tilt := lerpf(0.45, 1.25, empty)
+	var g := Basis(Vector3.RIGHT, tilt)
+	var lips := _head.transform * Vector3(0, -0.05, -0.105)
+	var at_lips := [lips + Vector3(0, 0, -0.008) - g * Vector3(0, glass.height, 0.04), g]
+	return _mix(on_table if _sip_kind == "table" else hold, at_lips, sw)
+
+
+func _mix(a: Array, b: Array, t: float) -> Array:
+	return [(a[0] as Vector3).lerp(b[0], t), (a[1] as Basis).slerp(b[1], t)]
+
+
+## The right arm reaches for, holds and drinks from the glass. Picking up and putting down
+## happen here too, at the matching point of the movement.
+func _glass_arm(delta: float) -> void:
 	if _sip_phase > 0.0:
 		_sip_phase -= delta
-		var k := sin(clampf(1.0 - _sip_phase / 2.4, 0.0, 1.0) * PI)
-		if _seated and glass.get_parent() != _right_hand:
-			glass.get_parent().remove_child(glass)
-			_right_hand.add_child(glass)
-			glass.position = Vector3.ZERO
-			glass.rotation = Vector3.ZERO
-		_arms[1].rotation.x = -0.5 - k * 1.7
-		_arms[1].rotation.z = k * 0.35
-		glass.rotation.x = k * 0.9
+		var p := 1.0 - _sip_phase / _sip_dur
+		if glass and is_instance_valid(glass):
+			var held := glass.get_parent() == _grip
+			if _sip_kind == "table" and p >= 0.14 and p < 0.84 and not held:
+				_take_glass()
+			elif ((_sip_kind == "table" and p >= 0.84) or (_sip_kind == "put" and p >= 0.7)) and held:
+				_set_glass_down()
 		if _sip_phase <= 0.0:
-			_arms[1].rotation.x = -0.5
-			_arms[1].rotation.z = 0.0
-			glass.rotation.x = 0.0
-			if _seated:
-				_place_glass_on_table()
-	if drink_left <= 0.0:
-		_finish_drink()
+			_sip_kind = ""
+	var goal := _glass_goal()
+	if (_sip_phase <= 0.0 or _sip_kind == "put") and music_enjoy <= 0.0 and _react_anim <= 0.0 and state != "musician":
+		_head.rotation.x = lerpf(_head.rotation.x, 0.0, minf(1.0, delta * 3.0))   # level the head after a sip
+	_ik_w = move_toward(_ik_w, 0.0 if goal.is_empty() else 1.0, delta * 2.5)
+	if not goal.is_empty():
+		_ik_goal = goal
+	var w := smoothstep(0.0, 1.0, _ik_w)
+	var gb := Basis()
+	if w > 0.0 and not _ik_goal.is_empty():
+		var gbasis: Basis = _ik_goal[1]
+		var sol := _solve_arm_ik(_ik_goal[0] + gbasis * Vector3(0, GRIP_UP, 0))
+		var fk := _arms[1].basis.get_rotation_quaternion()
+		_arms[1].basis = Basis(fk.slerp((sol[0] as Basis).get_rotation_quaternion(), w))
+		_elbows[1].rotation.x = lerpf(_elbows[1].rotation.x, sol[1], w)
+		gb = Basis().slerp(gbasis, w)
+	_grip.basis = (_arms[1].basis * _elbows[1].basis).inverse() * gb
+	if glass and is_instance_valid(glass) and glass.get_parent() == _grip:
+		glass.transform = glass.transform.interpolate_with(Transform3D(Basis(), Vector3(0, -GRIP_UP, 0)), minf(1.0, delta * 10.0))
+
+
+## Two-bone reach for the right arm: shoulder orientation and elbow bend that put the fist at
+## `target` (body space), with the elbow hanging down and out.
+func _solve_arm_ik(target: Vector3) -> Array:
+	var d := target - _arms[1].position
+	var a := UPPER_ARM
+	var q := GRIP_Q
+	var r := Vector2(q.y, q.z).length()
+	var off := atan2(-q.z, -q.y)
+	var b2 := q.length_squared()
+	var reach := clampf(d.length(), 0.12, sqrt(a * a + b2 + 2.0 * a * r) * 0.999)
+	var phi := maxf(0.0, acos(clampf((reach * reach - a * a - b2) / (2.0 * a * r), -1.0, 1.0)) - off)
+	var end0 := Vector3(0, -a, 0) + Basis(Vector3.RIGHT, phi) * q
+	var elbow0 := Vector3(0, -a, 0)
+	var u0 := end0.normalized()
+	var p0 := (elbow0 - u0 * elbow0.dot(u0)).normalized()
+	var u1 := d.normalized() if d.length() > 0.001 else Vector3.DOWN
+	var pole := Vector3(0.6, -0.8, 0.25).normalized()
+	var p1 := pole - u1 * pole.dot(u1)
+	p1 = p1.normalized() if p1.length() > 0.001 else Vector3.BACK
+	var b0 := Basis(u0, p0, u0.cross(p0))
+	var b1 := Basis(u1, p1, u1.cross(p1))
+	return [b1 * b0.transposed(), phi]
 
 
 func _finish_drink() -> void:
@@ -651,7 +817,7 @@ func _finish_drink() -> void:
 			glass.get_parent().remove_child(glass)
 		world.leave_dirty_glass(glass, pos)
 		glass = null
-	_arms[1].rotation = Vector3.ZERO
+	_arm_rot[1] = Vector3.ZERO
 	if drinks_had < budget and world.can_reorder(self):
 		order_taken = false
 		patience = patience_max
@@ -721,13 +887,10 @@ func laugh() -> void:
 
 ## Leaves the seat (keeping it) to stand, dance or sing in front of the musicians.
 func join_audience(pos: Vector3, style: String, face: Vector3) -> void:
-	if glass and glass.get_parent() != _right_hand:
-		var gp := glass.get_parent()
-		if gp:
-			gp.remove_child(glass)
-		_right_hand.add_child(glass)
-		glass.position = Vector3.ZERO
-		glass.rotation = Vector3.ZERO
+	if glass and glass.get_parent() != _grip:
+		_take_glass()
+	_sip_phase = 0.0
+	_sip_kind = ""
 	_audience_return = global_position
 	_audience_face = face
 	music_style = style
@@ -736,8 +899,8 @@ func join_audience(pos: Vector3, style: String, face: Vector3) -> void:
 
 func leave_audience() -> void:
 	_body.rotation = Vector3.ZERO
-	_arms[0].rotation = Vector3.ZERO
-	_arms[1].rotation = Vector3(-0.5, 0, 0)
+	_arm_rot[0] = Vector3.ZERO
+	_arm_rot[1] = Vector3(-0.5, 0, 0)
 	if seat >= 0:
 		var sd: Dictionary = world.seat_info(seat)
 		_seat_yaw = sd["yaw"]
@@ -754,17 +917,17 @@ func _audience_anim(delta: float) -> void:
 		"dance":
 			# a lively step: hops, alternating arms and a turn now and then
 			_body.position.y = absf(sin(t * 5.0)) * 0.08
-			_legs[0].rotation.x = sin(t * 5.0) * 0.6
-			_legs[1].rotation.x = -sin(t * 5.0) * 0.6
-			_arms[0].rotation = Vector3(-0.3, 0, -0.5 - 0.3 * sin(t * 2.5))
-			_arms[1].rotation = Vector3(-0.6, 0, 0.4)
+			_leg_rot[0] = sin(t * 5.0) * 0.6
+			_leg_rot[1] = -sin(t * 5.0) * 0.6
+			_arm_rot[0] = Vector3(-0.3, 0, -0.5 - 0.3 * sin(t * 2.5))
+			_arm_rot[1] = Vector3(-0.6, 0, 0.4)
 			_body.rotation.y = sin(t * 0.9) * 0.6
 		"sing":
 			# glass raised, swaying with the crowd
 			_body.rotation.z = sin(t * 1.6) * 0.08
-			_arms[1].rotation = Vector3(-2.6, 0, 0.25)
-			_arms[0].rotation = Vector3(-0.2, 0, -0.9 - 0.2 * sin(t * 1.6))
-			_head.rotation.x = -0.25
+			_arm_rot[1] = Vector3(-2.6, 0, 0.25)
+			_arm_rot[0] = Vector3(-0.2, 0, -0.9 - 0.2 * sin(t * 1.6))
+			_head.rotation.x = 0.2
 			_body.position.y = absf(sin(t * 3.2)) * 0.02
 		_:
 			_head.rotation.x = sin(t * 5.0) * 0.08
@@ -777,16 +940,16 @@ func _apply_reaction(delta: float) -> void:
 		return
 	_react_anim -= delta
 	if _react_kind == "cheer":
-		_arms[0].rotation = Vector3(-2.8, 0, -0.3)
+		_arm_rot[0] = Vector3(-2.8, 0, -0.3)
 		if not glass or state == "audience":
-			_arms[1].rotation = Vector3(-2.6, 0, 0.3)
+			_arm_rot[1] = Vector3(-2.6, 0, 0.3)
 	elif _react_kind == "laugh":
-		_head.rotation.x = -0.3 + sin(_react_anim * 22.0) * 0.08
+		_head.rotation.x = 0.25 + sin(_react_anim * 22.0) * 0.08
 		_body.position.y += absf(sin(_react_anim * 18.0)) * 0.01
 	if _react_anim <= 0.0 and state != "audience":
-		_arms[0].rotation = Vector3.ZERO
+		_arm_rot[0] = Vector3.ZERO
 		if _sip_phase <= 0.0:
-			_arms[1].rotation = Vector3(-0.5, 0, 0) if (glass and glass.get_parent() == _right_hand) else Vector3.ZERO
+			_arm_rot[1] = Vector3.ZERO
 
 
 ## People sitting or standing near each other fall into conversation: they turn to each other,
@@ -817,10 +980,10 @@ func _social(delta: float) -> void:
 	if _gesture_t > 0.0 and _react_anim <= 0.0 and _sip_phase <= 0.0:
 		_gesture_t -= delta
 		var k := sin(_anim_t * 5.0)
-		_arms[0].rotation.x = lerpf(_arms[0].rotation.x, -0.55 + k * 0.18, minf(1.0, delta * 6.0))
-		_arms[0].rotation.z = lerpf(_arms[0].rotation.z, -0.15, minf(1.0, delta * 6.0))
+		_arm_rot[0].x = lerpf(_arm_rot[0].x, -0.55 + k * 0.18, minf(1.0, delta * 6.0))
+		_arm_rot[0].z = lerpf(_arm_rot[0].z, -0.15, minf(1.0, delta * 6.0))
 		if _gesture_t <= 0.0:
-			_arms[0].rotation = Vector3.ZERO
+			_arm_rot[0] = Vector3.ZERO
 
 
 ## A plain wooden stool for a musician playing away from the seats.
@@ -861,29 +1024,29 @@ func make_musician(kind: String, beat_s: float) -> void:
 			MeshKit.box(_prop, Vector3(0.014, 0.004, 0.36), Vector3(0, 0.03, -0.1), MeshKit.color_mat(Color(0.85, 0.85, 0.8), 0.3, 0.8))  # strings
 			MeshKit.box(_prop, Vector3(0.03, 0.008, 0.05), Vector3(0, 0.03, 0.1), dark)  # tailpiece
 			var bow := MeshKit.cyl(_right_hand, 0.004, 0.004, 0.6, Vector3(0.0, 0.0, 0.0), MeshKit.color_mat(Color(0.3, 0.2, 0.1), 0.5), 6, Vector3(0, 0, PI / 2.0))
-			_arms[0].rotation = Vector3(-1.6, 0, -0.5)
-			_arms[1].rotation = Vector3(-1.1, 0, 0.3)
+			_arm_rot[0] = Vector3(-1.6, 0, -0.5)
+			_arm_rot[1] = Vector3(-1.1, 0, 0.3)
 		"whistle":
 			_prop.position = Vector3(0, 1.58, -0.2)
 			_prop.rotation = Vector3(1.1, 0, 0)
 			MeshKit.cyl(_prop, 0.01, 0.01, 0.28, Vector3.ZERO, MeshKit.color_mat(Color(0.75, 0.75, 0.7), 0.25, 0.8), 8)
-			_arms[0].rotation = Vector3(-1.5, 0, -0.3)
-			_arms[1].rotation = Vector3(-1.3, 0, 0.3)
+			_arm_rot[0] = Vector3(-1.5, 0, -0.3)
+			_arm_rot[1] = Vector3(-1.3, 0, 0.3)
 		"bodhran":
 			_prop.position = Vector3(-0.12, 1.15, -0.28)
 			_prop.rotation = Vector3(PI / 2.0 - 0.3, 0, 0.2)
 			MeshKit.cyl(_prop, 0.22, 0.22, 0.07, Vector3.ZERO, MeshKit.color_mat(Color(0.85, 0.75, 0.55), 0.7), 20)
 			MeshKit.torus(_prop, 0.2, 0.225, Vector3(0, 0.0, 0), wood)
 			MeshKit.cyl(_right_hand, 0.008, 0.008, 0.2, Vector3.ZERO, wood, 6, Vector3(PI / 2.0, 0, 0))
-			_arms[0].rotation = Vector3(-0.9, 0, -0.4)
+			_arm_rot[0] = Vector3(-0.9, 0, -0.4)
 		"accordion":
 			_prop.position = Vector3(0, 1.12, -0.26)
 			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(-0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
 			MeshKit.box(_prop, Vector3(0.12, 0.3, 0.2), Vector3(0.17, 0, 0), MeshKit.color_mat(Color(0.6, 0.08, 0.08), 0.3))
 			var bellows := MeshKit.box(_prop, Vector3(0.22, 0.28, 0.18), Vector3.ZERO, MeshKit.color_mat(Color(0.1, 0.1, 0.1), 0.6))
 			bellows.name = "Bellows"
-			_arms[0].rotation = Vector3(-0.9, 0, -0.3)
-			_arms[1].rotation = Vector3(-0.9, 0, 0.3)
+			_arm_rot[0] = Vector3(-0.9, 0, -0.3)
+			_arm_rot[1] = Vector3(-0.9, 0, 0.3)
 		"guitar", "banjo":
 			_prop.position = Vector3(0.0, 1.0, -0.2)
 			_prop.rotation = Vector3(0, 0, 0.9)
@@ -892,23 +1055,23 @@ func make_musician(kind: String, beat_s: float) -> void:
 			else:
 				MeshKit.cyl(_prop, 0.14, 0.14, 0.06, Vector3(0, -0.05, 0), MeshKit.color_mat(Color(0.9, 0.88, 0.8), 0.5), 20, Vector3(PI / 2.0, 0, 0))
 			MeshKit.box(_prop, Vector3(0.04, 0.5, 0.025), Vector3(0, 0.33, 0), dark)
-			_arms[0].rotation = Vector3(-1.2, 0, -0.6)
-			_arms[1].rotation = Vector3(-0.7, 0, 0.2)
+			_arm_rot[0] = Vector3(-1.2, 0, -0.6)
+			_arm_rot[1] = Vector3(-0.7, 0, 0.2)
 
 
 func _play_anim(_delta: float) -> void:
 	var ph := _anim_t / beat * TAU
 	_body.position.y = -0.4 + absf(sin(ph * 0.5)) * 0.012
 	_head.rotation.x = sin(ph * 0.5) * 0.08
-	_legs[0].rotation.x = -1.45 + maxf(0.0, sin(ph)) * 0.12  # foot tapping
+	_leg_rot[0] = -1.45 + maxf(0.0, sin(ph)) * 0.12  # foot tapping
 	match instrument:
 		"fiddle":
-			_arms[1].rotation.z = 0.3 + sin(ph * 0.5) * 0.45
+			_arm_rot[1].z = 0.3 + sin(ph * 0.5) * 0.45
 			_head.rotation.z = 0.25
 		"whistle":
 			_head.rotation.x = -0.1 + sin(ph * 0.5) * 0.05
 		"bodhran":
-			_arms[1].rotation.x = -1.1 + absf(sin(ph * 0.5)) * 0.6
+			_arm_rot[1].x = -1.1 + absf(sin(ph * 0.5)) * 0.6
 		"accordion":
 			var b := _prop.get_node_or_null("Bellows") as Node3D
 			if b:
@@ -916,4 +1079,4 @@ func _play_anim(_delta: float) -> void:
 			_prop.get_child(0).position.x = -0.17 - 0.06 * sin(ph * 0.125)
 			_prop.get_child(1).position.x = 0.17 + 0.06 * sin(ph * 0.125)
 		"guitar", "banjo":
-			_arms[1].rotation.x = -0.7 + sin(ph) * 0.25
+			_arm_rot[1].x = -0.7 + sin(ph) * 0.25
