@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **237 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **244 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
