@@ -88,6 +88,19 @@ func _ready() -> void:
 				await _shot(v)
 				main.hud.visible = true
 				w.player.camera.current = true
+			"split":
+				w.start_split()
+				await _wait(1.0)
+				var ds: DrinkScene = w.drink_scene
+				ds.press()
+				await _wait(1.5)
+				ds.release()
+				for k in 8:
+					await _wait(1.0)
+					print("SPLIT t=%d state=%s reveal_t=%.2f settle=%.2f" % [k + 1, ds.state, ds._reveal_t, ds._settle_t])
+				await _shot(v)
+				ds.end()
+				await _wait(0.6)
 			"faces":
 				# three people standing chatting, close up
 				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]

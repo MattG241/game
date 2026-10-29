@@ -114,7 +114,11 @@ func _ready() -> void:
 	w.drink_scene.release()
 	await _wait(2.6)
 	await _shot("13a_split_slowmo")
-	await _wait(2.2)
+	for k in 40:
+		if w.drink_scene.state == "replay":
+			break
+		await _wait(0.25)
+	await _wait(0.5)
 	await _shot("13_split_result")
 	w.drink_scene.end()
 	await _wait(0.6)

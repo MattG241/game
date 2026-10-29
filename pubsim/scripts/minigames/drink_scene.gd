@@ -97,8 +97,9 @@ func _split_cam() -> Transform3D:
 
 func _pose_split_glass() -> void:
 	# yaw first (G towards the camera), then tilt towards the drinker in the bar's frame
-	glass.transform.basis = Basis(Vector3.BACK, _tilt * 0.9) * Basis(Vector3.UP, g_yaw())
-	glass.position = Vector3(-_tilt * 0.06, _tilt * 0.12, _tilt * 0.12)
+	# lifted a little and tipped towards the drinker, staying in frame so the line can be judged
+	glass.transform.basis = Basis(Vector3.RIGHT, -_tilt * 0.35) * Basis(Vector3.BACK, _tilt * 0.25) * Basis(Vector3.UP, g_yaw())
+	glass.position = Vector3(-_tilt * 0.01, _tilt * 0.035, _tilt * 0.04)
 
 
 func _build_line() -> void:
@@ -167,8 +168,8 @@ func _process(delta: float) -> void:
 	if mode == "split":
 		_pose_split_glass()
 	else:
-		glass.position = RELAX_HOLD.lerp(Vector3(0.05, -0.13, -0.34), _tilt)
-		glass.rotation.x = _tilt * 0.55
+		glass.position = RELAX_HOLD.lerp(Vector3(0.07, -0.15, -0.4), _tilt)
+		glass.rotation.x = _tilt * 0.45
 	if state == "settling":
 		_settle_t -= delta
 		if _settle_t <= 0.0:
