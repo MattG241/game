@@ -1,0 +1,36 @@
+{
+ "added_voices": {},
+ "clips": {
+  "3721093df1ca4823": {
+   "credits": 40.0,
+   "file": "assets/sfx_el/stout_pour.ogg",
+   "id": "stout_pour",
+   "kind": "sfx",
+   "text": "Nitro stout beer pouring from a pub tap into a pint glass, smooth creamy rush",
+   "voice": ""
+  },
+  "3a0a443f31995e07": {
+   "credits": 10.0,
+   "file": "assets/sfx_el/glass_on_bar.ogg",
+   "id": "glass_on_bar",
+   "kind": "sfx",
+   "text": "Full pint glass set down firmly on a wooden pub bar",
+   "voice": ""
+  },
+  "ac4d3aae7066a0a0": {
+   "credits": 15.0,
+   "file": "assets/sfx_el/tap_lever.ogg",
+   "id": "tap_lever",
+   "kind": "sfx",
+   "text": "Heavy brass beer tap lever pulled forward on a pub bar, mechanical clunk",
+   "voice": ""
+  }
+ },
+ "credits_spent": 65.0,
+ "last_balance": {
+  "limit": 10000,
+  "remaining": 9935,
+  "run_used": 65,
+  "used": 65
+ }
+}
