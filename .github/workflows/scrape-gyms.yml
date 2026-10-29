@@ -2,11 +2,8 @@ name: Scrape Revo gyms to Google Sheets
 
 on:
   schedule:
-    # Times are UTC. These map to 6am, 10am, 2pm and 6pm Perth time (UTC+8).
-    - cron: "7 22 * * *"
-    - cron: "7 2 * * *"
-    - cron: "7 6 * * *"
-    - cron: "7 10 * * *"
+    # Every hour, at 7 minutes past.
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -17,6 +14,9 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Optional alternative to the Apps Script setup (scraper/apps_script.gs). Skipped unless the
+    # repo variable ENABLE_GITHUB_SCRAPER is "true"; don't run both or every row is duplicated.
+    if: ${{ vars.ENABLE_GITHUB_SCRAPER == 'true' }}
     steps:
       - uses: actions/checkout@v4
 

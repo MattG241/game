@@ -21,10 +21,7 @@ from datetime import datetime, timezone
 import requests
 
 URL = "https://revotracker.dvcklab.com/gyms"
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 RevoTrackerSheetSync/1.0"
-)
+USER_AGENT = "RevoTrackerSheetSync/1.0"
 
 COLUMNS = [
     "scraped_at_utc",

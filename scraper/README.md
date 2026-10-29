@@ -1,18 +1,50 @@
 # Revo gym scraper → Google Sheets
 
-`scrape_gyms.py` fetches https://revotracker.dvcklab.com/gyms, reads the gym data the page
-embeds as JSON, and appends one row per gym to a Google Sheet. Each run adds a new
-timestamped batch, so the sheet builds up history over time.
+Every hour this scrapes https://revotracker.dvcklab.com/gyms. It reads the gym data the page
+embeds as JSON and adds one timestamped row per gym to a Google Sheet, so the sheet
+builds up history over time.
 
-The GitHub Actions workflow `.github/workflows/scrape-gyms.yml` runs it 4 times a day
-(6am, 10am, 2pm and 6pm Perth time). You can also start it manually from the **Actions** tab
-(**Scrape Revo gyms to Google Sheets → Run workflow**).
+There are two ways to run it. **Use only one**, or every row will be written twice.
+
+## Option A (recommended): Google Apps Script
+
+`apps_script.gs` runs entirely inside Google, so you don't need a server, a service account or GitHub secrets.
+
+1. Open the sheet → **Extensions → Apps Script**.
+2. Delete the placeholder code, paste in the contents of `apps_script.gs`, and save.
+3. In the function dropdown pick **`setup`** and click **Run**. Approve the permissions
+   Google asks for: access to this spreadsheet, external requests and triggers.
+   On the "Google hasn't verified this app" screen, click *Advanced → Go to project*,
+   because it's your own script.
+
+`setup` installs an hourly trigger and does a first scrape right away. Check
+*Triggers* (clock icon) and *Executions* in the Apps Script editor to see runs.
+To stop it, delete the trigger.
+
+## Option B: GitHub Actions + service account
+
+`scrape_gyms.py` and `.github/workflows/scrape-gyms.yml` do the same job from GitHub,
+hourly at :07. The workflow is switched off until you opt in:
+
+1. In Google Cloud Console, enable the **Google Sheets API**, create a service account and
+   download a JSON key.
+2. Share the sheet with the service account's email address and give it **Editor** access.
+3. In the repo, go to *Settings → Secrets and variables → Actions* and add:
+   - Secret `GOOGLE_SERVICE_ACCOUNT_JSON`: the whole key file
+   - Secret `GOOGLE_SHEET_ID`: the ID from the sheet URL (`/spreadsheets/d/<ID>/edit`)
+   - Variable `ENABLE_GITHUB_SCRAPER` = `true`
+   - Optional variable `SHEET_TAB` (default `Gym Data`)
+
+GitHub can delay scheduled runs by a few minutes. It also pauses schedules in repos that
+have had no activity for 60 days, which is one more reason to prefer Option A.
+
+Local test, without Sheets access: `pip install -r scraper/requirements.txt && python scraper/scrape_gyms.py --dry-run`
 
 ## Columns
 
 | Column | Meaning |
 |---|---|
-| `scraped_at_utc` | When this script ran |
+| `scraped_at_utc` | When this run happened |
 | `data_updated_utc` | When the site last refreshed the gym's count |
 | `gym_name`, `gym_id`, `state`, `timezone` | Gym identity |
 | `members_now` | Members currently checked in |
@@ -21,32 +53,3 @@ The GitHub Actions workflow `.github/workflows/scrape-gyms.yml` runs it 4 times 
 | `squat_racks`, `members_per_rack` | Racks and members per rack |
 | `area_m2` | Floor area |
 | `record_id` | The site's record ID for this reading |
-
-## One-time setup
-
-1. **Create a Google Sheet** and copy its ID from the URL:
-   `https://docs.google.com/spreadsheets/d/<THIS_PART>/edit`.
-2. **Create a service account** in Google Cloud Console:
-   - Create or choose a project, then enable the **Google Sheets API** under *APIs & Services → Library*.
-   - Go to *IAM & Admin → Service Accounts → Create service account*. It doesn't need any roles.
-   - Open the account, go to *Keys → Add key → Create new key → JSON*, and download the file.
-3. **Share the sheet** with the service account's email address
-   (`something@project.iam.gserviceaccount.com`) and give it **Editor** access.
-4. **Add the GitHub repo secrets** under *Settings → Secrets and variables → Actions*:
-   - `GOOGLE_SERVICE_ACCOUNT_JSON`: paste the entire contents of the downloaded JSON key file.
-   - `GOOGLE_SHEET_ID`: the sheet ID from step 1.
-   - Optional repository **variable** `SHEET_TAB`: the tab to write to. The default is `Gym Data`,
-     and the script creates the tab if it doesn't exist.
-5. Run the workflow manually once to check it works.
-
-To change how often it runs, edit the `cron` lines in the workflow. Times are in UTC.
-GitHub can delay scheduled runs by a few minutes. It also pauses schedules in repos that
-have had no activity for 60 days.
-
-## Running locally
-
-```bash
-pip install -r scraper/requirements.txt
-python scraper/scrape_gyms.py --dry-run          # print rows, no Sheets access
-GOOGLE_SERVICE_ACCOUNT_JSON="$(cat key.json)" GOOGLE_SHEET_ID=... python scraper/scrape_gyms.py
-```
