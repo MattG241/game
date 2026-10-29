@@ -1,0 +1,919 @@
+{
+ "model": "eleven_v3",
+ "cast": {
+  "landlord": {
+   "name": "Landlord (Brendan)",
+   "voice_id": "Zm3m9lkSTa2T4oB6U1PH",
+   "public_owner_id": "13eb43b8ff5c39b30f9f97f1d0bb4629d3b0d8166ea9e03e446744e71893a808",
+   "gender": "m",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "old_regular": {
+   "name": "Old regular (Alder)",
+   "voice_id": "nTMUXLFSfbWmdKKy7nDC",
+   "public_owner_id": "20fba41d288ee835b5e24d946dd0a7ca1015cf9a951cbf710d8532529656ffaf",
+   "gender": "m",
+   "age": "old",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "cheerful_local": {
+   "name": "Cheerful local (Zoey)",
+   "voice_id": "f4EpLLfw2IURnw62TRtz",
+   "public_owner_id": "1a258c5c7641cb79075fc472243388a07cc47c950f396c9cfea365918c7ede52",
+   "gender": "f",
+   "age": "young",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "dubliner": {
+   "name": "Dublin customer (Dublin Grit)",
+   "voice_id": "8HqWeGHxemL3oTtnmuF7",
+   "public_owner_id": "8350d20d927677bfabd61c74496f428fc4ac257c7d261532b14fccafaea9b3cd",
+   "gender": "m",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "musician": {
+   "name": "Galway musician (Sean)",
+   "voice_id": "kU1Fu9pyfEvPnMpoV67R",
+   "public_owner_id": "7b586f3b56d51996090f36e02ec12091470e69a0b01a7be87e5268a51ed76f2c",
+   "gender": "m",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "colleen": {
+   "name": "Older local woman (Colleen)",
+   "voice_id": "1OYA2kgM85gF2eGN8HEp",
+   "public_owner_id": "adb6262b177f7c1535f0538bbd843f425508e86ca85e7757b8fdb2f467af0827",
+   "gender": "f",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "jordan": {
+   "name": "Young local woman (Jordan)",
+   "voice_id": "cMnMwhoOlFYOQDBWBwU1",
+   "public_owner_id": "fe36cb677f55527aaf3b4b2fe3e73b2d9d6fd0477dd5db733a0d59b14b849f40",
+   "gender": "f",
+   "age": "young",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "andrew": {
+   "name": "Northern man (Andrew)",
+   "voice_id": "pg3548ZPhXWRcQhk1uvM",
+   "public_owner_id": "6c7f138616d4bcf145303fe75b7546fffe1374c44de036d9c203ca68f421f66c",
+   "gender": "m",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "cillian": {
+   "name": "Young local man (Cillian)",
+   "voice_id": "B5jEZPqk2OJ2vkPw3wBM",
+   "public_owner_id": "66b39ec803bfc36c4cac78a564c5ddb20efa75bd7b461a09b58c304fa7407075",
+   "gender": "m",
+   "age": "young",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "tourist_us": {
+   "name": "American tourist (Chris, premade)",
+   "voice_id": "iP95p4xoKVk53GoZ742B",
+   "public_owner_id": "",
+   "gender": "m",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  },
+  "tourist_uk": {
+   "name": "English visitor (Alice, premade)",
+   "voice_id": "Xb7hH8MSUJpSbSDYk0k2",
+   "public_owner_id": "",
+   "gender": "f",
+   "age": "middle",
+   "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+   }
+  }
+ },
+ "lines": [
+  {
+   "id": "landlord_last_orders_01",
+   "voice": "landlord",
+   "tag": "last_orders",
+   "text": "Last orders, everyone! Last orders at the bar!",
+   "sample": true
+  },
+  {
+   "id": "landlord_last_orders_02",
+   "voice": "landlord",
+   "tag": "last_orders",
+   "text": "Right, folks, that's last orders now. Get them in.",
+   "sample": false
+  },
+  {
+   "id": "landlord_last_orders_03",
+   "voice": "landlord",
+   "tag": "last_orders",
+   "text": "Last orders! Don't be leaving me with a full keg.",
+   "sample": false
+  },
+  {
+   "id": "landlord_closing_01",
+   "voice": "landlord",
+   "tag": "closing",
+   "text": "Time now, ladies and gents. Have ye no homes to go to?",
+   "sample": false
+  },
+  {
+   "id": "landlord_closing_02",
+   "voice": "landlord",
+   "tag": "closing",
+   "text": "That's us closed. Safe home, everyone.",
+   "sample": false
+  },
+  {
+   "id": "landlord_milestone_01",
+   "voice": "landlord",
+   "tag": "milestone",
+   "text": "Would you look at that. This place is finally getting a name for itself.",
+   "sample": false
+  },
+  {
+   "id": "landlord_milestone_02",
+   "voice": "landlord",
+   "tag": "milestone",
+   "text": "Another good day behind the bar. I could get used to this.",
+   "sample": false
+  },
+  {
+   "id": "landlord_upgrade_01",
+   "voice": "landlord",
+   "tag": "upgrade",
+   "text": "Now that's an improvement. The place looks a hundred times better.",
+   "sample": false
+  },
+  {
+   "id": "landlord_upgrade_02",
+   "voice": "landlord",
+   "tag": "upgrade",
+   "text": "Money well spent, I'd say.",
+   "sample": false
+  },
+  {
+   "id": "landlord_welcome_01",
+   "voice": "landlord",
+   "tag": "welcome",
+   "text": "Evening, what can I get you?",
+   "sample": false
+  },
+  {
+   "id": "landlord_welcome_02",
+   "voice": "landlord",
+   "tag": "welcome",
+   "text": "Howya, what'll it be?",
+   "sample": false
+  },
+  {
+   "id": "landlord_music_intro_01",
+   "voice": "landlord",
+   "tag": "music_intro",
+   "text": "Give it up for the band, please!",
+   "sample": false
+  },
+  {
+   "id": "old_regular_order_stout_01",
+   "voice": "old_regular",
+   "tag": "order_stout",
+   "text": "Pint of Galagers, when you're ready. No rush.",
+   "sample": true
+  },
+  {
+   "id": "old_regular_order_stout_02",
+   "voice": "old_regular",
+   "tag": "order_stout",
+   "text": "The usual. And let it settle this time.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_order_stout_03",
+   "voice": "old_regular",
+   "tag": "order_stout",
+   "text": "A Galagers, please. Take your time with it.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_praise_01",
+   "voice": "old_regular",
+   "tag": "praise",
+   "text": "Now that's a proper pint.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_praise_02",
+   "voice": "old_regular",
+   "tag": "praise",
+   "text": "Hm. Not bad at all. Not bad at all.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_praise_03",
+   "voice": "old_regular",
+   "tag": "praise",
+   "text": "Your father would be proud of that one.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_complain_01",
+   "voice": "old_regular",
+   "tag": "complain",
+   "text": "That's a poor head on it, son.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_complain_02",
+   "voice": "old_regular",
+   "tag": "complain",
+   "text": "You rushed that. I can always tell.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_complain_03",
+   "voice": "old_regular",
+   "tag": "complain",
+   "text": "That's not a pint, that's a cappuccino.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_wait_01",
+   "voice": "old_regular",
+   "tag": "wait",
+   "text": "I'm not getting any younger here.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_wait_02",
+   "voice": "old_regular",
+   "tag": "wait",
+   "text": "Any sign of that pint?",
+   "sample": false
+  },
+  {
+   "id": "old_regular_chatter_01",
+   "voice": "old_regular",
+   "tag": "chatter",
+   "text": "Fifty years I've been drinking in here. The stools haven't changed.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_chatter_02",
+   "voice": "old_regular",
+   "tag": "chatter",
+   "text": "When I was young, a pint cost less than the bus fare home.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_chatter_03",
+   "voice": "old_regular",
+   "tag": "chatter",
+   "text": "The secret's in the settle. Always was.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_pay_01",
+   "voice": "old_regular",
+   "tag": "pay",
+   "text": "There you go. Keep the change for yourself.",
+   "sample": false
+  },
+  {
+   "id": "old_regular_goodbye_01",
+   "voice": "old_regular",
+   "tag": "goodbye",
+   "text": "Right so. Same time tomorrow.",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_order_stout_01",
+   "voice": "cheerful_local",
+   "tag": "order_stout",
+   "text": "Pint of Galagers there, please!",
+   "sample": true
+  },
+  {
+   "id": "cheerful_local_order_stout_02",
+   "voice": "cheerful_local",
+   "tag": "order_stout",
+   "text": "Ah go on, I'll have a Galagers!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_order_other_01",
+   "voice": "cheerful_local",
+   "tag": "order_other",
+   "text": "Can I get a cider, please? Lovely.",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_order_other_02",
+   "voice": "cheerful_local",
+   "tag": "order_other",
+   "text": "Something cold, please! It's been a day.",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_praise_01",
+   "voice": "cheerful_local",
+   "tag": "praise",
+   "text": "Oh, that's gorgeous! Thanks a million!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_praise_02",
+   "voice": "cheerful_local",
+   "tag": "praise",
+   "text": "Look at that! Perfect!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_complain_01",
+   "voice": "cheerful_local",
+   "tag": "complain",
+   "text": "Ah, that's a bit sad looking, isn't it?",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_chatter_01",
+   "voice": "cheerful_local",
+   "tag": "chatter",
+   "text": "Did you hear about the band on Saturday? Unreal!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_chatter_02",
+   "voice": "cheerful_local",
+   "tag": "chatter",
+   "text": "I swear, this is the best pub in the county.",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_chatter_03",
+   "voice": "cheerful_local",
+   "tag": "chatter",
+   "text": "Who's up for a game of darts after this?",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_anticipation_01",
+   "voice": "cheerful_local",
+   "tag": "split_anticipation",
+   "text": "Go on, go on, go on!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_anticipation_02",
+   "voice": "cheerful_local",
+   "tag": "split_anticipation",
+   "text": "Steady, steady!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_success_01",
+   "voice": "cheerful_local",
+   "tag": "split_success",
+   "text": "Split it! Oh, beautiful!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_success_02",
+   "voice": "cheerful_local",
+   "tag": "split_success",
+   "text": "Yes! Right through the G!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_near_01",
+   "voice": "cheerful_local",
+   "tag": "split_near",
+   "text": "Ah, so close!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_fail_01",
+   "voice": "cheerful_local",
+   "tag": "split_fail",
+   "text": "Ah, you've gone too far!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_split_fail_02",
+   "voice": "cheerful_local",
+   "tag": "split_fail",
+   "text": "Not even close, love!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_cheer_01",
+   "voice": "cheerful_local",
+   "tag": "cheer",
+   "text": "Wooo! Come on!",
+   "sample": false
+  },
+  {
+   "id": "cheerful_local_goodbye_01",
+   "voice": "cheerful_local",
+   "tag": "goodbye",
+   "text": "Night, everyone! See ye tomorrow!",
+   "sample": false
+  },
+  {
+   "id": "dubliner_order_stout_01",
+   "voice": "dubliner",
+   "tag": "order_stout",
+   "text": "Pint of Galagers, boss.",
+   "sample": true
+  },
+  {
+   "id": "dubliner_order_stout_02",
+   "voice": "dubliner",
+   "tag": "order_stout",
+   "text": "Two minutes for a Galagers and I'll be a happy man.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_order_stout_03",
+   "voice": "dubliner",
+   "tag": "order_stout",
+   "text": "Here, pint of Galagers when you get a sec.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_order_other_01",
+   "voice": "dubliner",
+   "tag": "order_other",
+   "text": "Pint of lager there, bud.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_order_other_02",
+   "voice": "dubliner",
+   "tag": "order_other",
+   "text": "Give us a whiskey, would ya.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_praise_01",
+   "voice": "dubliner",
+   "tag": "praise",
+   "text": "Ah, lovely job. That's the business.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_praise_02",
+   "voice": "dubliner",
+   "tag": "praise",
+   "text": "Now we're talking. Gorgeous.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_complain_01",
+   "voice": "dubliner",
+   "tag": "complain",
+   "text": "What's that meant to be?",
+   "sample": false
+  },
+  {
+   "id": "dubliner_complain_02",
+   "voice": "dubliner",
+   "tag": "complain",
+   "text": "I've seen better pints in an airport.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_wait_01",
+   "voice": "dubliner",
+   "tag": "wait",
+   "text": "Are you brewing it yourself back there?",
+   "sample": false
+  },
+  {
+   "id": "dubliner_wait_02",
+   "voice": "dubliner",
+   "tag": "wait",
+   "text": "I'll be drawing my pension at this rate.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_chatter_01",
+   "voice": "dubliner",
+   "tag": "chatter",
+   "text": "The traffic on the way in, I'm telling ya. Mental.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_chatter_02",
+   "voice": "dubliner",
+   "tag": "chatter",
+   "text": "Me brother says the stout's better in Galway. Me brother's an eejit.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_pay_01",
+   "voice": "dubliner",
+   "tag": "pay",
+   "text": "There you go, sound.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_goodbye_01",
+   "voice": "dubliner",
+   "tag": "goodbye",
+   "text": "Good luck now.",
+   "sample": false
+  },
+  {
+   "id": "dubliner_split_fail_01",
+   "voice": "dubliner",
+   "tag": "split_fail",
+   "text": "Ah, you've gone too far there, pal!",
+   "sample": false
+  },
+  {
+   "id": "musician_music_intro_01",
+   "voice": "musician",
+   "tag": "music_intro",
+   "text": "Right so, we'll start with one from Galway. Hope you like it.",
+   "sample": true
+  },
+  {
+   "id": "musician_music_intro_02",
+   "voice": "musician",
+   "tag": "music_intro",
+   "text": "Thanks for having us. This one's a reel, so feel free to stamp your feet.",
+   "sample": false
+  },
+  {
+   "id": "musician_music_intro_03",
+   "voice": "musician",
+   "tag": "music_intro",
+   "text": "Here's an old one, nice and slow, for the folks by the fire.",
+   "sample": false
+  },
+  {
+   "id": "musician_music_finale_01",
+   "voice": "musician",
+   "tag": "music_finale",
+   "text": "One more round, everyone! Sing it if you know it!",
+   "sample": false
+  },
+  {
+   "id": "musician_music_thanks_01",
+   "voice": "musician",
+   "tag": "music_thanks",
+   "text": "Thanks a million, you've been a great crowd.",
+   "sample": false
+  },
+  {
+   "id": "musician_music_thanks_02",
+   "voice": "musician",
+   "tag": "music_thanks",
+   "text": "Go raibh maith agaibh, and goodnight.",
+   "sample": false
+  },
+  {
+   "id": "musician_crowd_01",
+   "voice": "musician",
+   "tag": "crowd",
+   "text": "Ah, would you listen to that crowd!",
+   "sample": false
+  },
+  {
+   "id": "colleen_order_stout_01",
+   "voice": "colleen",
+   "tag": "order_stout",
+   "text": "A Galagers, please, love.",
+   "sample": false
+  },
+  {
+   "id": "colleen_order_stout_02",
+   "voice": "colleen",
+   "tag": "order_stout",
+   "text": "I'll have a half of Galagers, thanks.",
+   "sample": false
+  },
+  {
+   "id": "colleen_order_other_01",
+   "voice": "colleen",
+   "tag": "order_other",
+   "text": "A small whiskey, please. Just the one.",
+   "sample": false
+  },
+  {
+   "id": "colleen_order_other_02",
+   "voice": "colleen",
+   "tag": "order_other",
+   "text": "A lemonade for me, I'm driving.",
+   "sample": false
+  },
+  {
+   "id": "colleen_praise_01",
+   "voice": "colleen",
+   "tag": "praise",
+   "text": "That's lovely, thank you.",
+   "sample": false
+  },
+  {
+   "id": "colleen_praise_02",
+   "voice": "colleen",
+   "tag": "praise",
+   "text": "You've a great hand for a pint.",
+   "sample": false
+  },
+  {
+   "id": "colleen_complain_01",
+   "voice": "colleen",
+   "tag": "complain",
+   "text": "Oh dear. That's not quite right, is it?",
+   "sample": false
+  },
+  {
+   "id": "colleen_chatter_01",
+   "voice": "colleen",
+   "tag": "chatter",
+   "text": "My mother used to sing in this very corner.",
+   "sample": false
+  },
+  {
+   "id": "colleen_chatter_02",
+   "voice": "colleen",
+   "tag": "chatter",
+   "text": "Isn't it great to see the fire lit again.",
+   "sample": false
+  },
+  {
+   "id": "colleen_goodbye_01",
+   "voice": "colleen",
+   "tag": "goodbye",
+   "text": "Goodnight now, mind yourselves.",
+   "sample": false
+  },
+  {
+   "id": "colleen_split_success_01",
+   "voice": "colleen",
+   "tag": "split_success",
+   "text": "Well, would you look at that!",
+   "sample": false
+  },
+  {
+   "id": "jordan_order_other_01",
+   "voice": "jordan",
+   "tag": "order_other",
+   "text": "Hiya, could I get a cider, please?",
+   "sample": false
+  },
+  {
+   "id": "jordan_order_other_02",
+   "voice": "jordan",
+   "tag": "order_other",
+   "text": "Can I get a Galagers Zero, please? I'm on an early shift.",
+   "sample": false
+  },
+  {
+   "id": "jordan_order_stout_01",
+   "voice": "jordan",
+   "tag": "order_stout",
+   "text": "Galagers, please. Go on, I'll treat myself.",
+   "sample": false
+  },
+  {
+   "id": "jordan_praise_01",
+   "voice": "jordan",
+   "tag": "praise",
+   "text": "Amazing, thanks so much!",
+   "sample": false
+  },
+  {
+   "id": "jordan_wait_01",
+   "voice": "jordan",
+   "tag": "wait",
+   "text": "Sorry, any chance I could order?",
+   "sample": false
+  },
+  {
+   "id": "jordan_chatter_01",
+   "voice": "jordan",
+   "tag": "chatter",
+   "text": "I'm only staying for one. I said that last week too.",
+   "sample": false
+  },
+  {
+   "id": "jordan_split_near_01",
+   "voice": "jordan",
+   "tag": "split_near",
+   "text": "Oh my God, nearly!",
+   "sample": false
+  },
+  {
+   "id": "jordan_goodbye_01",
+   "voice": "jordan",
+   "tag": "goodbye",
+   "text": "Bye! Thanks!",
+   "sample": false
+  },
+  {
+   "id": "andrew_order_stout_01",
+   "voice": "andrew",
+   "tag": "order_stout",
+   "text": "Pint of Galagers, please, mate.",
+   "sample": false
+  },
+  {
+   "id": "andrew_order_stout_02",
+   "voice": "andrew",
+   "tag": "order_stout",
+   "text": "I'll take a Galagers there, thanks.",
+   "sample": false
+  },
+  {
+   "id": "andrew_order_other_01",
+   "voice": "andrew",
+   "tag": "order_other",
+   "text": "A pint of ale, please. The red one.",
+   "sample": false
+  },
+  {
+   "id": "andrew_praise_01",
+   "voice": "andrew",
+   "tag": "praise",
+   "text": "Cracking pint, that.",
+   "sample": false
+  },
+  {
+   "id": "andrew_complain_01",
+   "voice": "andrew",
+   "tag": "complain",
+   "text": "That's a wee bit flat, so it is.",
+   "sample": false
+  },
+  {
+   "id": "andrew_wait_01",
+   "voice": "andrew",
+   "tag": "wait",
+   "text": "Bit of a wait tonight, eh?",
+   "sample": false
+  },
+  {
+   "id": "andrew_chatter_01",
+   "voice": "andrew",
+   "tag": "chatter",
+   "text": "Came down from Belfast for the music. Worth the drive.",
+   "sample": false
+  },
+  {
+   "id": "andrew_goodbye_01",
+   "voice": "andrew",
+   "tag": "goodbye",
+   "text": "Right, I'm away. Cheers.",
+   "sample": false
+  },
+  {
+   "id": "cillian_order_stout_01",
+   "voice": "cillian",
+   "tag": "order_stout",
+   "text": "Galagers, please. Cheers.",
+   "sample": false
+  },
+  {
+   "id": "cillian_order_stout_02",
+   "voice": "cillian",
+   "tag": "order_stout",
+   "text": "One Galagers, thanks, boss.",
+   "sample": false
+  },
+  {
+   "id": "cillian_praise_01",
+   "voice": "cillian",
+   "tag": "praise",
+   "text": "Deadly. Cheers.",
+   "sample": false
+  },
+  {
+   "id": "cillian_complain_01",
+   "voice": "cillian",
+   "tag": "complain",
+   "text": "Ah, that's a bit rough, to be honest.",
+   "sample": false
+  },
+  {
+   "id": "cillian_chatter_01",
+   "voice": "cillian",
+   "tag": "chatter",
+   "text": "Fancy a game of darts? Loser buys the next round.",
+   "sample": false
+  },
+  {
+   "id": "cillian_split_anticipation_01",
+   "voice": "cillian",
+   "tag": "split_anticipation",
+   "text": "Don't stop, don't stop... now!",
+   "sample": false
+  },
+  {
+   "id": "cillian_split_fail_01",
+   "voice": "cillian",
+   "tag": "split_fail",
+   "text": "Ah no, way too far!",
+   "sample": false
+  },
+  {
+   "id": "cillian_cheer_01",
+   "voice": "cillian",
+   "tag": "cheer",
+   "text": "Get in!",
+   "sample": false
+  },
+  {
+   "id": "tourist_us_order_stout_01",
+   "voice": "tourist_us",
+   "tag": "order_stout",
+   "text": "Hi! What's good here? Actually, I'll try the Galagers.",
+   "sample": false
+  },
+  {
+   "id": "tourist_us_order_stout_02",
+   "voice": "tourist_us",
+   "tag": "order_stout",
+   "text": "One Galagers, please. My first one in Ireland!",
+   "sample": false
+  },
+  {
+   "id": "tourist_us_praise_01",
+   "voice": "tourist_us",
+   "tag": "praise",
+   "text": "Wow. Okay, I get it now. That's incredible.",
+   "sample": false
+  },
+  {
+   "id": "tourist_us_chatter_01",
+   "voice": "tourist_us",
+   "tag": "chatter",
+   "text": "Everyone here is so friendly. I might never leave.",
+   "sample": false
+  },
+  {
+   "id": "tourist_uk_order_stout_01",
+   "voice": "tourist_uk",
+   "tag": "order_stout",
+   "text": "Could I have a pint of the Galagers, please?",
+   "sample": false
+  },
+  {
+   "id": "tourist_uk_order_other_01",
+   "voice": "tourist_uk",
+   "tag": "order_other",
+   "text": "A gin and tonic? Oh, just a lemonade then, thanks.",
+   "sample": false
+  },
+  {
+   "id": "tourist_uk_praise_01",
+   "voice": "tourist_uk",
+   "tag": "praise",
+   "text": "Oh, that's rather lovely, actually.",
+   "sample": false
+  },
+  {
+   "id": "tourist_uk_goodbye_01",
+   "voice": "tourist_uk",
+   "tag": "goodbye",
+   "text": "Thank you, what a gorgeous pub.",
+   "sample": false
+  }
+ ]
+}

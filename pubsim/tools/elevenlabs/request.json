@@ -1,1 +1,1 @@
-{"phase": "check", "max_credits": 0, "note": "check = read-only balance/voices report, spends nothing"}
+{"phase": "sample", "max_credits": 1200, "note": "sample = 5 voice lines + 3 sound effects to measure real cost and quality before the full run"}

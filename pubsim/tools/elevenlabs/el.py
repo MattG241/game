@@ -131,6 +131,66 @@ def ensure_voice(cast_entry, manifest):
     return added[vid]
 
 
+def release_voice(cast_entry, manifest):
+    """Removes a library voice we added, freeing the slot (the free plan has only three)."""
+    added = manifest.get("added_voices", {})
+    vid = cast_entry["voice_id"]
+    if not cast_entry.get("public_owner_id") or vid not in added:
+        return
+    try:
+        req("DELETE", f"/v1/voices/{added[vid]}")
+        log(f"  released voice slot: {cast_entry['name']}")
+    except RuntimeError as e:
+        log("  could not release voice", cast_entry["name"], e)
+    del added[vid]
+    save_manifest(manifest)
+
+
+def multipart(fields, file_field, file_path):
+    boundary = "----pubsim" + hashlib.md5(file_path.encode()).hexdigest()
+    out = b""
+    for k, v in fields.items():
+        out += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
+    with open(file_path, "rb") as f:
+        data = f.read()
+    out += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"clip.ogg\"\r\nContent-Type: audio/ogg\r\n\r\n".encode() + data + b"\r\n"
+    out += f"--{boundary}--\r\n".encode()
+    return out, boundary
+
+
+def words(t):
+    import re
+    return re.findall(r"[a-z']+", t.lower())
+
+
+def similarity(a, b):
+    import difflib
+    return difflib.SequenceMatcher(None, words(a), words(b)).ratio()
+
+
+def verify(generated, manifest):
+    """Transcribes new voice clips and compares them with the script (a pronunciation check)."""
+    for kind, item, dst, k in generated:
+        if kind != "tts":
+            continue
+        try:
+            body, boundary = multipart({"model_id": "scribe_v1", "language_code": "en"}, "file", dst)
+            r = urllib.request.Request(API + "/v1/speech-to-text", data=body, method="POST")
+            r.add_header("xi-api-key", KEY)
+            r.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+            with urllib.request.urlopen(r, timeout=120) as resp:
+                text = json.loads(resp.read()).get("text", "")
+        except Exception as e:
+            log(f"  verify {item['id']}: transcription unavailable ({str(e)[:120]})")
+            continue
+        sim = similarity(item["text"], text)
+        manifest["clips"][k]["transcript"] = text
+        manifest["clips"][k]["match"] = round(sim, 2)
+        flag = "OK " if sim >= 0.8 else "CHECK"
+        log(f"  {flag} {item['id']} match {sim:.2f}: \"{text}\"")
+    save_manifest(manifest)
+
+
 def generate(phase, cap):
     lines = load_json(os.path.join(HERE, "voice_lines.json"), {"cast": {}, "lines": []})
     sfx = load_json(os.path.join(HERE, "sfx.json"), [])
@@ -155,8 +215,14 @@ def generate(phase, cap):
         k = clip_key("sfx", fx["prompt"], fx.get("duration"), fx.get("influence", 0.45))
         work.append(("sfx", k, fx, None, None))
     todo = [w for w in work if w[1] not in manifest["clips"]]
+    todo.sort(key=lambda w: (w[0], w[3]["voice_id"] if w[3] else ""))
     log(f"{len(work)} clips in scope, {len(todo)} still to generate")
+    current_voice = None
+    generated = []
     for kind, k, item, cast, settings in todo:
+        if kind == "tts" and current_voice and current_voice[0] != cast["voice_id"]:
+            release_voice(current_voice[1], manifest)
+            current_voice = None
         est = len(item["text"]) * (1.0 if "multilingual" in model or "v3" in model else 0.5) if kind == "tts" else 40 * float(item.get("duration", 3.0)) + 20
         if spent_run + est > cap:
             log(f"STOP: next clip ({item['id']}, ~{est:.0f} credits) would exceed this run's cap")
@@ -165,6 +231,7 @@ def generate(phase, cap):
         try:
             if kind == "tts":
                 vid = ensure_voice(cast, manifest)
+                current_voice = (cast["voice_id"], cast)
                 audio, hdr = req("POST", f"/v1/text-to-speech/{vid}", {"text": item["text"], "model_id": model, "voice_settings": settings},
                                  raw=True, params={"output_format": "mp3_44100_128"})
                 dst = os.path.join(OUT_VOICE, item["id"] + ".ogg")
@@ -191,7 +258,11 @@ def generate(phase, cap):
         manifest["credits_spent"] = manifest.get("credits_spent", 0) + cost
         save_manifest(manifest)
         log(f"  {kind} {item['id']}: {cost:.0f} credits")
+        generated.append((kind, item, dst, k))
         time.sleep(0.3)
+    if current_voice:
+        release_voice(current_voice[1], manifest)
+    verify(generated, manifest)
     _, used1, limit = subscription()
     log(f"Credits after: used {used1} / {limit} (remaining {limit - used1}). This run actually used {used1 - used0}.")
     manifest["last_balance"] = {"used": used1, "limit": limit, "remaining": limit - used1, "run_used": used1 - used0}

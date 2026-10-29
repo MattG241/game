@@ -1,0 +1,105 @@
+[
+ {
+  "id": "tap_lever",
+  "prompt": "Heavy brass beer tap lever pulled forward on a pub bar, mechanical clunk",
+  "duration": 1.5,
+  "sample": true
+ },
+ {
+  "id": "stout_pour",
+  "prompt": "Nitro stout beer pouring from a pub tap into a pint glass, smooth creamy rush",
+  "duration": 4.0,
+  "sample": true
+ },
+ {
+  "id": "glass_on_bar",
+  "prompt": "Full pint glass set down firmly on a wooden pub bar",
+  "duration": 1.0,
+  "sample": true
+ },
+ {
+  "id": "glass_clink",
+  "prompt": "Two pint glasses clinking together in a toast",
+  "duration": 1.2
+ },
+ {
+  "id": "foam_settle",
+  "prompt": "Gentle fizz of fine bubbles settling in a glass of stout, close up",
+  "duration": 3.0
+ },
+ {
+  "id": "till_drawer",
+  "prompt": "Old cash register drawer opening with a bell ding and coins",
+  "duration": 1.5
+ },
+ {
+  "id": "bottle_open",
+  "prompt": "Beer bottle cap popped off with a bottle opener",
+  "duration": 1.0
+ },
+ {
+  "id": "door_bell",
+  "prompt": "Old wooden pub door opening with a small brass bell jingling",
+  "duration": 2.0
+ },
+ {
+  "id": "stool_scrape",
+  "prompt": "Wooden bar stool scraping on a wooden floor",
+  "duration": 1.0
+ },
+ {
+  "id": "dart_hit",
+  "prompt": "Steel tip dart thudding into a bristle dartboard",
+  "duration": 0.8
+ },
+ {
+  "id": "laugh_group",
+  "prompt": "Small group of people in a pub laughing heartily at a joke",
+  "duration": 3.0
+ },
+ {
+  "id": "cheer_crowd",
+  "prompt": "Pub crowd cheering and clapping after a song ends",
+  "duration": 4.0
+ },
+ {
+  "id": "applause",
+  "prompt": "Warm applause from a small crowd in a cosy pub",
+  "duration": 4.0
+ },
+ {
+  "id": "wash_glass",
+  "prompt": "Washing a pint glass in a metal bar sink with running water",
+  "duration": 3.0
+ },
+ {
+  "id": "pub_quiet_loop",
+  "prompt": "Quiet pub ambience, a few people murmuring, occasional glass clink, no music",
+  "duration": 15.0
+ },
+ {
+  "id": "pub_busy_loop",
+  "prompt": "Busy lively pub ambience, lots of overlapping chatter and laughter, glasses, no music",
+  "duration": 15.0
+ },
+ {
+  "id": "rain_window_loop",
+  "prompt": "Steady rain pattering against an old pub window at night, heard from inside",
+  "duration": 12.0
+ },
+ {
+  "id": "fire_loop",
+  "prompt": "Turf fire crackling softly in a stone fireplace",
+  "duration": 12.0
+ },
+ {
+  "id": "success_sting",
+  "prompt": "Short warm celtic harp flourish, achievement",
+  "duration": 2.0
+ },
+ {
+  "id": "split_tension",
+  "prompt": "Low suspenseful drum roll building tension, short",
+  "duration": 3.0
+ }
+]
