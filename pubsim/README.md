@@ -102,6 +102,32 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - timber, ivory and brass menus.
 - **Graphics presets**: Performance, Balanced, High and Ultra, plus a 30 FPS battery-saver mode.
 
+### Overnight polish (0.2.0)
+- **People**: sculpted bodies, faces and hands from `tools/gen_people.py`, made from smooth
+  signed-distance shapes meshed with marching cubes, about 10k triangles each.
+  - Clothes, faces, hair and shoes are painted by shaders.
+  - Eyes sit in sockets and blink; people breathe.
+  - They glance at you, chat with their neighbours, gesture and laugh.
+- **Fire**: living turf flames with sparks and smoke. The fiddler sits by the hearth on a stool,
+  playing a proper fiddle.
+- **The pub front**: a two-storey Irish shopfront.
+  - Gilt fascia, fluted pilasters, carriage lanterns and flower baskets.
+  - Sash windows, a slate roof and chimneys.
+  - Across the street, a detailed terrace.
+- **Inside**:
+  - real bottles with labels on the back bar, and an aged ceiling
+  - lamplight cones with drifting dust, a hearth rug
+  - the last-orders bell, hurleys, a newspaper and beer mats
+  - rain running down the windows behind lace café curtains
+- **The pour**: a hero framing of the brass font and the glass, a flowing stream and a ribbed
+  GALAGERS drip mat.
+- **The pint**: near-black stout with ruby edges and natural condensation.
+- **Title screen**: a living pub, with regulars, a fiddler and a flickering fire.
+- **Fixes**:
+  - customers at the bar now face you
+  - a voice-player race is fixed
+  - CI now fails on any script error
+
 ## The soundtrack: who plays what
 | # | Song | When it plays |
 | --- | --- | --- |
