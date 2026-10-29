@@ -9,6 +9,8 @@ var _ui: Control
 var _new_dialog: PanelContainer
 var _name_edit: LineEdit
 var _mode := "career"
+var _info: Dictionary
+var _scene: Node3D
 
 
 func _ready() -> void:
@@ -25,9 +27,23 @@ func _ready() -> void:
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
 	env.glow_hdr_threshold = 1.1
+	var pano: Texture2D = load("res://assets/env/pub_reflection.png")
+	if pano:
+		var sky := Sky.new()
+		var sm := PanoramaSkyMaterial.new()
+		sm.panorama = pano
+		sm.energy_multiplier = 1.6
+		sky.sky_material = sm
+		sky.radiance_size = Sky.RADIANCE_SIZE_128
+		env.sky = sky
+		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.08
+	env.adjustment_contrast = 1.05
 	we.environment = env
 	scene.add_child(we)
 	var info := PubBuilder.new().build(scene)
+	_info = info
 	# show the fully renovated pub as a promise of what's to come
 	for id in info["upgrade_show"].keys():
 		for n in info["upgrade_show"][id]:
@@ -51,6 +67,9 @@ func _ready() -> void:
 	g.contents.serve = "stout"
 	g.contents.body = 0.88
 	g.contents.foam = 0.14
+	g.rotation.y = DrinkScene.g_yaw()
+	_scene = scene
+	_populate()
 	_build_ui()
 	Sfx.set_loop("rain", "rain_loop", 0.35)
 	# Welcome to The Local plays on the title screen and fades when a game starts
@@ -58,8 +77,51 @@ func _ready() -> void:
 	MusicDirector.set_screen("menu")
 
 
+## A few regulars and a fiddler, so the pub on the title screen is alive.
+func _populate() -> void:
+	var seats: Array = _info.get("seats", [])
+	var picks := [["nora", 0], ["packie", 4], ["aoife", 5]]
+	for pk in picks:
+		var si: int = int(pk[1])
+		if si >= seats.size():
+			continue
+		var sd: Dictionary = seats[si]
+		var c := Customer.new()
+		c.setup(self, GameData.regulars_by_id.get(str(pk[0]), {}).get("look", {}), 40 + si)
+		_scene.add_child(c)
+		c.global_position = sd["pos"]
+		c.rotation.y = sd["yaw"]
+		c.state = "idle"
+		c._set_seated(true)
+		var pg := PintGlass.new()
+		_scene.add_child(pg)
+		pg.global_position = sd["table"]
+		pg.contents.drink_id = "stout"
+		pg.contents.body = 0.6
+		pg.contents.foam = 0.08
+	# someone leaning on the bar
+	var b := Customer.new()
+	b.setup(self, GameData.regulars_by_id.get("declan", {}).get("look", {}), 77)
+	_scene.add_child(b)
+	b.global_position = Vector3(0.4, 0, PubLayout.BAR_SPOT_Z + 0.2)
+	b.rotation.y = -0.9   # half turned from the bar, chatting
+	b.state = "idle"
+	# and a fiddler by the fire
+	var f := Customer.new()
+	f.setup(self, GameData.regulars_by_id.get("tomas", {}).get("look", {}), 99)
+	_scene.add_child(f)
+	f.global_position = LiveMusic.FIRESIDE_SPOT
+	var to := Vector3(-2.0, 0, 2.2) - LiveMusic.FIRESIDE_SPOT
+	f.rotation.y = atan2(-to.x, -to.z)
+	f.make_musician("fiddle", 0.5)
+	f.add_stool()
+
+
 func _process(delta: float) -> void:
 	_t += delta
+	var fl: OmniLight3D = _info.get("fire_light")
+	if fl:
+		fl.light_energy = 1.4 + 0.35 * sin(_t * 11.0) + 0.2 * sin(_t * 27.0)
 	var a := sin(_t * 0.07) * 0.5
 	var p := Vector3(-0.2 + sin(a) * 2.6, 1.55 + sin(_t * 0.13) * 0.08, 1.4 + cos(a) * 1.2)
 	_cam.global_position = p

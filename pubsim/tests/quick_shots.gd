@@ -74,6 +74,20 @@ func _ready() -> void:
 				main.hud.visible = true
 				w.live.stop_now()
 				w.player.camera.current = true
+			"barwait":
+				var bc := w.spawn_customer()
+				bc.global_position = w.bar_spot_pos(3)
+				bc.state = "wait_order"
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 55.0
+				cam.global_transform = Transform3D(Basis(), Vector3(-1.0, 1.6, -3.0)).looking_at(Vector3(-1.0, 1.4, -1.2), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(1.5)
+				await _shot(v)
+				main.hud.visible = true
+				w.player.camera.current = true
 			"faces":
 				# three people standing chatting, close up
 				var spots := [Vector3(1.0, 0, 2.0), Vector3(1.6, 0, 2.15), Vector3(2.2, 0, 2.0)]

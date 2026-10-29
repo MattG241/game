@@ -282,8 +282,9 @@ func _solve_joints(delta: float) -> void:
 	# breathing
 	_body.scale.x = _body.scale.y * (1.0 + sin(_anim_t * 1.6) * 0.006)
 	# glance at the bartender when they're close and this person is at the bar or chatting
-	if world and world.player and state in ["wait_order", "wait_drink", "mingle", "drinking", "stand_drink"]:
-		var to_p: Vector3 = world.player.global_position - global_position
+	var pl: Node3D = world.get("player") if world else null
+	if pl and state in ["wait_order", "wait_drink", "mingle", "drinking", "stand_drink"]:
+		var to_p: Vector3 = pl.global_position - global_position
 		if to_p.length() < 3.0:
 			var local := global_transform.basis.inverse() * to_p
 			var want := clampf(atan2(-local.x, -local.z), -0.9, 0.9)
@@ -368,7 +369,7 @@ func _process_state(delta: float) -> void:
 				bar_spot = spot
 				walk_to(world.bar_spot_pos(spot), "wait_order")
 		"wait_order", "wait_drink":
-			_face_yaw(PI, delta)
+			_face_yaw(0.0, delta)   # face the bar (and the bartender behind it)
 			_tick_patience(delta, 1.0 if state == "wait_order" else 0.85)
 			_idle_anim(delta)
 		"react":
@@ -430,7 +431,7 @@ func _arrive() -> void:
 			world.customer_choose(self)
 		"wait_order":
 			state = "wait_order"
-			rotation.y = PI
+			rotation.y = 0.0
 			if world.has_method("on_customer_at_bar"):
 				world.on_customer_at_bar(self)
 			_refresh_bubble()
