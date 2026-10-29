@@ -64,6 +64,9 @@ var _talk_left := 0.0
 var _lids: Node3D
 var _blink_t := 3.0
 var _torso_node: Node3D
+var _partner: Node3D = null    # someone nearby they're chatting with
+var _social_t := 0.0
+var _gesture_t := 0.0
 var gender := "m"
 var voice := ""
 var _head: Node3D
@@ -165,7 +168,7 @@ func _build(look: Dictionary) -> void:
 	_face_m = MeshKit.shader_mat("res://assets/shaders/face.gdshader", {"skin": skin, "brow_color": hair_c.darkened(0.2),
 		"lip_color": lip_c, "stubble": 0.0 if fem else _rng.randf_range(0.0, 0.8), "blush": 0.45 if fem else 0.22})
 	_part(_head, "head_" + g, _face_m)
-	var white_m := MeshKit.color_mat(Color(0.95, 0.94, 0.9), 0.25)
+	var white_m := MeshKit.color_mat(Color(0.86, 0.83, 0.78), 0.3)
 	var iris_m := MeshKit.color_mat([Color(0.25, 0.42, 0.62), Color(0.32, 0.2, 0.1), Color(0.3, 0.46, 0.3), Color(0.16, 0.1, 0.07)][_rng.randi() % 4], 0.15)
 	var pupil_m := MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.1)
 	for side in [-1, 1]:
@@ -281,14 +284,18 @@ func _solve_joints(delta: float) -> void:
 	_lids.position.y = 0.011 if _blink_t < 0.12 else 0.0215
 	# breathing
 	_body.scale.x = _body.scale.y * (1.0 + sin(_anim_t * 1.6) * 0.006)
+	_social(delta)
 	# glance at the bartender when they're close and this person is at the bar or chatting
 	var pl: Node3D = world.get("player") if world else null
-	if pl and state in ["wait_order", "wait_drink", "mingle", "drinking", "stand_drink"]:
-		var to_p: Vector3 = pl.global_position - global_position
-		if to_p.length() < 3.0:
-			var local := global_transform.basis.inverse() * to_p
-			var want := clampf(atan2(-local.x, -local.z), -0.9, 0.9)
-			_head.rotation.y = lerp_angle(_head.rotation.y, want, minf(1.0, delta * 4.0))
+	var look_at_node: Node3D = null
+	if pl and state in ["wait_order", "wait_drink", "mingle", "drinking", "stand_drink"] and pl.global_position.distance_to(global_position) < 3.0:
+		look_at_node = pl
+	elif _partner and is_instance_valid(_partner):
+		look_at_node = _partner
+	if look_at_node:
+		var local := global_transform.basis.inverse() * (look_at_node.global_position - global_position)
+		var want := clampf(atan2(-local.x, -local.z), -0.9, 0.9)
+		_head.rotation.y = lerp_angle(_head.rotation.y, want, minf(1.0, delta * 4.0))
 	if _talk_left > 0.0:
 		_talk_left -= delta
 		_mouth_open = absf(sin(_anim_t * 17.0)) * 0.6 + absf(sin(_anim_t * 7.3)) * 0.4
@@ -780,6 +787,40 @@ func _apply_reaction(delta: float) -> void:
 		_arms[0].rotation = Vector3.ZERO
 		if _sip_phase <= 0.0:
 			_arms[1].rotation = Vector3(-0.5, 0, 0) if (glass and glass.get_parent() == _right_hand) else Vector3.ZERO
+
+
+## People sitting or standing near each other fall into conversation: they turn to each other,
+## talk (mouths moving, no audio), gesture with the free hand and now and then laugh.
+func _social(delta: float) -> void:
+	if not state in ["mingle", "drinking", "stand_drink", "idle"] or world == null:
+		_partner = null
+		return
+	_social_t -= delta
+	if _social_t <= 0.0:
+		_social_t = _rng.randf_range(4.0, 9.0)
+		_partner = null
+		var crowd: Variant = world.get("customers")
+		if crowd is Array:
+			var best := 1.8
+			for o in crowd:
+				if o == self or not is_instance_valid(o):
+					continue
+				var d: float = o.global_position.distance_to(global_position)
+				if d < best:
+					best = d
+					_partner = o
+		if _partner and _rng.randf() < 0.55:
+			talk_for(_rng.randf_range(1.5, 3.5))
+			_gesture_t = _rng.randf_range(1.2, 2.5)
+		elif _partner and _rng.randf() < 0.2:
+			laugh()
+	if _gesture_t > 0.0 and _react_anim <= 0.0 and _sip_phase <= 0.0:
+		_gesture_t -= delta
+		var k := sin(_anim_t * 5.0)
+		_arms[0].rotation.x = lerpf(_arms[0].rotation.x, -0.55 + k * 0.18, minf(1.0, delta * 6.0))
+		_arms[0].rotation.z = lerpf(_arms[0].rotation.z, -0.15, minf(1.0, delta * 6.0))
+		if _gesture_t <= 0.0:
+			_arms[0].rotation = Vector3.ZERO
 
 
 ## A plain wooden stool for a musician playing away from the seats.
