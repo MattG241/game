@@ -56,6 +56,18 @@ func _ready() -> void:
 				w.live.event_id = "old_country_jig" if v == "band" else "fiddles_fire"
 				w.live.finished_tonight = false
 				w.live._start(GameData.events_by_id[w.live.event_id])
+				if v == "fiddler":
+					# someone in each fireside armchair, as on a busy night
+					for ai in w.info["seats"].size():
+						if w.info["seats"][ai]["kind"] == "armchair" and not w.seats_taken.has(ai):
+							var fc := w.spawn_customer()
+							w.seats_taken[ai] = fc
+							fc.seat = ai
+							fc._seat_yaw = w.info["seats"][ai]["yaw"]
+							fc.global_position = w.info["seats"][ai]["pos"]
+							fc._path = PackedVector3Array()
+							fc._after_path = "mingle"
+							fc.state = "walk"
 				await _wait(3.0)
 				if v == "band":
 					w.live._gather_audience("dance", 6)

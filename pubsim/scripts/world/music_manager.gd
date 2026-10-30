@@ -293,7 +293,8 @@ func _update_spatial() -> void:
 
 # ------------------------------------------------------------------ musicians & crowd
 ## Beside the hearth (not in front of it), so the fire still shows from the room.
-const FIRESIDE_SPOT := Vector3(-5.15, 0, 2.2)    # on the hearth rug, between (not in front of) the armchairs
+const FIRESIDE_SPOT := Vector3(-4.6, 0, 2.2)    # at the front of the hearth rug: the armchairs face each other
+# across the hearth, so the fiddler sits out beyond their sitters' feet and the sweep of his bow
 
 
 func performance_centre(ev: Dictionary) -> Vector3:
@@ -328,7 +329,7 @@ func _spawn_musicians(ev: Dictionary) -> void:
 				p = _centre + Vector3(spread * 0.5, 0.22, spread)
 			else:
 				# a shallow arc on the hearth rug facing the room, clear of the armchairs and table one
-				p = FIRESIDE_SPOT + Vector3(absf(spread) * 0.2, 0, spread * 0.7)
+				p = FIRESIDE_SPOT + Vector3(-absf(spread) * 0.25, 0, spread * 0.7)
 			var to := Vector3(1.5, 0, 1.5) - p if where == "stage" else Vector3(-2.0, 0, 2.2) - p
 			spots.append({"pos": p, "yaw": atan2(-to.x, -to.z), "seat": -1})
 	for i in players.size():

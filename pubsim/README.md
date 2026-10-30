@@ -260,8 +260,8 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
     side, CLOSED on the other. Opening up turns it round so the street reads OPEN (you see CLOSED
     from inside), and closing turns it back. The door swings away from whoever walks through it:
     inwards for people arriving, out to the street for people leaving.
-  - **Music nights:** the fireside fiddler plays on the hearth rug between the armchairs, not in
-    someone's lap. Dancers keep about a metre apart and out of the chairs, a clear metre off the
+  - **Music nights:** the fireside fiddler plays at the front of the hearth rug, out beyond the
+    feet of whoever is in the armchairs and the sweep of his bow. Dancers keep about a metre apart and out of the chairs, a clear metre off the
     stage, with their arms in: the pint held at the chest, the free fist pumping on the beat. A
     sing-along or a cheer raises the pint in a toast in front of the face, never over the head.
   - **Sitting down:** people always finish on their chair; if a walk ends short they walk the rest

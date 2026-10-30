@@ -1815,8 +1815,11 @@ func _test_fixes() -> void:
 	# the fireside fiddler plays on the hearth rug, clear of both armchairs
 	var arm_clear := true
 	for sd2 in w.info["seats"]:
-		if sd2["kind"] == "armchair" and (sd2["pos"] as Vector3).distance_to(w.live.FIRESIDE_SPOT) < 1.2:
-			arm_clear = false
+		if sd2["kind"] == "armchair":
+			# the sitter's feet reach about 0.65 m out the way the chair faces
+			var feet: Vector3 = (sd2["pos"] as Vector3) + Basis(Vector3.UP, float(sd2["yaw"])) * Vector3(0, 0, -0.65)
+			if (sd2["pos"] as Vector3).distance_to(w.live.FIRESIDE_SPOT) < 1.4 or feet.distance_to(w.live.FIRESIDE_SPOT) < 1.0:
+				arm_clear = false
 	check(arm_clear, "the fireside musician's stool is clear of the armchairs")
 	# dancers keep their distance from each other and the furniture, pints held below the head
 	GameState.phase = "open"
