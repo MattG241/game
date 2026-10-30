@@ -214,14 +214,20 @@ func _ready() -> void:
 				w.player.camera.current = true
 				await _wait(2.0)
 				await _shot(v)
-			"doorsign", "doorflip", "doorout":
+			"doorsign", "doorflip", "doorout", "doorclosed", "doorin", "doorleave":
 				for cc in w.customers.duplicate():
 					cc.queue_free()
 				w.customers.clear()
 				if w._cam_tween:
 					w._cam_tween.kill()
 				cam.fov = 50.0
-				if v == "doorout":
+				if v == "doorclosed":
+					w._set_sign(false)
+				if v == "doorin" or v == "doorleave":
+					var dc := w.spawn_customer()
+					dc.global_position = PubLayout.DOOR_POS + Vector3(0.1, 0, 0.6 if v == "doorin" else -0.6)
+					dc.state = "idle"
+				if v == "doorout" or v == "doorclosed" or v == "doorleave":
 					cam.global_transform = Transform3D(Basis(), Vector3(0.4, 1.6, 7.2)).looking_at(Vector3(0.0, 1.4, 5.0), Vector3.UP)
 				else:
 					cam.global_transform = Transform3D(Basis(), Vector3(0.5, 1.6, 3.3)).looking_at(Vector3(0.0, 1.45, 4.9), Vector3.UP)

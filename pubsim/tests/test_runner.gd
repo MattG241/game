@@ -1630,8 +1630,15 @@ func _test_fixes() -> void:
 	GameState.phase = "prep"
 	w._set_sign(false)
 	w._sign_action()
-	await _frames(80)
-	check((w.info["door_sign_labels"][0] as Label3D).text == "OPEN" and (w.info["door_sign"] as Node3D).get_parent().get_parent() == w.info["door"], "the sign in the door glass flips to OPEN")
+	await _frames(30)
+	check(not w.sign_shows_open(), "the sign is turned round over a moment, not snapped")
+	await _frames(150)
+	var sign_labels: Array = w.info["door_sign_labels"]
+	check(sign_labels.size() == 2 and (sign_labels[0] as Label3D).text == "OPEN" and (sign_labels[1] as Label3D).text == "CLOSED", "the door sign has an OPEN face and a CLOSED face")
+	check(w.sign_shows_open() and (w.info["door_sign"] as Node3D).get_parent().get_parent() == w.info["door"], "the sign in the door glass turns round to show OPEN to the street")
+	w._set_sign(false)
+	check(not w.sign_shows_open(), "turned back, the street sees CLOSED")
+	w._set_sign(true)
 	var bump := w.spawn_customer()
 	await _frames(2)
 	check((w.player.collision_mask & 4) != 0 and bump._collider != null and (bump._collider.collision_layer & 4) != 0, "people are solid: the player can't walk through them")
@@ -1751,11 +1758,24 @@ func _test_fixes() -> void:
 		spots_seen[sp] = true
 	check(stand_ok, "standing customers each have their own place, off the darts lane")
 	GameState.phase = "open"
+	for cc in w.customers.duplicate():
+		cc.queue_free()
+	w.customers.clear()
+	w.player.global_position = PubLayout.PLAYER_START
+	for sn in w.staff_npcs:
+		(sn as Node3D).global_position = PubLayout.PLAYER_START + Vector3(1, 0, 0)
+	await _frames(150)
 	var dcust := w.spawn_customer()
-	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -0.6)
+	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, 0.6)
 	dcust.state = "idle"
 	await _frames(40)
-	check((w.info["door"] as Node3D).rotation.y > 0.3, "the door swings inwards, not out into the street")
+	check((w.info["door"] as Node3D).rotation.y > 0.3, "the door swings inwards for someone coming in off the street")
+	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -4.0)
+	await _frames(150)
+	check(absf((w.info["door"] as Node3D).rotation.y) < 0.05, "the door swings shut behind them")
+	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -0.6)
+	await _frames(40)
+	check((w.info["door"] as Node3D).rotation.y < -0.3, "the door swings out to the street for someone leaving")
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

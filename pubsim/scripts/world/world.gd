@@ -51,6 +51,7 @@ var _autosave_t := 0.0
 var _first_customer_timer := -1.0
 var _day_summary_pending := false
 var _door_anim := 0.0
+var _door_swing := 1.3       # +: into the pub (someone coming in); -: out to the street (someone leaving)
 var _church_rung := -1
 var _fire_audio: AudioStreamPlayer3D
 var _nav_ready := false
@@ -525,28 +526,34 @@ func _lockin() -> void:
 	GameState.stats["lockins"] = int(GameState.stats.get("lockins", 0)) + 1
 
 
+## Turns the sign so the street reads OPEN or CLOSED (from inside you see the other face, as in
+## any pub). The board turns over on its cords with a lift, a swing and a clack against the glass.
 func _set_sign(open: bool, animate := false) -> void:
 	var flip: Node3D = info.get("door_sign")
-	var labels: Array = info.get("door_sign_labels", [])
-	var apply := func():
-		for l in labels:
-			(l as Label3D).text = "OPEN" if open else "CLOSED"
-			(l as Label3D).modulate = Color(0.45, 0.95, 0.55) if open else Color(0.92, 0.3, 0.2)
-	if flip == null or not animate:
-		apply.call()
+	if flip == null:
 		return
-	# lift it a touch, turn the board over on its cords (the word changes as it goes edge-on),
-	# let it settle with a little swing, and give it a clack against the glass
+	# the OPEN face is the board's +Z side, and the street is +Z of the door
+	var want := 0.0 if open else PI
+	var now := fposmod(flip.rotation.y, TAU)
+	if absf(angle_difference(now, want)) < 0.01:
+		return
+	if not animate:
+		flip.rotation.y = want
+		return
 	var y0 := flip.rotation.y
 	var tw := create_tween()
 	tw.tween_property(flip, "position:y", flip.position.y + 0.02, 0.12)
-	tw.tween_property(flip, "rotation:y", y0 + PI * 0.5, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tw.tween_callback(apply)
-	tw.tween_property(flip, "rotation:y", y0 + PI, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(flip, "position:y", flip.position.y, 0.3).set_delay(0.2)
+	tw.tween_property(flip, "rotation:y", y0 + PI, 0.8).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(flip, "position:y", flip.position.y, 0.3).set_delay(0.5)
 	tw.tween_callback(func(): Sfx.play_at("clink", flip.global_position, self, -14.0))
 	tw.tween_property(flip, "rotation:x", 0.12, 0.18).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(flip, "rotation:x", 0.0, 1.0).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## Whether the street is reading OPEN.
+func sign_shows_open() -> bool:
+	var flip: Node3D = info.get("door_sign")
+	return flip != null and absf(angle_difference(fposmod(flip.rotation.y, TAU), 0.0)) < 0.3
 
 
 const LINE_CLEAN_POS := Vector3(-5.6, 1.0, -6.0)
@@ -1807,20 +1814,23 @@ func _update_door(delta: float) -> void:
 	var door: Node3D = info.get("door")
 	if door == null:
 		return
-	# the door swings open for whoever is actually at it (inside or out), and closes behind them
+	# the door swings open for whoever is actually at it, away from them (inwards for someone coming
+	# in, out into the street for someone leaving), and closes behind them
 	var near := false
 	var d0 := PubLayout.DOOR_POS
 	for n in customers + staff_npcs + [player]:
 		var p: Vector3 = (n as Node3D).global_position
 		if absf(p.x - d0.x) < 0.9 and absf(p.z - d0.z) < 1.3:
+			if not near and _door_anim <= 0.0 and absf(door.rotation.y) < 0.15:
+				# whoever reaches it first decides which way it goes until it has swung shut again
+				_door_swing = 1.3 if p.z > d0.z else -1.3
 			near = true
-			break
 	if near:
 		if _door_anim <= 0.0:
 			Sfx.play_at("door_bell", d0 + Vector3(0, 2.0, 0), self, -8.0)   # the bell over the door
 		_door_anim = 0.8
 	_door_anim = maxf(0.0, _door_anim - delta)
-	var target := 1.3 if _door_anim > 0.0 else 0.0      # it swings inwards, into the pub
+	var target := _door_swing if _door_anim > 0.0 else 0.0
 	door.rotation.y = lerp(door.rotation.y, target, minf(1.0, delta * 4.0))
 
 

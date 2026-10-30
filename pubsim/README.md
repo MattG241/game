@@ -256,8 +256,10 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   anywhere on the list, with a little momentum, and a drag never presses a button.
 - **The physical world, from play notes and a second audit:**
   - **The pint:** the GALAGERS print faces you while you pour.
-  - **The door:** a glazed front door with the OPEN/CLOSED sign hanging inside the glass, flipped
-    over with a swing when you open and close. It swings inwards for whoever is actually at it.
+  - **The door:** a glazed front door with a two-faced sign hanging inside the glass: OPEN on one
+    side, CLOSED on the other. Opening up turns it round so the street reads OPEN (you see CLOSED
+    from inside), and closing turns it back. The door swings away from whoever walks through it:
+    inwards for people arriving, out to the street for people leaving.
   - **Moving around:** people are solid and step round you, and staff go round the end of the bar,
     never through the counter. Bartenders step aside and wait while you use a tap, keep out of the
     pour camera's view and each have their own spot.

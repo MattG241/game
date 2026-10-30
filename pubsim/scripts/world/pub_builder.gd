@@ -811,7 +811,7 @@ func _front_wall() -> void:
 		if span[0] != -door_w / 2.0:
 			MeshKit.solid_box(g, Vector3(w, 0.9, 0.25), Vector3(cx, 0.45, z), MeshKit.mat("oak"))
 			_window(g, Vector3(cx, 1.65, z), Vector2(w, 1.5))
-	# door (opens inward; animated by the world)
+	# door (swings away from whoever walks through it; animated by the world)
 	var door_pivot := Node3D.new()
 	door_pivot.position = Vector3(-door_w / 2.0 + 0.02, 0, z - 0.05)
 	g.add_child(door_pivot)
@@ -861,11 +861,15 @@ func _front_wall() -> void:
 		MeshKit.cyl(hook, 0.0025, 0.0025, 0.28, Vector3(sx * 0.6, -0.14, -0.01), MeshKit.color_mat(Color(0.75, 0.62, 0.35), 0.8), 4, Vector3(0, 0, sx * 1.0))
 	MeshKit.box(flip, Vector3(0.42, 0.2, 0.012), Vector3.ZERO, MeshKit.color_mat(Color(0.08, 0.07, 0.06), 0.5))
 	MeshKit.box(flip, Vector3(0.44, 0.22, 0.008), Vector3.ZERO, MeshKit.mat("brass_dull"))
+	# OPEN on one face, CLOSED on the other; the board is turned so the street reads the pub's state
 	var labels := []
-	for side in [-1, 1]:
-		var lbl := MeshKit.label(flip, "CLOSED", Vector3(0, 0, side * 0.0075), 52, Color(0.92, 0.3, 0.2), Vector3(0, 0.0 if side == 1 else PI, 0), _title_font)
+	for side in [1, -1]:
+		var open_face: bool = side == 1
+		var lbl := MeshKit.label(flip, "OPEN" if open_face else "CLOSED", Vector3(0, 0, side * 0.0075), 52,
+			Color(0.45, 0.95, 0.55) if open_face else Color(0.92, 0.3, 0.2), Vector3(0, 0.0 if side == 1 else PI, 0), _title_font)
 		lbl.pixel_size = 0.0019
 		labels.append(lbl)
+	flip.rotation.y = PI      # starts the day CLOSED to the street
 	info["door_sign"] = flip
 	info["door_sign_labels"] = labels
 	# coat hooks
