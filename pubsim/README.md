@@ -172,6 +172,13 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   two 90+ pints, nobody walks out...). Good pints in a row build a streak that adds up to +30% on
   tips. The end-of-day summary shows the goals and looks ahead: what you can afford, who you could
   hire, and what's running low.
+- **A clean, modern HUD**: smoked-glass panels with hairline edges in place of the timber boxes.
+  - Cash sits over a single line of day, time, weather and state. Cleanliness only shows when the pub needs a tidy.
+  - The next step is one centred pill.
+  - Orders appear only when someone is waiting, as slim rows with a patience line.
+  - Today's goals fold into a "Goals 1/3" chip that opens briefly when one is met.
+  - The action button alone names the action; the centre text only shows "can't yet" hints.
+  - The pour screen matches.
 - **Tutorial fixes**: last night's empty glasses no longer skip the tutorial ahead. Tips sit low in
   the middle of the screen, clear of the status panel. The sink prompt no longer says "hold".
 

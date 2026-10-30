@@ -72,9 +72,9 @@ func _draw() -> void:
 	var font := MeshKit.font_ui(800)
 	var track := Rect2(Vector2(size.x / 2.0 - 22, 40), Vector2(44, size.y - 80))
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.03, 0.02, 0.85)
-	sb.border_color = Color(0.6, 0.45, 0.2)
-	sb.set_border_width_all(2)
+	sb.bg_color = Color(0.05, 0.045, 0.04, 0.6)
+	sb.border_color = Color(1, 1, 1, 0.14)
+	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(22)
 	draw_style_box(sb, track)
 	if target_band.x >= 0.0:
@@ -91,10 +91,10 @@ func _draw() -> void:
 	var kb := StyleBoxFlat.new()
 	kb.bg_color = accent if _touch >= 0 else accent.darkened(0.2)
 	kb.set_corner_radius_all(18)
-	kb.border_color = Color(0.2, 0.12, 0.05)
-	kb.set_border_width_all(3)
+	kb.shadow_color = Color(0, 0, 0, 0.3)
+	kb.shadow_size = 8
 	draw_style_box(kb, knob)
-	draw_string(font, Vector2(0, 28), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, UITheme.CREAM)
+	draw_string(font, Vector2(0, 28), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(1, 0.97, 0.9, 0.8))
 	if readout != "":
 		draw_string(font, Vector2(knob.position.x, fy + 9), readout, HORIZONTAL_ALIGNMENT_CENTER, knob.size.x, 22, Color(0.1, 0.06, 0.03))
 

@@ -61,9 +61,13 @@ var _order_t := 0.0
 var _subtitle_t := 0.0
 var _tip_t := 0.0
 var goal_card: PanelContainer
+var goal_chip: TouchButton
+var next_pill: PanelContainer
 var next_label: Label
 var goals_box: VBoxContainer
 var _goals_t := 0.0
+var _goals_open_t := 10.0        # the goal list shows for a while at the start of the day
+var _goals_done := -1
 
 
 func _ready() -> void:
@@ -122,124 +126,145 @@ func apply_settings() -> void:
 		fps_label.visible = bool(GameState.settings.get("show_fps", false))
 	var contrast := bool(GameState.settings.get("high_contrast", false))
 	if prompt_label:
-		prompt_label.add_theme_constant_override("outline_size", 12 if contrast else 6)
+		prompt_label.add_theme_constant_override("outline_size", 8 if contrast else 0)
 
 
 func _build_status() -> void:
+	# top left: cash, then day, time, weather and state in one quiet line
 	var status := PanelContainer.new()
-	status.add_theme_stylebox_override("panel", UITheme.tex_box("panel_timber", Color(1, 1, 1, 0.92)))
+	status.add_theme_stylebox_override("panel", UITheme.glass_box(0.62, 14, Color(0, 0, 0, 0), 16, 8))
+	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	status.position = Vector2(0, 0)
 	frame.add_child(status)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 0)
+	vb.add_theme_constant_override("separation", -2)
 	status.add_child(vb)
-	cash_label = UITheme.label("€0.00", 36, UITheme.GOLD)
+	cash_label = UITheme.hud_label("€0.00", 30, UITheme.GOLD, 800)
 	vb.add_child(cash_label)
-	time_label = UITheme.label("", 22)
+	time_label = UITheme.hud_label("", 17, Color(1, 0.97, 0.9, 0.85))
 	vb.add_child(time_label)
-	rep_label = UITheme.label("", 20, UITheme.MUTED)
+	rep_label = UITheme.hud_label("", 16, Color(1.0, 0.72, 0.4))    # only shown when something needs attention
+	rep_label.visible = false
 	vb.add_child(rep_label)
 	orders_box = VBoxContainer.new()
-	orders_box.position = Vector2(0, 150)
+	orders_box.position = Vector2(0, 104)
 	orders_box.add_theme_constant_override("separation", 6)
+	orders_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_child(orders_box)
+	# top right: fast-forward and menu
 	menu_btn = TouchButton.new("Menu")
-	_place(menu_btn, Control.PRESET_TOP_RIGHT, Vector2(-150, 0), Vector2(150, 76))
+	menu_btn.style = "glass"
+	menu_btn.font_size = 21
+	_place(menu_btn, Control.PRESET_TOP_RIGHT, Vector2(-112, 0), Vector2(112, 54))
 	menu_btn.pressed.connect(func(): open_menu("upgrades"))
 	frame.add_child(menu_btn)
-	ff_btn = TouchButton.new(">>", Color(0.2, 0.15, 0.1, 0.9))
-	_place(ff_btn, Control.PRESET_TOP_RIGHT, Vector2(-260, 0), Vector2(96, 76))
-	ff_btn.font_size = 30
+	ff_btn = TouchButton.new(">>")
+	ff_btn.style = "glass"
+	ff_btn.font_size = 22
+	_place(ff_btn, Control.PRESET_TOP_RIGHT, Vector2(-190, 0), Vector2(68, 54))
 	ff_btn.pressed.connect(func(): world.set_fast_forward(not world.fast_forward))
 	frame.add_child(ff_btn)
-	# what to do next, and today's goals
+	# top centre: the one thing to do next
+	next_pill = PanelContainer.new()
+	next_pill.add_theme_stylebox_override("panel", UITheme.glass_box(0.62, 14, UITheme.GOLD, 16, 7))
+	next_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(next_pill, Control.PRESET_CENTER_TOP, Vector2(-140, 0), Vector2(280, 10))
+	next_pill.grow_horizontal = Control.GROW_DIRECTION_BOTH     # sized to the text, kept centred
+	frame.add_child(next_pill)
+	var nv := VBoxContainer.new()
+	nv.add_theme_constant_override("separation", -3)
+	next_pill.add_child(nv)
+	nv.add_child(UITheme.hud_label("NEXT", 13, UITheme.GOLD, 800))
+	next_label = UITheme.hud_label("", 20)
+	nv.add_child(next_label)
+	# goals: a small chip that opens the list (it also opens by itself when one is met)
+	goal_chip = TouchButton.new("Goals 0/3")
+	goal_chip.style = "glass"
+	goal_chip.font_size = 18
+	_place(goal_chip, Control.PRESET_TOP_RIGHT, Vector2(-190, 62), Vector2(190, 44))
+	goal_chip.pressed.connect(func(): _goals_open_t = 0.0 if _goals_open_t > 0.0 else 9999.0)
+	frame.add_child(goal_chip)
 	goal_card = PanelContainer.new()
-	goal_card.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.08, 0.06, 0.04, 0.82), Color(0.75, 0.6, 0.3), 12, 2))
+	goal_card.add_theme_stylebox_override("panel", UITheme.glass_box(0.62, 14, Color(0, 0, 0, 0), 14, 8))
 	goal_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(goal_card, Control.PRESET_TOP_RIGHT, Vector2(-420, 86), Vector2(420, 10))
-	goal_card.custom_minimum_size = Vector2(420, 0)
+	_place(goal_card, Control.PRESET_TOP_RIGHT, Vector2(-360, 114), Vector2(360, 10))
+	goal_card.custom_minimum_size = Vector2(360, 0)
 	frame.add_child(goal_card)
-	var gv := VBoxContainer.new()
-	gv.add_theme_constant_override("separation", 2)
-	goal_card.add_child(gv)
-	next_label = UITheme.label("", 22, UITheme.GOLD)
-	next_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	next_label.custom_minimum_size = Vector2(390, 0)
-	gv.add_child(next_label)
 	goals_box = VBoxContainer.new()
-	goals_box.add_theme_constant_override("separation", 0)
-	gv.add_child(goals_box)
-	fps_label = UITheme.label("", 18, Color(0.6, 1, 0.6))
-	_place(fps_label, Control.PRESET_TOP_RIGHT, Vector2(-520, 84), Vector2(520, 30))
-	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	goals_box.add_theme_constant_override("separation", 2)
+	goal_card.add_child(goals_box)
+	fps_label = UITheme.hud_label("", 16, Color(0.6, 1, 0.6))
+	_place(fps_label, Control.PRESET_BOTTOM_LEFT, Vector2(0, -24), Vector2(520, 24))
 	frame.add_child(fps_label)
-
 
 func _build_actions() -> void:
 	crosshair = Control.new()
 	crosshair.set_anchors_preset(Control.PRESET_CENTER)
 	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	crosshair.draw.connect(func(): crosshair.draw_circle(Vector2.ZERO, 4, Color(1, 0.95, 0.8, 0.8)))
+	crosshair.draw.connect(func(): crosshair.draw_circle(Vector2.ZERO, 3, Color(1, 1, 1, 0.7)))
 	frame.add_child(crosshair)
-	prompt_label = UITheme.label("", 28)
-	_place(prompt_label, Control.PRESET_CENTER, Vector2(-380, 34), Vector2(760, 40))
+	prompt_label = UITheme.hud_label("", 19, Color(1, 0.97, 0.9, 0.8))
+	_place(prompt_label, Control.PRESET_CENTER, Vector2(-380, 26), Vector2(760, 30))
 	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	frame.add_child(prompt_label)
-	held_label = UITheme.label("", 20, UITheme.MUTED)
-	_place(held_label, Control.PRESET_BOTTOM_RIGHT, Vector2(-500, -300), Vector2(500, 30))
+	held_label = UITheme.hud_label("", 16, Color(1, 0.97, 0.9, 0.65))
+	_place(held_label, Control.PRESET_BOTTOM_RIGHT, Vector2(-500, -232), Vector2(500, 24))
 	held_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	frame.add_child(held_label)
-	ctx_btn = TouchButton.new("")
-	_place(ctx_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-250, -140), Vector2(250, 140))
-	ctx_btn.font_size = 26
+	ctx_btn = TouchButton.new("", Color(0.12, 0.45, 0.29, 0.94))
+	ctx_btn.style = "accent"
+	_place(ctx_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-230, -116), Vector2(230, 116))
+	ctx_btn.font_size = 23
 	ctx_btn.pressed.connect(_on_ctx_pressed)
 	ctx_btn.held_complete.connect(_on_ctx_held)
 	frame.add_child(ctx_btn)
-	alt_btn = TouchButton.new("", Color(0.3, 0.18, 0.08, 0.92))
-	_place(alt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-250, -236), Vector2(250, 84))
-	alt_btn.font_size = 22
+	alt_btn = TouchButton.new("")
+	alt_btn.style = "glass"
+	_place(alt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-230, -196), Vector2(230, 70))
+	alt_btn.font_size = 19
 	alt_btn.pressed.connect(func():
 		if world.player.focus:
 			world.player.focus.activate_alt())
 	frame.add_child(alt_btn)
 	toast_box = VBoxContainer.new()
-	_place(toast_box, Control.PRESET_CENTER_TOP, Vector2(-330, 92), Vector2(660, 10))
+	_place(toast_box, Control.PRESET_CENTER_TOP, Vector2(-260, 76), Vector2(520, 10))
+	toast_box.add_theme_constant_override("separation", 6)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_child(toast_box)
 	tip_panel = PanelContainer.new()
-	tip_panel.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.06, 0.2, 0.12, 0.9), UITheme.GOLD, 16, 2))
+	tip_panel.add_theme_stylebox_override("panel", UITheme.glass_box(0.7, 14, UITheme.GOLD, 16, 10))
 	# tutorial tips sit low in the middle, clear of the status, the goals and the buttons
-	_place(tip_panel, Control.PRESET_CENTER_BOTTOM, Vector2(-300, -170), Vector2(600, 60))
+	_place(tip_panel, Control.PRESET_CENTER_BOTTOM, Vector2(-290, -150), Vector2(580, 60))
 	tip_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	tip_panel.custom_minimum_size = Vector2(600, 0)
+	tip_panel.custom_minimum_size = Vector2(580, 0)
 	tip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tip_panel.visible = false
 	frame.add_child(tip_panel)
 	var tip_row := HBoxContainer.new()
-	tip_row.add_theme_constant_override("separation", 10)
+	tip_row.add_theme_constant_override("separation", 12)
 	tip_panel.add_child(tip_row)
-	tip_label = UITheme.label("", 22)
+	tip_label = UITheme.hud_label("", 19)
 	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip_label.custom_minimum_size = Vector2(500, 0)
+	tip_label.custom_minimum_size = Vector2(480, 0)
 	tip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tip_row.add_child(tip_label)
-	tip_close = TouchButton.new("×", Color(0.3, 0.12, 0.08, 0.9))
-	tip_close.custom_minimum_size = Vector2(54, 54)
-	tip_close.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	tip_close = TouchButton.new("×")
+	tip_close.style = "glass"
+	tip_close.custom_minimum_size = Vector2(44, 44)
+	tip_close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tip_close.round_btn = true
-	tip_close.font_size = 30
+	tip_close.font_size = 24
 	tip_close.visible = false
 	tip_close.pressed.connect(func():
 		tip_label.text = ""
 		tip_panel.visible = false
 		tip_close.visible = false)
 	tip_row.add_child(tip_close)
-	subtitle_label = UITheme.label("", 24)
-	_place(subtitle_label, Control.PRESET_CENTER_BOTTOM, Vector2(-310, -96), Vector2(620, 70))
+	subtitle_label = UITheme.hud_label("", 21)
+	_place(subtitle_label, Control.PRESET_CENTER_BOTTOM, Vector2(-310, -84), Vector2(620, 64))
 	subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	frame.add_child(subtitle_label)
-
 
 func _build_pour_ui() -> void:
 	pour_root = Control.new()
@@ -267,22 +292,26 @@ func _build_pour_ui() -> void:
 	gauge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gauge.draw.connect(_draw_gauge)
 	pour_root.add_child(gauge)
-	pour_status = UITheme.label("", 26)
+	pour_status = UITheme.hud_label("", 22)
 	_place(pour_status, Control.PRESET_CENTER_TOP, Vector2(-380, 8), Vector2(760, 70))
 	pour_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pour_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	pour_root.add_child(pour_status)
-	pour_feedback = UITheme.label("", 24, UITheme.GOLD)
+	pour_feedback = UITheme.hud_label("", 20, UITheme.GOLD)
 	_place(pour_feedback, Control.PRESET_CENTER_TOP, Vector2(-350, 84), Vector2(700, 70))
 	pour_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pour_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	pour_root.add_child(pour_feedback)
-	settle_btn = TouchButton.new("Leave to settle")
-	_place(settle_btn, Control.PRESET_CENTER_BOTTOM, Vector2(-262, -92), Vector2(250, 84))
+	settle_btn = TouchButton.new("Leave to settle", Color(0.12, 0.45, 0.29, 0.94))
+	settle_btn.style = "accent"
+	settle_btn.font_size = 21
+	_place(settle_btn, Control.PRESET_CENTER_BOTTOM, Vector2(-242, -80), Vector2(230, 72))
 	settle_btn.pressed.connect(func(): if pour_ctrl: pour_ctrl.end(true))
 	pour_root.add_child(settle_btn)
-	done_btn = TouchButton.new("Lower glass", Color(0.3, 0.18, 0.08, 0.92))
-	_place(done_btn, Control.PRESET_CENTER_BOTTOM, Vector2(12, -92), Vector2(250, 84))
+	done_btn = TouchButton.new("Lower glass")
+	done_btn.style = "glass"
+	done_btn.font_size = 21
+	_place(done_btn, Control.PRESET_CENTER_BOTTOM, Vector2(12, -80), Vector2(230, 72))
 	done_btn.pressed.connect(func(): if pour_ctrl: pour_ctrl.end(false))
 	pour_root.add_child(done_btn)
 
@@ -316,20 +345,20 @@ func _draw_gauge() -> void:
 
 func _build_overlays() -> void:
 	result_card = PanelContainer.new()
-	result_card.add_theme_stylebox_override("panel", UITheme.tex_box("panel_timber", Color.WHITE, 22, 16))
-	_place(result_card, Control.PRESET_CENTER, Vector2(-260, -220), Vector2(520, 10))
+	result_card.add_theme_stylebox_override("panel", UITheme.glass_box(0.72, 18, Color(0, 0, 0, 0), 22, 14))
+	_place(result_card, Control.PRESET_CENTER, Vector2(-220, -210), Vector2(440, 10))
 	result_card.grow_vertical = Control.GROW_DIRECTION_BOTH
-	result_card.custom_minimum_size = Vector2(520, 0)
+	result_card.custom_minimum_size = Vector2(440, 0)
 	result_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	result_card.visible = false
 	frame.add_child(result_card)
 	result_label = RichTextLabel.new()
 	result_label.bbcode_enabled = true
 	result_label.fit_content = true
-	result_label.custom_minimum_size = Vector2(480, 0)
+	result_label.custom_minimum_size = Vector2(396, 0)
 	result_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	result_label.add_theme_font_size_override("normal_font_size", 24)
-	result_label.add_theme_font_size_override("bold_font_size", 34)
+	result_label.add_theme_font_size_override("normal_font_size", 20)
+	result_label.add_theme_font_size_override("bold_font_size", 30)
 	result_label.add_theme_font_override("normal_font", MeshKit.font_ui(700))
 	result_label.add_theme_font_override("bold_font", MeshKit.font_title())
 	result_card.add_child(result_label)
@@ -459,7 +488,7 @@ func dismiss_celebration() -> void:
 func _hide_gameplay(on: bool) -> void:
 	touch.reset()
 	touch.gameplay = not on
-	for n in [ctx_btn, alt_btn, crosshair, prompt_label, held_label, orders_box, menu_btn, ff_btn, tip_panel, tip_close]:
+	for n in [ctx_btn, alt_btn, crosshair, prompt_label, held_label, orders_box, menu_btn, ff_btn, tip_panel, tip_close, next_pill, goal_chip, goal_card]:
 		n.visible = not on
 	if not on:
 		tip_panel.visible = tip_label.text != ""
@@ -533,8 +562,13 @@ func _process(delta: float) -> void:
 	cash_label.text = "€%.2f" % gs.cash
 	var weather_txt: String = {"rain": "Rain", "storm": "Storm", "cloudy": "Cloudy", "clear": "Clear"}.get(gs.weather, "")
 	var phase_txt: String = {"prep": "Closed", "open": "Open", "last_orders": "Last orders", "closing": "Closing"}.get(gs.phase, "")
-	time_label.text = "%s · Day %d · %s · %s · %s" % [gs.weekday_name().substr(0, 3), gs.day, gs.clock_text(), weather_txt, phase_txt]
-	rep_label.text = "Reputation %d · Clean %d%% · Atmos %d" % [int(gs.reputation), int(world.cleanliness()), int(gs.atmosphere())]
+	time_label.text = "%s %s  ·  Day %d  ·  %s  ·  %s" % [gs.weekday_name().substr(0, 3), gs.clock_text(), gs.day, weather_txt, phase_txt]
+	# reputation, cleanliness and atmosphere live in the menu; only a problem earns a line here
+	var warn := ""
+	if world.cleanliness() < 70.0:
+		warn = "The pub needs a tidy (%d%% clean)" % int(world.cleanliness())
+	rep_label.text = warn
+	rep_label.visible = warn != ""
 	if fps_label.visible:
 		fps_label.text = "%d fps  %.1f ms  %d npc  %d draws  %d MB" % [Engine.get_frames_per_second(), 1000.0 / maxf(1.0, Engine.get_frames_per_second()),
 			world.customers.size(), Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
@@ -545,7 +579,8 @@ func _process(delta: float) -> void:
 		_update_context()
 	if pouring and pour_ctrl:
 		_update_pour_ui()
-	ff_btn.color = Color(0.6, 0.4, 0.1, 0.95) if world.fast_forward else Color(0.2, 0.15, 0.1, 0.9)
+	ff_btn.style = "accent" if world.fast_forward else "glass"
+	ff_btn.color = Color(0.72, 0.5, 0.16, 0.95)
 	ff_btn.enabled = world.can_fast_forward() or world.fast_forward
 	ff_btn.queue_redraw()
 	_order_t -= delta
@@ -562,12 +597,16 @@ func _process(delta: float) -> void:
 			subtitle_label.text = ""
 	if _tip_t > 0.0:
 		_tip_t -= delta
-	next_label.text = "Next: " + str(world._guide.get("text", "")) if world._guide.has("text") else ""
+	var playing := not pour_root.visible and not drink_root.visible and not darts_root.visible and not menu.visible
+	next_label.text = str(world._guide.get("text", ""))
+	next_pill.visible = playing and next_label.text != "" and bool(GameState.settings.get("show_guide", true))
 	_goals_t -= delta
 	if _goals_t <= 0.0:
 		_goals_t = 1.0
 		refresh_goals()
-	goal_card.visible = not pour_root.visible and not drink_root.visible and not darts_root.visible
+	_goals_open_t -= delta
+	goal_chip.visible = playing
+	goal_card.visible = playing and _goals_open_t > 0.0
 
 
 ## Today's goals with their progress (ticked off as they're met).
@@ -576,9 +615,15 @@ func refresh_goals() -> void:
 		return
 	var goals := GameState.daily_goals()
 	while goals_box.get_child_count() < goals.size() + 1:
-		goals_box.add_child(UITheme.label("", 18, UITheme.CREAM))
-	(goals_box.get_child(0) as Label).text = "Today's goals"
-	(goals_box.get_child(0) as Label).add_theme_color_override("font_color", UITheme.MUTED)
+		goals_box.add_child(UITheme.hud_label("", 17))
+	(goals_box.get_child(0) as Label).text = "TODAY'S GOALS"
+	(goals_box.get_child(0) as Label).add_theme_font_size_override("font_size", 13)
+	(goals_box.get_child(0) as Label).add_theme_color_override("font_color", UITheme.GOLD)
+	var done := goals.filter(func(g): return g["done"]).size()
+	goal_chip.set_label("Goals %d/%d" % [done, goals.size()])
+	if _goals_done >= 0 and done > _goals_done:
+		_goals_open_t = 8.0      # show the list for a moment when one is met
+	_goals_done = done
 	for i in goals.size():
 		var g: Dictionary = goals[i]
 		var l := goals_box.get_child(i + 1) as Label
@@ -591,8 +636,8 @@ func refresh_goals() -> void:
 			prog = "so far, so good" if GameState.goal_value(g) <= 0.0 else "missed"
 		else:
 			prog = "now %d" % int(GameState.goal_value(g)) if int(GameState.today["pours"]) > 0 else ""
-		l.text = "%s %s   %s" % ["+" if g["done"] else "-", g["text"], prog]
-		l.add_theme_color_override("font_color", Color(0.6, 0.95, 0.6) if g["done"] else (Color(1, 0.6, 0.5) if prog == "missed" else UITheme.CREAM))
+		l.text = "%s    %s" % [g["text"], prog]
+		l.add_theme_color_override("font_color", Color(0.62, 0.95, 0.62) if g["done"] else (Color(1, 0.62, 0.5) if prog == "missed" else Color(1, 0.97, 0.9, 0.9)))
 
 
 func _update_context() -> void:
@@ -604,8 +649,8 @@ func _update_context() -> void:
 		text = f.prompt()
 		enabled = not text.begins_with("~")
 		text = text.trim_prefix("~")
-	prompt_label.text = text
-	prompt_label.add_theme_color_override("font_color", UITheme.CREAM if enabled else UITheme.MUTED)
+	# the action button already says what it does; the centre line is only for "can't yet" hints
+	prompt_label.text = "" if enabled else text
 	ctx_btn.visible = f != null and enabled
 	if ctx_btn.visible:
 		ctx_btn.hold_seconds = f.hold_seconds
@@ -613,6 +658,7 @@ func _update_context() -> void:
 		if short.length() > 22:
 			short = _wrap(short, 20)
 		ctx_btn.set_label(short, "hold" if f.hold_seconds > 0.0 else "")
+		ctx_btn.queue_redraw()
 	var alt := f.alt_prompt() if f else ""
 	alt_btn.visible = alt != ""
 	if alt_btn.visible:
@@ -662,57 +708,51 @@ func refresh() -> void:
 func refresh_orders() -> void:
 	for ch in orders_box.get_children():
 		ch.queue_free()
-	var d := world.dispatcher
-	var caps: Array = d.caps()
+	var caps: Array = world.dispatcher.caps()
 	var active := world.active_orders()
 	var waiting: Array = []
 	for c in world.customers:
 		if c.state in ["wait_order", "wait_drink"]:
 			waiting.append(c)
+	if waiting.is_empty():
+		return      # nothing to show: the screen stays clear
 	# longest-waiting first: that's who to serve next
 	waiting.sort_custom(func(a, b): return a.patience_frac() < b.patience_frac())
-	if GameState.phase == "prep" and waiting.is_empty():
-		return
-	var head := PanelContainer.new()
-	head.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.08, 0.2, 0.12, 0.9), Color(0.75, 0.6, 0.3), 10, 2))
-	head.custom_minimum_size = Vector2(250, 0)
-	var hv := VBoxContainer.new()
-	hv.add_theme_constant_override("separation", 0)
-	head.add_child(hv)
-	hv.add_child(UITheme.label("Orders %d / %d" % [active, int(caps[1])], 22, UITheme.GOLD))
-	var status := ""
-	if active >= int(caps[1]):
-		status = "Bar full: new orders paused"
-	elif not d.pending.is_empty():
-		var secs := int(d.seconds_to_next(world.live != null and world.live.playing))
-		status = "Next order in ~%ds (%d waiting)" % [maxi(secs, 1), d.pending.size()] if secs > 1 else "Someone's coming up"
-	elif GameState.phase == "open":
-		status = "Quiet: nobody waiting to order"
-	if status != "":
-		hv.add_child(UITheme.label(status, 17, UITheme.MUTED))
-	orders_box.add_child(head)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.glass_box(0.62, 14, Color(0, 0, 0, 0), 14, 8))
+	card.custom_minimum_size = Vector2(250, 0)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orders_box.add_child(card)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 3)
+	card.add_child(vb)
+	var full := active >= int(caps[1])
+	vb.add_child(UITheme.hud_label("ORDERS  %d/%d%s" % [active, int(caps[1]), "  ·  BAR FULL" if full else ""], 13, Color(1.0, 0.72, 0.4) if full else UITheme.GOLD, 800))
 	var shown := 0
 	for c in waiting:
 		if shown >= 4:
 			break
-		var p := PanelContainer.new()
-		var first: bool = shown == 0
-		p.add_theme_stylebox_override("panel", UITheme.tex_box("ticket_ivory", Color.WHITE if first else Color(0.9, 0.88, 0.84, 0.92), 14, 8))
-		p.custom_minimum_size = Vector2(250, 0)
-		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", 2)
-		p.add_child(vb)
-		var what: String = GameData.drink(c.drink_id).get("short", "?") if c.order_taken else "wants to order"
-		var l := UITheme.label("%s%s: %s" % ["1. " if first else "", c.display_name, what], 20, Color(0.15, 0.1, 0.05))
-		l.add_theme_constant_override("outline_size", 0)
-		vb.add_child(l)
-		var bar := ColorRect.new()
-		bar.custom_minimum_size = Vector2(220.0 * c.patience_frac(), 8)
-		bar.color = Color(0.85, 0.25, 0.2).lerp(Color(0.2, 0.6, 0.3), c.patience_frac())
-		vb.add_child(bar)
-		orders_box.add_child(p)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		vb.add_child(row)
+		var who := UITheme.hud_label(c.display_name.split(" ")[0], 18)
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(who)
+		var helper := world.staff_serving(c)
+		var what: String = GameData.drink(c.drink_id).get("short", "?") if c.order_taken else "to order"
+		if helper != null:
+			what += " · " + helper.display_name
+		row.add_child(UITheme.hud_label(what, 16, UITheme.GOLD if c.order_taken else Color(1, 1, 1, 0.6)))
+		# patience as a slim line under the name
+		var track := ColorRect.new()
+		track.custom_minimum_size = Vector2(222, 3)
+		track.color = Color(1, 1, 1, 0.12)
+		vb.add_child(track)
+		var fill := ColorRect.new()
+		fill.size = Vector2(222.0 * c.patience_frac(), 3)
+		fill.color = Color(0.95, 0.35, 0.28).lerp(Color(0.4, 0.85, 0.5), c.patience_frac())
+		track.add_child(fill)
 		shown += 1
-
 
 # ------------------------------------------------------------------ pour mode
 func enter_pour_mode(ctrl: PourController) -> void:
@@ -773,14 +813,14 @@ func show_pour_result(res: Dictionary) -> void:
 
 # ------------------------------------------------------------------ messages
 func toast(text: String, kind := "info") -> void:
-	var colors := {"good": Color(0.12, 0.38, 0.2, 0.92), "bad": Color(0.45, 0.12, 0.08, 0.92), "warn": Color(0.45, 0.32, 0.05, 0.92), "info": Color(0.12, 0.08, 0.05, 0.9)}
+	var accents := {"good": Color(0.4, 0.85, 0.5), "bad": Color(0.95, 0.4, 0.3), "warn": Color(0.95, 0.7, 0.25), "info": Color(1, 1, 1, 0.0)}
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.panel_box(colors.get(kind, colors["info"]), Color(0.75, 0.6, 0.3), 12, 2))
+	p.add_theme_stylebox_override("panel", UITheme.glass_box(0.66, 12, accents.get(kind, accents["info"]), 14, 7))
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var l := UITheme.label(text, 22)
+	var l := UITheme.hud_label(text, 18)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.custom_minimum_size = Vector2(600, 0)
+	l.custom_minimum_size = Vector2(480, 0)
 	p.add_child(l)
 	toast_box.add_child(p)
 	while toast_box.get_child_count() > 3:
@@ -790,7 +830,6 @@ func toast(text: String, kind := "info") -> void:
 	tw.tween_interval(3.2)
 	tw.tween_property(p, "modulate:a", 0.0, 0.5)
 	tw.tween_callback(p.queue_free)
-
 
 func set_tip(text: String) -> void:
 	if tip_label == null:

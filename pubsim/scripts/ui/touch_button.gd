@@ -13,6 +13,7 @@ var enabled := true
 var hold_seconds := 0.0
 var font_size := 26
 var round_btn := false
+var style := "lacquer"       # "lacquer" (menus, pour), "glass" (HUD) or "accent" (the main action)
 var is_down := false
 var hold_progress := 0.0
 var _touch := -1
@@ -74,6 +75,9 @@ func set_label(t: String, s := "") -> void:
 
 
 func _draw() -> void:
+	if style != "lacquer":
+		_draw_modern()
+		return
 	var r := Rect2(Vector2.ZERO, size)
 	var sb := StyleBoxFlat.new()
 	var c := color if enabled else Color(0.25, 0.22, 0.2, 0.75)
@@ -113,3 +117,33 @@ func _draw() -> void:
 		y += font_size * 1.1
 	if sub != "":
 		draw_string(font, Vector2(8, y - font_size * 0.2), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.7), UITheme.GOLD)
+
+
+## Flat, modern look for the in-game HUD.
+func _draw_modern() -> void:
+	var r := Rect2(Vector2.ZERO, size)
+	var sb := StyleBoxFlat.new()
+	var radius := int(minf(size.x, size.y) / 2.0) if round_btn else 16
+	sb.set_corner_radius_all(radius)
+	if style == "accent":
+		var c := color if enabled else Color(0.2, 0.2, 0.2, 0.6)
+		sb.bg_color = c.lightened(0.12) if is_down else c
+		sb.shadow_color = Color(0, 0, 0, 0.25)
+		sb.shadow_size = 10
+	else:
+		sb.bg_color = Color(0.05, 0.045, 0.04, 0.78 if is_down else 0.6)
+		sb.border_color = Color(1, 1, 1, 0.16 if enabled else 0.06)
+		sb.set_border_width_all(1)
+	draw_style_box(sb, r)
+	if hold_progress > 0.0:
+		draw_rect(Rect2(Vector2(radius * 0.5, size.y - 5), Vector2((size.x - radius) * hold_progress, 3)), UITheme.GOLD)
+	var font := MeshKit.font_ui(700)
+	var lines := text.split("\n")
+	var total_h := lines.size() * font_size * 1.1 + (font_size * 0.75 if sub != "" else 0.0)
+	var y := (size.y - total_h) / 2.0 + font_size * 0.85
+	var col := Color(1, 0.98, 0.94) if enabled else Color(1, 1, 1, 0.4)
+	for ln in lines:
+		draw_string(font, Vector2(8, y), ln, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, font_size, col)
+		y += font_size * 1.1
+	if sub != "":
+		draw_string(font, Vector2(8, y - font_size * 0.2), sub.to_upper(), HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.6), Color(1, 1, 1, 0.6))

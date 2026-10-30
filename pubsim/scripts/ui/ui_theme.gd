@@ -48,6 +48,44 @@ static func panel_box(bg := WOOD, border := Color(0.55, 0.38, 0.18), radius := 1
 	return sb
 
 
+## The in-game HUD's look: dark smoked glass, a hairline edge, optional accent stripe on the left.
+const GLASS := Color(0.05, 0.045, 0.04, 0.6)
+const HAIRLINE := Color(1, 1, 1, 0.09)
+
+
+static func glass_box(alpha := 0.6, radius := 14, accent := Color(0, 0, 0, 0), pad_h := 14, pad_v := 8) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(GLASS.r, GLASS.g, GLASS.b, alpha)
+	sb.set_corner_radius_all(radius)
+	if accent.a > 0.0:
+		sb.border_color = accent
+		sb.border_width_left = 4
+	else:
+		sb.border_color = HAIRLINE
+		sb.set_border_width_all(1)
+	sb.content_margin_left = pad_h + (4 if accent.a > 0.0 else 0)
+	sb.content_margin_right = pad_h
+	sb.content_margin_top = pad_v
+	sb.content_margin_bottom = pad_v
+	sb.shadow_color = Color(0, 0, 0, 0.18)
+	sb.shadow_size = 10
+	return sb
+
+
+## HUD text: a soft drop shadow instead of a heavy outline.
+static func hud_label(text: String, size := 20, color := CREAM, weight := 700) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", MeshKit.font_ui(weight))
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	l.add_theme_constant_override("shadow_offset_x", 0)
+	l.add_theme_constant_override("shadow_offset_y", 1)
+	l.add_theme_constant_override("outline_size", 0)
+	return l
+
+
 static func theme() -> Theme:
 	if _theme:
 		return _theme
