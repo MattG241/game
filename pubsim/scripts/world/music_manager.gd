@@ -82,7 +82,8 @@ func _process(delta: float) -> void:
 		if not _announced and h >= EVENT_START - 0.5 and open:
 			_announced = true
 			world.notify("Tonight at 8: %s!" % ev["name"], "info")
-		if open and h >= EVENT_START and h < EVENT_END and not playing and not _ending and not finished_tonight:
+		if open and h >= EVENT_START and h < EVENT_END and not playing and not _ending and not finished_tonight \
+				and not GameState.today.get("live_finished", false):
 			_start(ev)
 		elif playing and not _ending and (h >= EVENT_END or GameState.phase == "closing"):
 			# let the current song finish naturally, then stop
@@ -127,9 +128,12 @@ func _start(ev: Dictionary) -> void:
 	song_index = -1
 	_songs_played = 0
 	_spawn_musicians(ev)
-	GameState.stats["events_hosted"] = int(GameState.stats["events_hosted"]) + 1
+	# a game continued mid-gig picks the night back up rather than counting it twice
+	var resumed := str(GameState.today.get("live_event", "")) == str(ev["id"])
+	if not resumed:
+		GameState.stats["events_hosted"] = int(GameState.stats["events_hosted"]) + 1
 	GameState.today["live_event"] = ev["id"]
-	world.notify("%s has started! Walk over to hear them." % ev["name"], "good")
+	world.notify(("%s are back on. Walk over to hear them." if resumed else "%s has started! Walk over to hear them.") % ev["name"], "good")
 	Sfx.play_at("cheer", _centre + Vector3(-2.0, 1.2, 0), world, -6.0)
 	_between = 1.5
 	if _band_says("music_intro"):
@@ -236,6 +240,7 @@ func _on_song_finished() -> void:
 func _finish() -> void:
 	playing = false
 	finished_tonight = true
+	GameState.today["live_finished"] = true
 	_ending = false
 	player3d.stop()
 	now_playing = ""
@@ -414,10 +419,8 @@ func cancel(day: int) -> bool:
 		return false
 	var ev: Dictionary = GameData.events_by_id.get(GameState.bookings[key], {})
 	GameState.bookings.erase(key)
-	# cancelled in good time: the fee comes back
-	GameState.cash += float(ev.get("fee", 0))
-	GameState.today["event_fees"] = float(GameState.today.get("event_fees", 0.0)) - float(ev.get("fee", 0))
-	GameState.cash_changed.emit(GameState.cash)
+	# cancelled in good time: the fee comes back, as today's income (it may have been paid another day)
+	GameState.earn(float(ev.get("fee", 0)), "refunds")
 	if day == GameState.day:
 		event_id = ""
 	return true

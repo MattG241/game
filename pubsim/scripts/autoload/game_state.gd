@@ -65,6 +65,7 @@ var settings: Dictionary = {
 	"reduced_effects": false,
 	"pour_assist": false,
 	"show_guide": true,
+	"colorblind": false,
 	"day_length": 10,
 	"show_fps": false,
 	"subtitles": true,
@@ -237,10 +238,19 @@ func change_keg(drink_id: String) -> bool:
 	return true
 
 
+## True when there's nothing left to pour and nothing in the cellar: the supplier will then put
+## one delivery on the slate, so a broke pub can always trade its way back.
+func stock_emergency() -> bool:
+	for id in available_drinks():
+		if serves_left(id) >= 1.0 or int(stock.get(id, 0)) > 0 or pending_delivery(id) > 0:
+			return false
+	return true
+
+
 func order_stock(drink_id: String, packs: int) -> bool:
 	var d := GameData.drink(drink_id)
 	var cost := float(d["stock_cost"]) * packs + float(GameData.econ("delivery_fee", 6))
-	if not spend(cost, "stock_spend"):
+	if not spend(cost, "stock_spend", stock_emergency() and packs == 1):
 		return false
 	deliveries.append({"drink": drink_id, "packs": packs, "day": day + 1})
 	stock_changed.emit()
@@ -574,7 +584,7 @@ func end_day() -> Dictionary:
 	spend(rent, "rent", true)
 	spend(utilities, "utilities", true)
 	spend(wages, "wages", true)
-	var income := float(today["sales"]) + float(today["tips"]) + float(today.get("prizes", 0.0))
+	var income := float(today["sales"]) + float(today["tips"]) + float(today.get("prizes", 0.0)) + float(today.get("refunds", 0.0))
 	var expenses := float(today["stock_spend"]) + float(today["upgrade_spend"]) + float(today["rent"]) \
 		+ float(today["utilities"]) + float(today["wages"]) + float(today["event_fees"]) + float(today["other"])
 	var served := int(today["served"])
@@ -594,7 +604,7 @@ func end_day() -> Dictionary:
 		"cogs": today["cogs"], "stock_spend": today["stock_spend"], "upgrade_spend": today["upgrade_spend"],
 		"rent": today["rent"], "utilities": today["utilities"], "wages": today["wages"],
 		"event_fees": today["event_fees"], "other": today["other"], "income": income, "expenses": expenses,
-		"profit": income - expenses, "prizes": today.get("prizes", 0.0), "live_event": today.get("live_event", ""), "gross_margin": float(today["sales"]) - float(today["cogs"]),
+		"profit": income - expenses, "prizes": today.get("prizes", 0.0), "refunds": today.get("refunds", 0.0), "live_event": today.get("live_event", ""), "gross_margin": float(today["sales"]) - float(today["cogs"]),
 		"served": served, "walkouts": today["walkouts"], "avg_satisfaction": avg_sat, "avg_quality": avg_q,
 		"reputation": reputation, "rep_change": rep_change, "wasted": today["wasted_units"], "cash": cash,
 	}

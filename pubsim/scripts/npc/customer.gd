@@ -29,6 +29,7 @@ var drink_rate := 0.008
 var speed := 1.25
 var music_enjoy := 0.0
 var ordering := false        # sent up to the bar by the order dispatcher
+var leaving := false         # on the way out: never called back to the bar
 var mingle_t := 0.0
 var order_time := -1.0      # world.run_time when the order was taken
 var instrument := ""
@@ -460,12 +461,14 @@ func _walk(delta: float) -> void:
 	global_position += to / dist * step
 	var yaw := atan2(-to.x, -to.z)
 	rotation.y = lerp_angle(rotation.y, yaw, minf(1.0, delta * 8.0))
-	var sw := sin(_anim_t * 7.5) * 0.45
+	# the stride keeps pace with the walking speed, so feet don't skate
+	var stride_f := speed * 5.6
+	var sw := sin(_anim_t * stride_f) * 0.45
 	_leg_rot[0] = sw
 	_leg_rot[1] = -sw
 	_arm_rot[0].x = -sw * 0.6
 	_arm_rot[1].x = sw * 0.6 if glass == null else -0.5
-	_body.position.y = absf(cos(_anim_t * 7.5)) * 0.025
+	_body.position.y = absf(cos(_anim_t * stride_f)) * 0.025
 
 
 func _arrive() -> void:
@@ -556,8 +559,7 @@ func _refresh_bubble() -> void:
 func _refresh_bubble_color() -> void:
 	if state in ["wait_order", "wait_drink", "queue"] and _say_t <= 0.0:
 		var f := clampf(patience / patience_max, 0.0, 1.0)
-		var c := Color(1.0, 0.35, 0.25).lerp(Color(0.55, 1.0, 0.55), f)
-		_bubble.modulate = c
+		_bubble.modulate = UITheme.patience_color(f)
 
 
 func patience_frac() -> float:
@@ -860,6 +862,8 @@ func leave() -> void:
 	if served_count > 0 and state not in ["walk", "gone"]:
 		speak("goodbye", "", 2.5)
 	ordering = false
+	leaving = true
+	world.dispatcher.remove(self)
 	if bar_spot >= 0:
 		world.release_bar_spot(self)
 		bar_spot = -1

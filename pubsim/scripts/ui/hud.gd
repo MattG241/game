@@ -116,12 +116,21 @@ func _apply_safe_area() -> void:
 	frame.offset_bottom = -m.w
 
 
+## The largest text scale that still leaves room for the menus and the pour sliders on this screen.
+func _max_scale() -> float:
+	var win := Vector2(DisplayServer.window_get_size())
+	if win.x <= 0.0 or win.y <= 0.0:
+		return 1.25
+	var s := minf(win.x / 1280.0, win.y / 720.0)
+	return clampf(minf(win.x / (s * 1060.0), win.y / (s * 620.0)), 0.8, 1.25)
+
+
 func apply_settings() -> void:
 	var a := float(GameState.settings.get("button_opacity", 0.85))
 	for b in [ctx_btn, alt_btn, menu_btn, ff_btn, settle_btn, done_btn]:
 		if b:
 			b.modulate.a = clampf(a + 0.1, 0.3, 1.0)
-	get_tree().root.content_scale_factor = clampf(float(GameState.settings.get("hud_scale", 1.0)), 0.8, 1.4)
+	get_tree().root.content_scale_factor = clampf(float(GameState.settings.get("hud_scale", 1.0)), 0.8, _max_scale())
 	if fps_label:
 		fps_label.visible = bool(GameState.settings.get("show_fps", false))
 	var contrast := bool(GameState.settings.get("high_contrast", false))
@@ -434,10 +443,12 @@ func _build_minigame_ui() -> void:
 	_place(darts_again, Control.PRESET_BOTTOM_LEFT, Vector2(256, -90), Vector2(200, 84))
 	darts_again.pressed.connect(func():
 		if darts_ctrl:
-			var opp := darts_ctrl.opponent
-			darts_ctrl.end()
+			var dg := darts_ctrl         # end() clears darts_ctrl, so keep hold of the game
+			var opp := dg.opponent
+			dg.end()
 			await get_tree().create_timer(0.5).timeout
-			darts_ctrl.begin(opp))
+			if is_instance_valid(dg) and not dg.active:
+				dg.begin(opp))
 	darts_root.add_child(darts_again)
 
 
@@ -587,7 +598,7 @@ func _process(delta: float) -> void:
 			int(Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)]
 	world.player.move_input = touch.move
 	var pouring := pour_root.visible
-	if not pouring and not menu.visible and not drink_root.visible and not darts_root.visible:
+	if not pouring and not menu.visible and not drink_root.visible and not darts_root.visible and not (world.session and world.session.active):
 		_update_context()
 	if pouring and pour_ctrl:
 		_update_pour_ui()
@@ -773,7 +784,7 @@ func refresh_orders() -> void:
 		vb.add_child(track)
 		var fill := ColorRect.new()
 		fill.size = Vector2(222.0 * c.patience_frac(), 3)
-		fill.color = Color(0.95, 0.35, 0.28).lerp(Color(0.4, 0.85, 0.5), c.patience_frac())
+		fill.color = UITheme.patience_color(c.patience_frac())
 		track.add_child(fill)
 		shown += 1
 
@@ -893,4 +904,7 @@ func show_day_summary(s: Dictionary) -> void:
 	touch.reset()
 	touch.enabled = false
 	get_tree().paused = true
+	# the world stops while the accounts are up, so tell the music ourselves
+	MusicDirector.context["screen"] = "summary"
+	MusicDirector.context["phase"] = "closing"
 	menu.show_summary(s)

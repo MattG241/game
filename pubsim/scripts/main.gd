@@ -93,6 +93,8 @@ func _notification(what: int) -> void:
 					world.drink_scene.end()
 				elif world.darts and world.darts.active:
 					world.darts.end()
+				elif world.session and world.session.active:
+					world.session.stop()
 				else:
 					hud.open_menu("game")
 			elif title:

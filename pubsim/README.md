@@ -181,6 +181,58 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - The pour screen matches.
 - **Tutorial fixes**: last night's empty glasses no longer skip the tutorial ahead. Tips sit low in
   the middle of the screen, clear of the status panel. The sink prompt no longer says "hold".
+- **Every drink on the menu**: lager, ale, cider, Galagers Zero, whiskey and lemonade used to be
+  impossible to serve, because their unlocks were missing. Each now has its own station on the bar,
+  bought as an upgrade:
+  - the Lough Glas lager font;
+  - a Red Fox hand pump;
+  - cider and Zero fonts;
+  - a whiskey optic stand that stops at one measure;
+  - a soda gun.
+
+  Each has its own technique and instructions. Whiskey and lemonade go in a tumbler (the second
+  button at the rack), and pour assist now pours a good lager.
+- **31 upgrades and reputation tiers**: the pub grows from "a quiet local" to "a legend of a pub".
+  Bigger upgrades unlock with reputation, for example a glass washer, cellar cooling, snug booths,
+  a big screen, a beer garden and a function room.
+- **The regulars' stories**: seven regulars have short story arcs, with favours tied to real play.
+  - Nora's late husband's perfect pint.
+  - Packie's darts title.
+  - Tomás's session.
+  - Liam's under-12s final.
+  - Margaret's table quiz.
+  - Eamon's palate.
+  - Aoife after the night shift.
+
+  A gold "..." shows who has something to say.
+- **Sit in on the bodhrán**: during a live act, keep the beat in a rhythm lane synced to the real
+  song. Each song's tempo is measured offline by `tools/beat_track.py`, and the band now moves at
+  that tempo too.
+- **Match days**: a big screen over the fireplace shows Ballyfinn's games on Sunday afternoons and
+  Wednesday evenings. The room cheers and groans with every score, and trade picks up.
+- **Festival days**: the Fleadh, the county final, St Patrick's Day and the harvest fair, with
+  bunting and big crowds.
+- **Lock-ins** after closing with your closest regulars, unless the Gardaí knock.
+- **Beer lines** to clean in the cellar, or draught pints lose quality.
+- **Menus restyled** in the same glass look as the HUD:
+  - the tabs scroll if they don't fit;
+  - the day's report lists every line so the profit adds up;
+  - a colour-blind option switches patience colours to amber-to-blue.
+- **Bug fixes from a full audit**:
+  - darts Rematch crashed, and leaving mid-turn locked the next game;
+  - fast-forward stayed on in minigames;
+  - leaving customers were called back to the bar;
+  - orders were still taken after closing;
+  - the end-of-day music never changed;
+  - the guide said to top up an unsettled stout;
+  - the tutorial could end early;
+  - a resumed gig counted twice;
+  - booking refunds were miscounted;
+  - the booths could never be bought;
+  - the paint upgrade's "stays cleaner" did nothing;
+  - staff ignored keg freshness;
+  - a broke pub with no stock could never recover (the supplier now puts one keg on the slate);
+  - a large HUD scale pushed the menu's close button off-screen.
 
 ## The soundtrack: who plays what
 | # | Song | When it plays |
@@ -215,8 +267,7 @@ sliders are separate, and music can be turned off without muting anything else. 
 The songs are MP3s, kept exactly as supplied and loaded only when needed; they're decoded while they play rather
 than all at once, and the APK carries them for offline play.
 
-Planned next (not claimed): lager/ale/cider/spirits serving mechanics, the bodhrán rhythm game,
-food, furniture placement and room expansions. See `docs/ROADMAP.md`.
+Planned next (not claimed): food, furniture placement and room expansions. See `docs/ROADMAP.md`.
 
 ## Signing (for consistent updates)
 The CI workflow derives the release keystore from **one** repository secret so every build has the

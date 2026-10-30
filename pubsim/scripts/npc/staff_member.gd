@@ -252,6 +252,7 @@ func _start_pour() -> void:
 	var d := GameData.drink(_pour_id)
 	var c := glass.contents
 	c.reset()
+	c.freshness = GameState.freshness(_pour_id)    # an old keg tastes old whoever pours it
 	c.drink_id = _pour_id
 	c.serve = str(d.get("serve", "stout"))
 	var off := (1.0 - skill) * 1.6

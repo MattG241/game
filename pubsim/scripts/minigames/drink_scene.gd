@@ -48,6 +48,7 @@ func begin(m: String, drink := "stout") -> void:
 	if active:
 		return
 	active = true
+	world.set_fast_forward(false)     # aiming and the gulp must run in real time
 	mode = m
 	drink_id = drink
 	state = "ready"

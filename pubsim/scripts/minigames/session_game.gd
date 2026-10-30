@@ -160,6 +160,16 @@ func accuracy() -> float:
 
 func _finish() -> void:
 	active = false
+	var played := notes.filter(func(x): return x[1] != "").size()
+	if played < NOTES / 2:
+		# left early: no set, no tips, no story credit
+		world.notify("You hand the bodhrán back. Another night, maybe.", "info")
+		if _ui:
+			_ui.queue_free()
+			_ui = null
+		world.hud._hide_gameplay(false)
+		finished.emit({"accuracy": 0.0, "left": true})
+		return
 	var acc := accuracy()
 	var tips := snappedf(acc * acc * 25.0, 0.5)
 	GameState.earn(tips, "tips")
@@ -222,6 +232,16 @@ func _build_ui() -> void:
 	_tap.offset_bottom = -20
 	_tap.pressed.connect(tap)
 	root.add_child(_tap)
+	var leave := TouchButton.new("Leave")
+	leave.style = "glass"
+	leave.font_size = 18
+	leave.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	leave.offset_left = -130
+	leave.offset_right = -16
+	leave.offset_top = 12
+	leave.offset_bottom = 60
+	leave.pressed.connect(stop)
+	root.add_child(leave)
 
 
 func _draw_lane() -> void:

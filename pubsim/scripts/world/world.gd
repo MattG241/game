@@ -1041,6 +1041,9 @@ func active_orders() -> int:
 
 
 func _dispatch(dt: float) -> void:
+	if GameState.phase == "closing":
+		dispatcher.pending.clear()      # the bar's shut: nobody else is called up
+		return
 	var a := active_orders()
 	max_active_seen = maxi(max_active_seen, a)
 	var c = dispatcher.tick(dt, a, live != null and live.playing)
@@ -1500,7 +1503,9 @@ func cleanliness() -> float:
 	var dirty := 0
 	for g in loose_glasses:
 		dirty += 1
-	return clampf(100.0 - spills.size() * 9.0 - dirty * 3.0, 0.0, 100.0)
+	# fresh paint and tiles show the mess less (dirt_rate_mult is negative)
+	var k := maxf(0.2, 1.0 + GameState.get_mod("dirt_rate_mult"))
+	return clampf(100.0 - (spills.size() * 9.0 + dirty * 3.0) * k, 0.0, 100.0)
 
 
 # ------------------------------------------------------------------ spills
@@ -1588,7 +1593,7 @@ func _last_orders() -> void:
 
 
 func can_fast_forward() -> bool:
-	if pour and pour.active:
+	if in_minigame():
 		return false
 	for c in customers:
 		if c.state in ["wait_order", "wait_drink", "queue"]:
@@ -1834,6 +1839,8 @@ func next_step() -> Dictionary:
 	if held != null and not held.contents.is_empty():
 		var hc := held.contents
 		if hc.serve == "stout" and hc.stage == 2:
+			if hc.settled_fraction() < 0.97 and free_settle_slot() >= 0:
+				return {"text": "Leave the stout on the drip tray to settle", "pos": PubLayout.SETTLE_SLOTS[free_settle_slot()]}
 			return {"text": "Top up the stout at the tap", "pos": _tap_spot(hc.drink_id)}
 		var who: Customer = needs.call(hc.drink_id)
 		if who != null:
@@ -1939,6 +1946,8 @@ func _tutorial_event(ev: String) -> void:
 	var idx := order.find(ev)
 	if idx < 0 or idx < tutorial_step:
 		return
+	if ev == "washed" and tutorial_step < order.find("served") + 1:
+		return      # pouring a bad first pint away and washing it isn't the end of the lesson
 	tutorial_step = idx + 1
 	if hud:
 		hud.set_tip(steps[ev])

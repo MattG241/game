@@ -156,6 +156,72 @@ static func theme() -> Theme:
 	return t
 
 
+static var _modern: Theme
+
+
+## Patience from 0 (about to walk out) to 1 (happy). Red to green, or amber to blue when the
+## colour-blind setting is on.
+static func patience_color(f: float) -> Color:
+	if bool(GameState.settings.get("colorblind", false)):
+		return Color(1.0, 0.6, 0.1).lerp(Color(0.35, 0.7, 1.0), f)
+	return Color(0.95, 0.35, 0.28).lerp(Color(0.4, 0.85, 0.5), f)
+
+
+static func _flat(bg: Color, border := Color(1, 1, 1, 0.14), radius := 12, pad_h := 16, pad_v := 10) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(1 if border.a > 0.0 else 0)
+	sb.set_corner_radius_all(radius)
+	sb.content_margin_left = pad_h
+	sb.content_margin_right = pad_h
+	sb.content_margin_top = pad_v
+	sb.content_margin_bottom = pad_v
+	return sb
+
+
+## The in-game menus in the same smoked-glass look as the HUD: flat buttons, a green accent for
+## the chosen tab or the main action, hairline edges, soft-shadow text.
+static func modern_theme() -> Theme:
+	if _modern:
+		return _modern
+	var t := theme().duplicate() as Theme
+	t.default_font_size = 22
+	t.set_color("font_color", "Button", Color(1, 0.98, 0.94))
+	t.set_color("font_hover_color", "Button", Color(1, 1, 1))
+	t.set_color("font_pressed_color", "Button", Color(1, 1, 1))
+	t.set_color("font_hover_pressed_color", "Button", Color(1, 1, 1))
+	t.set_color("font_disabled_color", "Button", Color(1, 1, 1, 0.35))
+	var accent := Color(0.12, 0.45, 0.29, 0.95)
+	t.set_stylebox("normal", "Button", _flat(Color(1, 1, 1, 0.07)))
+	t.set_stylebox("hover", "Button", _flat(Color(1, 1, 1, 0.13), Color(1, 1, 1, 0.22)))
+	t.set_stylebox("pressed", "Button", _flat(accent, Color(0, 0, 0, 0)))
+	t.set_stylebox("hover_pressed", "Button", _flat(accent.lightened(0.1), Color(0, 0, 0, 0)))
+	t.set_stylebox("disabled", "Button", _flat(Color(1, 1, 1, 0.03), Color(1, 1, 1, 0.06)))
+	t.set_stylebox("panel", "PanelContainer", glass_box(0.86, 18, Color(0, 0, 0, 0), 20, 14))
+	t.set_stylebox("panel", "Panel", glass_box(0.86, 18))
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1, 1, 1, 0.1)
+	track.set_corner_radius_all(6)
+	track.content_margin_top = 6
+	track.content_margin_bottom = 6
+	t.set_stylebox("slider", "HSlider", track)
+	var thin := StyleBoxFlat.new()
+	thin.bg_color = Color(1, 1, 1, 0.06)
+	thin.set_corner_radius_all(4)
+	t.set_stylebox("scroll", "VScrollBar", thin)
+	var thumb := StyleBoxFlat.new()
+	thumb.bg_color = Color(1, 1, 1, 0.3)
+	thumb.set_corner_radius_all(4)
+	t.set_stylebox("grabber", "VScrollBar", thumb)
+	t.set_stylebox("grabber_highlight", "VScrollBar", thumb)
+	t.set_stylebox("grabber_pressed", "VScrollBar", thumb)
+	t.set_stylebox("normal", "LineEdit", _flat(Color(1, 1, 1, 0.06)))
+	t.set_stylebox("focus", "LineEdit", _flat(Color(1, 1, 1, 0.1), GOLD))
+	_modern = t
+	return t
+
+
 static func _circle_icon(size: int, c: Color) -> ImageTexture:
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var r := size / 2.0

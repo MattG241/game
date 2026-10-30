@@ -26,6 +26,8 @@ Brands in the game (GALAGERS Irish Stout, Galagers Zero, Lough Glas Lager, Red F
 Ballyfinn 12, Brannock's Lemonade) and their artwork are fictional and original.
 No real brewery's names, logos or glassware artwork are used, and no endorsement is implied.
 
+Song tempos and first beats in `data/beats.json` were measured from the soundtrack files by `tools/beat_track.py` (our own code, numpy and ffmpeg); the songs themselves are unchanged. The door knock (`assets/audio/knock.ogg`) and the big-screen match picture (`assets/shaders/tv_match.gdshader`) are synthesised by our own code.
+
 **Attribution:** voices and recorded sound effects generated with ElevenLabs (free plan, non-commercial).
 The API key lives only in the repository's `ELEVENLABS_API_KEY` Actions secret; it is never in the
 game, the APK, the source, logs or screenshots, and the game never contacts ElevenLabs.

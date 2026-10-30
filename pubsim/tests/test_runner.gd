@@ -25,7 +25,7 @@ func _log(s: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	if OS.get_environment("ONLY") in ["staff", "flow", "drinks", "features"]:
+	if OS.get_environment("ONLY") in ["staff", "flow", "drinks", "features", "fixes"]:
 		# quick run of one section while working on it
 		GameState.delete_save()
 		main = load("res://scripts/main.gd").new()
@@ -37,6 +37,8 @@ func _ready() -> void:
 			await _test_drinks()
 		elif OS.get_environment("ONLY") == "features":
 			await _test_features()
+		elif OS.get_environment("ONLY") == "fixes":
+			await _test_fixes()
 		else:
 			await _test_staff()
 		_log("RESULT: %d passed, %d failed" % [passed, failed])
@@ -447,6 +449,7 @@ func _test_loop() -> void:
 	await _test_flow()
 	await _test_drinks()
 	await _test_features()
+	await _test_fixes()
 
 
 func _test_voices_and_people(w: World) -> void:
@@ -945,6 +948,7 @@ func _test_music(w: World) -> void:
 	check(live.book(GameState.day + 2, "fiddlers_table") and live.cancel(GameState.day + 2), "future bookings can be cancelled")
 	# renovations and awards get their own music
 	GameState.cash = 2000.0
+	GameState.reputation = maxf(GameState.reputation, 31.0)   # the stage is a "talk of the town" upgrade
 	GameState.buy_upgrade("snug_stage")
 	await _frames(10)
 	check(md.current_id == "t15" and main.hud.celebration.visible, "a major renovation plays The Pub Gets Bigger")
@@ -1461,3 +1465,113 @@ func _test_features() -> void:
 				break
 	check(not w.session.active and w.session.perfect >= 28, "strokes on the beat are judged perfect (%d of %d)" % [w.session.perfect, SessionGame.NOTES])
 	check(int(GameState.stats.get("sessions", 0)) == 1 and not w.in_minigame(), "the set ends and you're back behind the bar")
+
+
+# ------------------------------------------------------------------ regressions from the bug audit
+func _test_fixes() -> void:
+	_log("== Regression: bugs found in the audit ==")
+	main.quit_to_title()
+	await _frames(3)
+	GameState.delete_save()
+	main.start_new("career", "Fixes test")
+	await _frames(10)
+	GameState.tutorial["done"] = false
+	var w: World = main.world
+	GameState.cash = 2000.0
+	GameState.reputation = 60.0
+	GameState.buy_upgrade("dartboard")
+	# darts: fast-forward off, rematch works, leaving mid-turn doesn't lock the next game
+	w.set_fast_forward(true)
+	w.start_darts()
+	await _frames(5)
+	check(not w.fast_forward and Engine.time_scale == 1.0, "darts always play in real time")
+	check(not w.can_fast_forward(), "no fast-forward during a minigame")
+	var dg: DartsGame = w.darts
+	dg.turn = 1
+	dg._ai_throw()
+	await _frames(2)
+	dg.end()
+	await _frames(60)
+	dg.begin("packie")
+	await _frames(5)
+	check(not dg._busy and dg.turn == 0, "leaving during the opponent's turn doesn't stop you throwing next game")
+	main.hud.darts_again.pressed.emit()
+	await _wait_real(func(): return dg.active, 3.0)
+	await _frames(40)
+	check(dg.active, "Rematch starts a new game")
+	dg.end()
+	await _frames(30)
+	# customers on their way out are never called back up, and nobody is after closing
+	w._sign_action()
+	var c := w.spawn_customer()
+	w.dispatcher.add_pending(c)
+	c.leave()
+	check(not w.dispatcher.pending.has(c), "a customer leaving is taken off the order list")
+	GameState.phase = "closing"
+	var c2 := w.spawn_customer()
+	c2.state = "mingle"
+	w.dispatcher.add_pending(c2)
+	w._dispatch(1.0)
+	check(w.dispatcher.pending.is_empty() and c2.state == "mingle", "nobody is called to the bar after closing")
+	GameState.phase = "open"
+	# an unsettled stout in hand: settle it first
+	w._rack_action()
+	var g := w.player.held
+	g.contents.drink_id = "stout"
+	g.contents.serve = "stout"
+	g.contents.stage = 2
+	g.contents.cascade = 0.5
+	g.contents.body = 0.25
+	check(str(w.next_step()["text"]).begins_with("Leave the stout"), "the guide says to let an unsettled stout settle, not top it up")
+	# pouring the first pint away and washing it doesn't end the tutorial
+	w.tutorial_step = 5
+	w._sink_action()
+	await _frames(2)
+	w._sink_action()
+	check(not GameState.tutorial.get("done", false), "washing a poured-away pint doesn't finish the tutorial early")
+	# booths can be bought; paint keeps the pub cleaner
+	check(GameState.can_buy_upgrade("booths"), "the snug booths are on sale")
+	for i in 3:
+		w.add_spill(Vector3(1.0 + i * 0.3, 0, 1.0))
+	var dirty_clean := w.cleanliness()
+	GameState.buy_upgrade("paint")
+	check(w.cleanliness() > dirty_clean, "fresh paint and tiles make the place look cleaner (%d vs %d)" % [int(w.cleanliness()), int(dirty_clean)])
+	# a live act continued mid-gig isn't counted twice
+	GameState.today["live_event"] = "fiddles_fire"
+	var hosted := int(GameState.stats["events_hosted"])
+	w.live._start(GameData.events_by_id["fiddles_fire"])
+	check(int(GameState.stats["events_hosted"]) == hosted, "a resumed gig isn't counted again")
+	w.live.stop_now()
+	# a refunded booking is income, so the day's sums add up
+	GameState.today["refunds"] = 0.0
+	var day_b := GameState.day + 2
+	check(w.live.book(day_b, "fiddles_fire") and w.live.cancel(day_b), "book and cancel a gig")
+	check(float(GameState.today.get("refunds", 0.0)) > 0.0 and float(GameState.today["event_fees"]) >= 0.0, "the refund is income, not a negative fee")
+	# broke with nothing to pour: one delivery goes on the slate
+	for id in GameState.available_drinks():
+		GameState.tap_units[id] = 0.0
+		GameState.stock[id] = 0
+	GameState.deliveries.clear()
+	GameState.cash = 5.0
+	check(GameState.stock_emergency(), "out of everything and out of money")
+	check(GameState.order_stock("stout", 1), "the supplier puts one keg on the slate")
+	check(not GameState.stock_emergency(), "and that's the only one")
+	# the bodhran session: no other buttons over it, and leaving early earns nothing
+	GameState.buy_upgrade("snug_stage")
+	GameState.upgrades["house_bodhran"] = 1
+	var sessions := int(GameState.stats.get("sessions", 0))
+	w.session.begin(true)
+	await _frames(10)
+	check(not main.hud.ctx_btn.visible and not main.hud.alt_btn.visible, "no action buttons over the session")
+	w.session.stop()
+	await _frames(2)
+	check(int(GameState.stats.get("sessions", 0)) == sessions and not w.in_minigame(), "leaving the session early counts for nothing")
+	# the end-of-day music follows the summary
+	for cc in w.customers.duplicate():
+		cc.queue_free()
+	w.customers.clear()
+	GameState.phase = "closing"
+	w.close_day()
+	await _frames(3)
+	check(MusicDirector.context["screen"] == "summary", "the summary has its own music")
+	main.hud.close_menu()

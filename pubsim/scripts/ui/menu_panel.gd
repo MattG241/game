@@ -8,6 +8,7 @@ var content: VBoxContainer
 var scroll: ScrollContainer
 var title: Label
 var tab_bar: HBoxContainer
+var tab_scroll: ScrollContainer
 var _summary_mode := false
 var close_btn: Button
 var footer: HBoxContainer          # the end-of-day buttons, pinned below the scrolling content
@@ -22,6 +23,7 @@ var _refresh_t := 0.0
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	theme = UITheme.modern_theme()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
@@ -39,16 +41,23 @@ func _ready() -> void:
 	panel.add_child(vb)
 	var head := HBoxContainer.new()
 	vb.add_child(head)
-	title = UITheme.label(GameState.pub_name, 34, UITheme.GOLD, MeshKit.font_title())
+	title = UITheme.label(GameState.pub_name, 32, UITheme.GOLD, MeshKit.font_title())
+	title.add_theme_constant_override("outline_size", 0)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	var close := UITheme.button("Back to the bar", _close, 24)
+	var close := UITheme.button("Back to the bar", _close, 21)
 	close_btn = close
 	close.custom_minimum_size = Vector2(240, 60)
 	head.add_child(close)
+	# the tabs scroll sideways if the screen (or a large text setting) can't fit them all
+	tab_scroll = ScrollContainer.new()
+	tab_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	tab_scroll.custom_minimum_size = Vector2(0, 52)
+	vb.add_child(tab_scroll)
 	tab_bar = HBoxContainer.new()
 	tab_bar.add_theme_constant_override("separation", 8)
-	vb.add_child(tab_bar)
+	tab_scroll.add_child(tab_bar)
 	scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -74,6 +83,7 @@ func open(t: String) -> void:
 	_summary_mode = false
 	visible = true
 	tab_bar.visible = true
+	tab_scroll.visible = true
 	footer.visible = false
 	close_btn.visible = true
 	title.text = GameState.pub_name
@@ -86,8 +96,8 @@ func _build_tabs() -> void:
 		ch.queue_free()
 	for t in TABS:
 		var id: String = t[0]
-		var b := UITheme.button(t[1], func(): show_tab(id), 19)
-		b.custom_minimum_size = Vector2(118, 54)
+		var b := UITheme.button(t[1], func(): show_tab(id), 17)
+		b.custom_minimum_size = Vector2(0, 48)
 		b.toggle_mode = true
 		b.button_pressed = id == tab
 		b.set_meta("tab", id)
@@ -134,9 +144,12 @@ func _row() -> HBoxContainer:
 
 func _card(bg := Color(0.18, 0.11, 0.06, 0.95)) -> VBoxContainer:
 	var p := PanelContainer.new()
-	# green cards (owned, now playing) are green lacquer; the rest are timber
+	# owned / now playing cards carry a green stripe; the rest are plain glass
 	var green := bg.g > bg.r
-	p.add_theme_stylebox_override("panel", UITheme.tex_box("button_green" if green else "button_timber", Color(0.8, 0.8, 0.8) if green else Color.WHITE, 18, 12))
+	var sb := UITheme.glass_box(0.0, 14, Color(0.4, 0.85, 0.5) if green else Color(0, 0, 0, 0), 18, 12)
+	sb.bg_color = Color(1, 1, 1, 0.09 if green else 0.05)
+	sb.shadow_size = 0
+	p.add_theme_stylebox_override("panel", sb)
 	content.add_child(p)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
@@ -145,7 +158,7 @@ func _card(bg := Color(0.18, 0.11, 0.06, 0.95)) -> VBoxContainer:
 
 
 func _text(parent: Node, t: String, size := 22, color := UITheme.CREAM) -> Label:
-	var l := UITheme.label(t, size, color)
+	var l := UITheme.hud_label(t, int(size * 0.9), color)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	parent.add_child(l)
@@ -180,7 +193,7 @@ func _upgrades() -> void:
 			_text(info, "Needs reputation %d (the pub has to be \"%s\")" % [int(u["min_rep"]), _tier_name(float(u["min_rep"]))], 18, Color(1, 0.6, 0.5))
 		var id: String = u["id"]
 		if owned:
-			var l := UITheme.label("Owned", 24, Color(0.6, 0.95, 0.6))
+			var l := UITheme.hud_label("Owned", 20, Color(0.6, 0.95, 0.6))
 			l.custom_minimum_size = Vector2(170, 0)
 			h.add_child(l)
 		else:
@@ -313,7 +326,9 @@ func _stock() -> void:
 					GameState.notify("Ordered %d × %s for tomorrow." % [packs, d["stock_unit"]], "good")
 				show_tab("stock"), 20)
 			b.custom_minimum_size = Vector2(190, 64)
-			b.disabled = not GameState.can_afford(cost)
+			b.disabled = not GameState.can_afford(cost) and not (packs == 1 and GameState.stock_emergency())
+			if packs == 1 and not GameState.can_afford(cost) and GameState.stock_emergency():
+				b.text = "On the slate (€%d)" % int(cost)
 			h.add_child(b)
 
 
@@ -480,7 +495,7 @@ func _jukebox() -> void:
 		show_tab("music"), 20))
 	var vh := HBoxContainer.new()
 	now.add_child(vh)
-	vh.add_child(UITheme.label("Music volume", 20))
+	vh.add_child(UITheme.hud_label("Music volume", 18))
 	var vs := HSlider.new()
 	vs.min_value = 0.0
 	vs.max_value = 1.0
@@ -594,7 +609,7 @@ func _activities() -> void:
 # ------------------------------------------------------------------ settings
 func _slider(label: String, key: String, mn: float, mx: float, step: float, fmt := "%.2f") -> void:
 	var h := _row()
-	var l := UITheme.label(label, 22)
+	var l := UITheme.hud_label(label, 19)
 	l.custom_minimum_size = Vector2(300, 0)
 	h.add_child(l)
 	var s := HSlider.new()
@@ -605,7 +620,7 @@ func _slider(label: String, key: String, mn: float, mx: float, step: float, fmt 
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.custom_minimum_size = Vector2(0, 50)
 	h.add_child(s)
-	var val := UITheme.label(fmt % s.value, 22, UITheme.GOLD)
+	var val := UITheme.hud_label(fmt % s.value, 19, UITheme.GOLD)
 	val.custom_minimum_size = Vector2(90, 0)
 	h.add_child(val)
 	s.value_changed.connect(func(x):
@@ -627,7 +642,7 @@ func _toggle(label: String, key: String) -> void:
 
 func _choice(label: String, key: String, options: Array, on_change := Callable()) -> void:
 	var h := _row()
-	var l := UITheme.label(label, 22)
+	var l := UITheme.hud_label(label, 19)
 	l.custom_minimum_size = Vector2(300, 0)
 	h.add_child(l)
 	for o in options:
@@ -647,7 +662,7 @@ func _settings() -> void:
 	_text(content, "Controls", 26, UITheme.GOLD)
 	_slider("Look sensitivity", "look_sensitivity", 0.3, 2.5, 0.05)
 	_slider("Button opacity", "button_opacity", 0.3, 1.0, 0.05)
-	_slider("Text & HUD scale", "hud_scale", 0.8, 1.4, 0.05)
+	_slider("Text & HUD scale", "hud_scale", 0.8, 1.25, 0.05)
 	_toggle("Invert look up/down", "invert_look")
 	_toggle("Vibration", "vibration")
 	_toggle("Pour assist (auto-tilts the glass; you still control the tap)", "pour_assist")
@@ -669,6 +684,7 @@ func _settings() -> void:
 	_slider("Render scale", "render_scale", 0.5, 1.0, 0.05)
 	_toggle("Reduced camera motion", "reduced_motion")
 	_toggle("Reduced visual effects", "reduced_effects")
+	_toggle("Colour-blind friendly colours (amber to blue)", "colorblind")
 	_toggle("High-contrast prompts", "high_contrast")
 	_toggle("Show performance overlay", "show_fps")
 	_text(content, "Game", 26, UITheme.GOLD)
@@ -721,9 +737,25 @@ func _game() -> void:
 
 
 # ------------------------------------------------------------------ end of day
+## The main action on a screen: the green accent.
+func _primary(b: Button) -> void:
+	var t := UITheme.modern_theme()
+	b.add_theme_stylebox_override("normal", t.get_stylebox("pressed", "Button"))
+	b.add_theme_stylebox_override("hover", t.get_stylebox("hover_pressed", "Button"))
+
+
 ## A few pointers for tomorrow: what can be bought now, who could be hired, what's running low.
 func _tomorrow_hints() -> Array:
 	var out := []
+	# the summary shows after the day has rolled over, so "today" in GameState is tomorrow here
+	var ft := GameState.festival_today()
+	var nf := GameState.next_festival()
+	if not ft.is_empty():
+		out.append("%s is tomorrow! %s" % [ft["name"], ft["desc"]])
+	elif not nf.is_empty() and int(nf[0]) <= 2:
+		out.append("%s in %d days: %s" % [nf[1]["name"], int(nf[0]) + 1, nf[1]["desc"]])
+	if not GameState.match_today().is_empty():
+		out.append("There's a match on the big screen tomorrow. Expect a crowd.")
 	var afford := []
 	for u in GameData.upgrades:
 		if not GameState.has_upgrade(u["id"]) and GameState.can_buy_upgrade(u["id"]):
@@ -753,6 +785,7 @@ func show_summary(s: Dictionary) -> void:
 	_summary_mode = true
 	visible = true
 	tab_bar.visible = false
+	tab_scroll.visible = false
 	title.text = "Closing time: Day %d" % int(s["day"])
 	for ch in content.get_children():
 		ch.queue_free()
@@ -761,13 +794,23 @@ func show_summary(s: Dictionary) -> void:
 	var rows := [
 		["Drink sales", s["sales"]], ["Tips", s["tips"]], ["Prizes & goal rewards", s.get("prizes", 0.0)], ["Stock ordered", -float(s["stock_spend"])],
 		["Upgrades bought", -float(s["upgrade_spend"])], ["Rent", -float(s["rent"])], ["Utilities", -float(s["utilities"])],
-		["Wages", -float(s["wages"])],
+		["Wages", -float(s["wages"])], ["Live music bookings", -float(s.get("event_fees", 0.0))],
+		["Booking refunds", s.get("refunds", 0.0)], ["Other (line cleaning, fines)", -float(s.get("other", 0.0))],
 	]
 	for r in rows:
 		if absf(float(r[1])) > 0.001:
-			_text(v, "%-24s €%.2f" % [r[0], float(r[1])], 24)
+			var row := HBoxContainer.new()
+			v.add_child(row)
+			var name_l := _text(row, str(r[0]), 22)
+			name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			var amt := float(r[1])
+			var amt_l := _text(row, ("+€%.2f" if amt >= 0.0 else "-€%.2f") % absf(amt), 22, Color(0.62, 0.95, 0.62) if amt >= 0.0 else Color(1, 0.72, 0.62))
+			amt_l.size_flags_horizontal = Control.SIZE_SHRINK_END
+			amt_l.autowrap_mode = TextServer.AUTOWRAP_OFF
+			name_l.autowrap_mode = TextServer.AUTOWRAP_OFF
+			amt_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var profit := float(s["profit"])
-	_text(v, "Profit today: €%.2f" % profit, 30, Color(0.6, 1, 0.6) if profit >= 0 else Color(1, 0.6, 0.5))
+	_text(v, "Profit today: %s€%.2f" % ["" if profit >= 0 else "-", absf(profit)], 30, Color(0.6, 1, 0.6) if profit >= 0 else Color(1, 0.6, 0.5))
 	_text(v, "Cost of drinks sold €%.2f · Gross margin €%.2f · Wasted %.1f serves" % [float(s["cogs"]), float(s["gross_margin"]), float(s["wasted"])], 20, UITheme.MUTED)
 	_text(v, "Served %d · Walk-outs %d · Avg satisfaction %d%% · Avg quality %d" % [int(s["served"]), int(s["walkouts"]), int(s["avg_satisfaction"]), int(s["avg_quality"])], 22)
 	var extras := []
@@ -777,7 +820,7 @@ func show_summary(s: Dictionary) -> void:
 		extras.append("Your staff served %d" % int(s["staff_served"]))
 	if not extras.is_empty():
 		_text(v, " · ".join(extras), 22)
-	_text(v, "Reputation %d (%+.1f) · Cash €%.2f" % [int(s["reputation"]), float(s["rep_change"]), float(s["cash"])], 22, UITheme.GOLD)
+	_text(v, "Reputation %d (%+.1f): %s · Cash €%.2f" % [int(s["reputation"]), float(s["rep_change"]), GameState.rep_tier(), float(s["cash"])], 22, UITheme.GOLD)
 	var goals: Array = s.get("goals", [])
 	if not goals.is_empty():
 		var gv := _card()
@@ -802,6 +845,7 @@ func show_summary(s: Dictionary) -> void:
 		hud.close_menu()
 		hud.world.main.start_world())
 	next.custom_minimum_size = Vector2(320, 72)
+	_primary(next)
 	footer.add_child(next)
 	var quit := UITheme.button("Quit to title", func():
 		_summary_mode = false

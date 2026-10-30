@@ -85,7 +85,7 @@ func remove(c) -> void:
 func tick(dt: float, active: int, live_music := false):
 	clock += dt
 	# drop anyone who has gone
-	pending = pending.filter(func(c): return is_instance_valid(c) and not c.ordering and c.state in ["mingle", "walk"])
+	pending = pending.filter(func(c): return is_instance_valid(c) and not c.ordering and not c.leaving and c.state in ["mingle", "walk"])
 	var c2 := caps()
 	var interval := order_interval(live_music)
 	if active >= int(c2[0]):

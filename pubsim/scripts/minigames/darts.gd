@@ -21,6 +21,7 @@ var aiming := false
 var _sway_t := 0.0
 var _darts: Array[Node3D] = []
 var _busy := false
+var _game := 0          # bumped each game, so timers left over from the last one do nothing
 var _cam_tween: Tween
 var _last_throw := ""
 var _rng := RandomNumberGenerator.new()
@@ -53,6 +54,11 @@ func begin(opp := "packie") -> void:
 	if active:
 		return
 	active = true
+	_game += 1
+	_busy = false
+	aiming = false
+	_last_throw = ""
+	world.set_fast_forward(false)
 	_rng.randomize()
 	opponent = opp
 	var r: Dictionary = GameData.regulars_by_id.get(opp, {})
@@ -174,7 +180,10 @@ func _landed(off: Vector2) -> void:
 		_last_throw = "%s: %s" % [who, label]
 		darts_left -= 1
 	world.hud.update_darts_ui(self, _last_throw)
+	var g := _game
 	await world.get_tree().create_timer(0.6).timeout
+	if not active or g != _game:
+		return
 	_busy = false
 	if darts_left <= 0:
 		_next_turn()
@@ -191,7 +200,10 @@ func _next_turn() -> void:
 	turn_start = scores[turn]
 	if turn == 1:
 		_status("%s steps up to the oche..." % opponent_name)
+		var g := _game
 		await world.get_tree().create_timer(0.9).timeout
+		if not active or g != _game:
+			return
 		_ai_throw()
 	else:
 		_status("Your throw. %d to go." % scores[0])
@@ -201,8 +213,11 @@ func _ai_throw() -> void:
 	if not active or winner >= 0:
 		return
 	_busy = true
+	var g := _game
 	await world.get_tree().create_timer(0.7).timeout
-	if not active:
+	if not active or g != _game:
+		if g == _game:
+			_busy = false     # left mid-turn: don't leave the next game locked
 		return
 	var need: int = scores[1]
 	var target := _target_for(need)

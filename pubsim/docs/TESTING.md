@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **291 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **381 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -25,6 +25,9 @@
 | **Audio mix** (new) | Pass | rain plays on its own low-passed weather bus feeding the room; voices are louder than the weather by default; the room and rain dip at least 4 dB while someone speaks and come back afterwards |
 | **Hired staff** (new) | Pass | hiring rules (reputation, room per role, no double hire); staff arrive on their own models; with the player away from the bar, a novice bartender takes orders, pours and serves on their own (pints average 79); customers a bartender is seeing to aren't offered to the player; the glass collector picks up, washes and wipes spills; no glass lost or made; let-go staff leave their glasses by the sink; wages and save |
 | **Next step, goals and streaks** (new) | Pass | overnight glasses don't skip the tutorial; the guide points at the sign before opening, then take order, grab a glass and pour in turn, then cash up at close; the gold marker shows when away; three daily goals pay out when met; a streak grows tips; the summary lists goals and looks ahead |
+| **Every drink** (new) | Pass | every drink has an unlock; 31 upgrades, bigger ones gated by reputation; each of lager, ale, cider, Zero, whiskey and lemonade has a visible station, the right glass, an open prompt, and a careful pour scores 100; the optic stops at one measure; a bottle swaps itself; a bartender serves whiskey in a tumbler |
+| **The pub's character** (new) | Pass | festivals and bunting; match day on the big screen (throw-in, scores, picture and score on screen, full time); beer lines go off and are cleaned; Nora's story, favour, reward and next chapter; the lock-in (once a night); the bodhrán session hits 32 of 32 on the measured beats and hands back control |
+| **Audit regressions** (new) | Pass | darts in real time, Rematch, no stuck turn; leaving customers and closing time; settle guidance; tutorial not ended by a pour-away; booths; paint cleanliness; resumed gigs; refunds; supplier slate; session buttons and early exit; summary music |
 | APK export | CI | signed arm64 APK, signature verified, published as a Release |
 
 ## Queue and difficulty: old vs new

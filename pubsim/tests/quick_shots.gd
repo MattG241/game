@@ -195,6 +195,11 @@ func _ready() -> void:
 				w.session.tap()
 				await _shot(v)
 				w.session.stop()
+			"menu_upgrades", "menu_staff", "menu_settings":
+				main.hud.open_menu(v.substr(5))
+				await _wait(0.5)
+				await _shot(v)
+				main.hud.close_menu()
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)
