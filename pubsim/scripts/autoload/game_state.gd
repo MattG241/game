@@ -462,8 +462,9 @@ func bump_today(key: String, n := 1) -> void:
 # ------------------------------------------------------------------ staff
 signal staff_changed
 
-## Most of each role the pub can take on at once.
+## Most of each role the pub can take on at once, and the second bartender waits for a busier pub.
 const STAFF_LIMIT := {"bartender": 2, "collector": 1}
+const SECOND_BARTENDER_REP := 50.0
 
 
 func is_hired(id: String) -> bool:
@@ -493,15 +494,24 @@ func hire_block(id: String) -> String:
 	var role := str(c["role"])
 	if staff_count(role) >= int(STAFF_LIMIT.get(role, 1)):
 		return "No room for another %s" % ("bartender" if role == "bartender" else "glass collector")
-	if cash < float(c.get("wage", 0)):
-		return "Need €%d for the first night's wages" % int(c.get("wage", 0))
+	if role == "bartender" and staff_count("bartender") >= 1 and reputation < SECOND_BARTENDER_REP:
+		return "A second bartender needs reputation %d" % int(SECOND_BARTENDER_REP)
+	var upfront := hire_fee(id) + float(c.get("wage", 0))
+	if cash < upfront:
+		return "Need €%d (agency fee and the first night's wages)" % int(upfront)
 	return ""
+
+
+## The one-off agency fee for taking someone on (paid when hired, like a recruitment fee).
+func hire_fee(id: String) -> float:
+	return float(GameData.staff_candidate(id).get("fee", 0))
 
 
 func hire(id: String) -> bool:
 	if hire_block(id) != "":
 		return false
 	var c := GameData.staff_candidate(id)
+	spend(hire_fee(id), "wages")
 	staff.append({"id": id, "name": c["name"], "role": c["role"], "skill": float(c["skill"]),
 		"wage": float(c["wage"]), "model": c.get("model", ""), "gender": c.get("gender", "m"), "hired_day": day})
 	staff_changed.emit()

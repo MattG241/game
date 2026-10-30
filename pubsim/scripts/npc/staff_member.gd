@@ -30,6 +30,9 @@ var _moan_t := 0.0
 var _final := {}
 var _reach_w := 0.0              # how far the left hand has gone to the tap handle
 var _stream: MeshInstance3D      # the beer running from the nozzle while they pour
+var energy := 1.0                # 0..1: everyone needs a break; the better they are, the longer they last
+const BREAK_SPOT := Vector3(2.9, 0.0, -4.0)
+const BREAK_SECONDS := 50.0
 
 
 func setup_staff(w: Node, entry: Dictionary, seed_v: int) -> void:
@@ -76,7 +79,17 @@ func _process_state(delta: float) -> void:
 			_look_t -= delta
 			if _look_t <= 0.0:
 				_look_t = 0.5
-				_find_work()
+				if energy <= 0.0 and carried.is_empty() and glass == null:
+					_take_break()
+				else:
+					_find_work()
+		"st_break":
+			_face_yaw(PI * 0.5, delta)
+			_idle_anim(delta)
+			if _job_t <= 0.0:
+				energy = 1.0
+				set_name_tag("%s · %s" % [display_name, "bar" if role == "bartender" else "floor"])
+				_go_home()
 		"st_order":
 			_face_yaw(PI, delta)
 			_idle_anim(delta)
@@ -145,6 +158,8 @@ func _arrive() -> void:
 			_job_t = _wash_time()
 		"st_wipe":
 			_job_t = lerpf(2.6, 1.4, skill)
+		"st_break":
+			_job_t = BREAK_SECONDS
 		"st_pour":
 			_start_pour()
 
@@ -154,6 +169,17 @@ func _face_point(n: Node3D, delta: float) -> void:
 		var to := n.global_position - global_position
 		if Vector2(to.x, to.z).length() > 0.05:
 			_face_yaw(atan2(-to.x, -to.z), delta)
+
+
+func _tire(amount: float) -> void:
+	energy -= amount * lerpf(1.3, 0.7, skill)
+
+
+func _take_break() -> void:
+	set_name_tag("%s · on a break" % display_name)
+	say("Five minutes!", 2.5)
+	world.notify("%s is on a break." % display_name, "info")
+	_go(BREAK_SPOT, "st_break")
 
 
 func _go(pos: Vector3, then_state: String) -> void:
@@ -352,6 +378,7 @@ func _hand_over() -> void:
 		return
 	target = c
 	var ok: bool = world.staff_serve(self, c)
+	_tire(0.12)
 	if c.has_meta("served_by") and c.get_meta("served_by") == self:
 		c.remove_meta("served_by")
 	target = null
@@ -466,6 +493,7 @@ func _wash_one() -> void:
 	if g == glass:
 		glass = null
 	world.staff_wash(self, g)
+	_tire(0.035)
 	_job_t = _wash_time()
 	if carried.is_empty():
 		glass = null

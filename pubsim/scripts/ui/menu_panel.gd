@@ -10,6 +10,10 @@ var title: Label
 var tab_bar: HBoxContainer
 var tab_scroll: ScrollContainer
 var _summary_mode := false
+var _last_scroll := 0
+var _drag_idx := -1
+var _drag_moved := 0.0
+var _fling := 0.0           # pixels per second, after the finger lets go
 var close_btn: Button
 var footer: HBoxContainer          # the end-of-day buttons, pinned below the scrolling content
 
@@ -61,6 +65,8 @@ func _ready() -> void:
 	scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE   # finger scrolling is handled in _input (below)
+	scroll.get_v_scroll_bar().custom_minimum_size = Vector2(10, 0)
 	vb.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -104,6 +110,15 @@ func _build_tabs() -> void:
 		tab_bar.add_child(b)
 
 
+## Cards, rows and buttons pass drags on to the scroll container, so a finger anywhere on the
+## page scrolls it (a quick tap on a button still presses it).
+func _let_drags_scroll(n: Node) -> void:
+	for ch in n.get_children():
+		if ch is Control and not (ch is ScrollContainer) and not (ch is Slider):
+			(ch as Control).mouse_filter = Control.MOUSE_FILTER_PASS if (ch as Control).mouse_filter != Control.MOUSE_FILTER_IGNORE else Control.MOUSE_FILTER_IGNORE
+		_let_drags_scroll(ch)
+
+
 func show_tab(t: String) -> void:
 	tab = t
 	for b in tab_bar.get_children():
@@ -133,6 +148,7 @@ func show_tab(t: String) -> void:
 			_jukebox()
 		"game":
 			_game()
+	_let_drags_scroll(content)
 
 
 func _row() -> HBoxContainer:
@@ -221,7 +237,7 @@ func _skill_text(k: float) -> String:
 
 func _staff() -> void:
 	_text(content, "Cash: €%.2f   ·   Wages are paid at closing each night (€%d tonight)." % [GameState.cash, int(GameState.wages_today())], 22, UITheme.GOLD)
-	_text(content, "Hired help works alongside you all day. Bar staff take on the orders you can't get to, and the pub gets busier to match; a glass collector keeps the rack full.", 20, UITheme.MUTED)
+	_text(content, "Staff cost real money: an agency fee to take them on and wages every night, busy or quiet. Bar staff pick up orders you've left waiting, and the pub gets busier to match, so you'll still be pulling pints. Everyone needs a break now and then.", 20, UITheme.MUTED)
 	if not GameState.staff.is_empty():
 		_text(content, "On the payroll", 26, UITheme.GOLD)
 	for e in GameState.staff:
@@ -258,7 +274,7 @@ func _staff() -> void:
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(info)
 		_text(info, "%s   [%s]" % [c["name"], ROLE_NAMES.get(str(c["role"]), "")], 26, UITheme.GOLD)
-		_text(info, "%s   ·   €%d a night" % [_skill_text(float(c["skill"])), int(c["wage"])], 20, Color(0.6, 0.9, 0.65))
+		_text(info, "%s   ·   €%d a night   ·   €%d agency fee   ·   needs reputation %d" % [_skill_text(float(c["skill"])), int(c["wage"]), int(c.get("fee", 0)), int(c.get("min_rep", 0))], 20, Color(0.6, 0.9, 0.65))
 		_text(info, str(c.get("blurb", "")), 18)
 		if why != "":
 			_text(info, why, 18, Color(1, 0.6, 0.5))
@@ -566,7 +582,42 @@ func _refresh_now() -> void:
 	_now_bar.value = pos
 
 
+## A finger dragged anywhere over the list scrolls it, with a little momentum; the mouse wheel too.
+## Once a drag moves more than a few pixels, button presses are ignored until it ends.
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var r := scroll.get_global_rect()
+	if event is InputEventScreenTouch:
+		var t := event as InputEventScreenTouch
+		if t.pressed and r.has_point(t.position) and _drag_idx < 0:
+			_drag_idx = t.index
+			_drag_moved = 0.0
+			_fling = 0.0
+		elif not t.pressed and t.index == _drag_idx:
+			_drag_idx = -1
+			if _drag_moved > 10.0:
+				UITheme.presses_blocked_until = Time.get_ticks_msec() + 200
+	elif event is InputEventScreenDrag and (event as InputEventScreenDrag).index == _drag_idx:
+		var d := event as InputEventScreenDrag
+		scroll.scroll_vertical -= int(round(d.relative.y))
+		_drag_moved += absf(d.relative.y)
+		_fling = -d.velocity.y if d.velocity != Vector2.ZERO else _fling
+		if _drag_moved > 10.0:
+			UITheme.presses_blocked_until = Time.get_ticks_msec() + 300
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed and r.has_point((event as InputEventMouseButton).position):
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			scroll.scroll_vertical += -70 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 70
+			get_viewport().set_input_as_handled()
+
+
 func _process(delta: float) -> void:
+	if visible and _drag_idx < 0 and absf(_fling) > 20.0:
+		scroll.scroll_vertical += int(_fling * delta)
+		_fling = move_toward(_fling, 0.0, delta * 2400.0)
+	if visible and scroll.scroll_vertical != _last_scroll:
+		_last_scroll = scroll.scroll_vertical
 	if not visible or tab != "music":
 		return
 	_refresh_t -= delta
@@ -854,3 +905,4 @@ func show_summary(s: Dictionary) -> void:
 	quit.custom_minimum_size = Vector2(220, 72)
 	footer.add_child(quit)
 	footer.visible = true
+	_let_drags_scroll(content)

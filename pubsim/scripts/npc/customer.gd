@@ -239,6 +239,10 @@ func _build(look: Dictionary) -> void:
 	_name_tag.outline_size = 10
 	_name_tag.modulate = Color(0.9, 0.85, 0.7, 0.85)
 	_name_tag.visible = false
+	# names only when you're close enough to talk; the room stays uncluttered
+	_name_tag.visibility_range_end = 4.5
+	_name_tag.visibility_range_end_margin = 1.0
+	_name_tag.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(_name_tag)
 
 

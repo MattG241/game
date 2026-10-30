@@ -1110,11 +1110,17 @@ func _test_staff() -> void:
 	GameState.tutorial["done"] = true
 	var w: World = main.world
 	check(GameData.staff_pool.size() >= 4, "there are people looking for work (%d)" % GameData.staff_pool.size())
+	check(GameState.hire_block("ciaran").begins_with("Needs reputation"), "nobody comes to work in an unknown pub")
+	GameState.reputation = 35.0
 	check(GameState.hire_block("roisin").begins_with("Needs reputation"), "the best staff want a pub with a name first")
+	GameState.cash = 30.0
+	check(GameState.hire_block("ciaran").begins_with("Need €"), "taking someone on needs the agency fee up front")
 	GameState.cash = 500.0
 	check(GameState.hire("ciaran") and GameState.hire("seanie"), "hire a bartender and a glass collector")
+	check(GameState.cash < 500.0 - 90.0, "the agency fees are paid when they're hired")
 	check(not GameState.hire("ciaran"), "can't hire the same person twice")
 	GameState.reputation = 60.0
+	check(GameState.hire_block("roisin").begins_with("A second bartender") or GameState.reputation >= 50.0, "a second bartender waits for a busier pub")
 	check(GameState.hire("roisin"), "a second bartender once the pub has a name")
 	check(GameState.hire_block("brendan").begins_with("No room"), "no room for a third bartender")
 	GameState.fire("roisin")
@@ -1178,7 +1184,7 @@ func _test_staff() -> void:
 	check(w.glass_count_check() == total, "whatever they carried is left by the sink")
 	# wages at close, and saving
 	var wage := GameState.wages_today()
-	check(is_equal_approx(wage, 14.0), "wages add up (€%.0f)" % wage)
+	check(is_equal_approx(wage, 15.0), "wages add up (€%.0f)" % wage)
 	GameState.save_game()
 	GameState._reset()
 	GameState.load_game()
@@ -1225,7 +1231,11 @@ func _test_flow() -> void:
 	check(goals.size() == 3 and goals[0]["id"] == "serve", "three goals for the day, starting with a serving target")
 	check(GameState.daily_goals() == goals, "the day's goals stay the same once set")
 	await _frames(40)
+	check(not main.hud.next_pill.visible or not main.hud.tip_panel.visible, "the Next line steps aside while a tutorial tip is up")
+	main.hud.tip_panel.visible = false
+	await _frames(5)
 	check(main.hud.next_pill.visible and main.hud.next_label.text != "" and main.hud.goals_box.get_child_count() == 4, "the HUD shows the next step and today's goals")
+	check(not main.hud.goal_card.visible, "the goal list stays folded until one is met")
 	check(main.hud.goal_chip.text.begins_with("Goals 0/3"), "goals fold into a small chip")
 	w.player.global_position = Vector3(-5.5, 0, 1.5)
 	await _frames(30)
@@ -1566,6 +1576,30 @@ func _test_fixes() -> void:
 	w.session.stop()
 	await _frames(2)
 	check(int(GameState.stats.get("sessions", 0)) == sessions and not w.in_minigame(), "leaving the session early counts for nothing")
+	# the upgrades list scrolls under a finger, and a drag never buys anything
+	main.hud.open_menu("upgrades")
+	await _frames(5)
+	var menu: MenuPanel = main.hud.menu
+	var cash_before := GameState.cash
+	var at := menu.scroll.get_global_rect().get_center()
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.pressed = true
+	touch.position = at
+	menu._input(touch)
+	for k in 12:
+		var drag := InputEventScreenDrag.new()
+		drag.index = 0
+		drag.position = at - Vector2(0, 20 * (k + 1))
+		drag.relative = Vector2(0, -20)
+		menu._input(drag)
+	touch.pressed = false
+	menu._input(touch)
+	await _frames(2)
+	check(menu.scroll.scroll_vertical > 150, "dragging a finger up the upgrades list scrolls it (%d px)" % menu.scroll.scroll_vertical)
+	check(Time.get_ticks_msec() < UITheme.presses_blocked_until, "a button under the finger isn't pressed by the drag")
+	check(is_equal_approx(GameState.cash, cash_before), "nothing bought while scrolling")
+	main.hud.close_menu()
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

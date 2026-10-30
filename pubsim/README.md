@@ -233,6 +233,27 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - staff ignored keg freshness;
   - a broke pub with no stock could never recover (the supplier now puts one keg on the slate);
   - a large HUD scale pushed the menu's close button off-screen.
+- **Balance pass**, after looking at how similar games pace staff:
+  - **The research:** Two Point Hospital charges a recruitment fee up front, and its staff tire and
+    take breaks. Better staff cost far more. PlateUp players report the late game turning easy once
+    automation covers everything.
+  - **Staff costs:** staff now need reputation (the first bartender at 30, a second at 50). Each
+    has an agency fee paid up front, plus higher wages for better staff.
+  - **Bartenders:** they only pick up orders left waiting 15 seconds, so you stay the first port of
+    call. Demand grows with the size of the team.
+  - **Breaks:** everyone needs one every so often.
+  - **Measured:** `tests/balance_probe.tscn` plays whole days. A novice bartender takes you from 67%
+    to 89% busy and pays back the fee in about 9 days. A full team keeps you 96% busy. A slow
+    player can't lean on staff to carry the pub.
+- **Less clutter:**
+  - at most two short notices, with no repeats and routine news held back;
+  - names over people only up close;
+  - the goal list folded until one is met;
+  - the Next pill only for real actions, and never on top of a tutorial tip;
+  - orders listed only when two or more are waiting;
+  - tutorial tips fade on their own.
+- **The glass** now draws its far wall, so a pint looks whole. **Menus scroll** under a finger
+  anywhere on the list, with a little momentum, and a drag never presses a button.
 
 ## The soundtrack: who plays what
 | # | Song | When it plays |

@@ -200,6 +200,20 @@ func _ready() -> void:
 				await _wait(0.5)
 				await _shot(v)
 				main.hud.close_menu()
+			"busy":
+				# a busy moment as the player sees it: two at the bar, people about, a tip on screen
+				for k in 2:
+					var bc2 := w.spawn_customer()
+					bc2.global_position = w.bar_spot_pos(k + 1)
+					bc2.bar_spot = k + 1
+					w.bar_spots[k + 1] = bc2
+					bc2.state = "wait_order"
+					bc2.rotation.y = 0.0
+				w.player.global_position = Vector3(-1.4, 0, -3.3)
+				w.player.rotation.y = PI
+				w.player.camera.current = true
+				await _wait(2.0)
+				await _shot(v)
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

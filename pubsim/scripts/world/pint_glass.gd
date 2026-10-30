@@ -29,6 +29,7 @@ var _dome: MeshInstance3D
 var _ice: Node3D
 var _liq_mat: ShaderMaterial
 var _shell_mat: ShaderMaterial
+var _back_mat: ShaderMaterial
 var _slosh := Vector2.ZERO
 var _slosh_vel := Vector2.ZERO
 var _last_pos := Vector3.ZERO
@@ -83,7 +84,11 @@ func _build() -> void:
 		_shell_mat.set_shader_parameter("print_y0", float(brand["print_y0"]))
 		_shell_mat.set_shader_parameter("print_y1", float(brand["print_y1"]))
 		_shell_mat.set_shader_parameter("print_half_angle", float(brand["print_half_angle"]))
-	_shell.material_override = _shell_mat
+	# the far wall is drawn first (its inside faces us), then the near wall over it
+	_back_mat = MeshKit.shader_mat("res://assets/shaders/glass_back.gdshader", {"emblem": 0.0})
+	_back_mat.render_priority = -1
+	_back_mat.next_pass = _shell_mat
+	_shell.material_override = _back_mat
 	_shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_shell)
 	_dome = MeshInstance3D.new()
@@ -164,10 +169,13 @@ func update_visual() -> void:
 	_liq_mat.set_shader_parameter("lace_top", lace_top)
 	_liq_mat.set_shader_parameter("cascade_strength", 1.0)
 	_shell_mat.set_shader_parameter("dirt", dirt)
+	_back_mat.set_shader_parameter("dirt", dirt)
 	# a fresh cold pint mists the glass; it fades as the drink warms and is drunk
 	var cold := clampf(1.0 - c.age / 240.0, 0.0, 1.0) if c.total() > 0.05 else 0.0
 	_shell_mat.set_shader_parameter("cold", cold)
+	_back_mat.set_shader_parameter("cold", cold)
 	_shell_mat.set_shader_parameter("fill_y", BASE + clampf(c.liquid_level(), 0.0, 1.0) * inner_height)
+	_back_mat.set_shader_parameter("fill_y", BASE + clampf(c.liquid_level(), 0.0, 1.0) * inner_height)
 	var over := c.total() - 1.0
 	_dome.visible = over > 0.002 and c.foam > 0.01 and up.y > 0.97
 	if _dome.visible:

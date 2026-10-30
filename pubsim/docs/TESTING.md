@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **381 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **390 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -110,3 +110,23 @@ that view. Point-light shadows re-render the scene six times each, so the pendan
 3. Pour, settle, top-up and serve a Galagers; then try Split the G from the menu.
 4. Do the voices sound Irish enough? Note any line that sounds wrong.
 5. Note the FPS from the overlay on a busy evening with each Quality preset.
+
+
+## Staff balance (`tests/balance_probe.tscn`)
+Each row is one full trading day, 16:00 to midnight. A bot barman serves at 45 s per order (90 s in the
+last row), on the Balanced setting. "You" and "staff" count orders served. "Busy" is the share of
+opening time the player spends serving. Profit is sales and tips, minus the cost of drinks, wages, rent
+and utilities. The agency fee is paid once and is not in the profit column.
+
+| Config | You | Staff | Busy | Sales | Wages | Fee | Profit/day |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Solo, early (rep 25, day 3) | 7 | 0 | 58% | €45 | 0 | 0 | €7 |
+| Solo, established (rep 45, day 8) | 9 | 0 | 67% | €56 | 0 | 0 | €18 |
+| + novice bartender | 11 | 2 | 89% | €81 | €15 | €60 | €25 |
+| + novice + glass collector | 12 | 2 | 90% | €89 | €26 | €95 | €23 |
+| + 2 bartenders + collector (rep 65, day 14) | 12 | 11 | 96% | €132 | €68 | €310 | €11 |
+| Slow player (90 s) + novice | 6 | 4 | 90% | €60 | €15 | €60 | €2 |
+
+Before this pass, a €14 bartender could be hired on day 1 with no fee and took every order the player
+didn't reach first. Staff now take only orders that have waited 15 s, so the player stays busy. In the
+probe, the collector's value doesn't show, because the bot washes glasses for free.

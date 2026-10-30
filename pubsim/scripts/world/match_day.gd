@@ -83,7 +83,8 @@ func _score() -> void:
 			if c.state in ["mingle", "drinking", "stand_drink"] and _rng.randf() < (0.9 if goal else 0.6):
 				c.cheer()
 		GameState.live_tips = minf(GameState.live_tips + (0.04 if goal else 0.015), 0.15)
-		world.notify("%s for %s!  %s" % ["GOAL" if goal else "Point", HOME, score_text()], "good")
+		if goal:      # points just get a cheer and the scoreboard; goals get the headline
+			world.notify("GOAL for %s!  %s" % [HOME, score_text()], "good")
 	else:
 		Sfx.play("groan", -6.0)
 		if goal:

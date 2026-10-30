@@ -157,6 +157,7 @@ static func theme() -> Theme:
 
 
 static var _modern: Theme
+static var presses_blocked_until := 0     # set while a menu list is being scrolled
 
 
 ## Patience from 0 (about to walk out) to 1 (happy). Red to green, or amber to blue when the
@@ -270,6 +271,8 @@ static func button(text: String, cb: Callable, size := 26) -> Button:
 	b.add_theme_font_size_override("font_size", size)
 	b.custom_minimum_size = Vector2(0, 64)
 	b.pressed.connect(func():
+		if Time.get_ticks_msec() < presses_blocked_until:
+			return       # the finger was scrolling the list, not pressing this
 		Sfx.play("ui_click", -6.0, 0.0)
 		cb.call())
 	return b

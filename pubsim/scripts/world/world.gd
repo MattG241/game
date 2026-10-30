@@ -441,7 +441,6 @@ func _sign_action() -> void:
 			GameState.open_pub()
 			Sfx.play("door_bell", -4.0)
 			_set_sign(true)
-			notify("%s is open!" % GameState.pub_name, "good")
 			voices.speak(null, "landlord", "welcome", true)
 			_tutorial_event("opened")
 			if int(GameState.stats["served"]) == 0:
@@ -552,7 +551,7 @@ func _keg_action(id: String) -> void:
 		return
 	if GameState.change_keg(id):
 		Sfx.play("keg", -2.0)
-		notify("Fresh %s connected." % GameData.drink(id)["stock_unit"], "good")
+		notify("Fresh %s connected." % GameData.drink(id)["stock_unit"], "info")
 		_refresh_stock_pile()
 
 
@@ -761,6 +760,9 @@ func refresh_staff(at_start := false) -> void:
 			st.say("Grand, I'll get stuck in.", 3.0)
 
 
+const STAFF_OVERFLOW_WAIT := 15.0
+
+
 func staff_serving(c: Customer) -> StaffMember:
 	var st: Variant = c.get_meta("served_by") if c.has_meta("served_by") else null
 	if st != null and is_instance_valid(st) and staff_npcs.has(st):
@@ -784,6 +786,11 @@ func staff_next_customer(st: StaffMember) -> Customer:
 	var behind := player.global_position.z < PubLayout.BAR_BACK_Z + 0.3
 	for c in customers:
 		if c.state != "wait_order" or c.bar_spot < 0 or staff_serving(c) != null:
+			continue
+		# you're the first port of call: staff pick up orders that have been left waiting
+		if not c.has_meta("at_bar_t"):
+			c.set_meta("at_bar_t", run_time)
+		if run_time - float(c.get_meta("at_bar_t")) < STAFF_OVERFLOW_WAIT:
 			continue
 		var d := absf(player.global_position.x - bar_spot_pos(c.bar_spot).x)
 		if behind and d < 1.0 and c.patience_frac() > 0.5:
@@ -830,10 +837,10 @@ func staff_serve(st: StaffMember, c: Customer) -> bool:
 	if not res.get("ok", false):
 		return false
 	st.glass = null
-	if hud:
-		var verdict := str(res.get("verdict", ""))
-		notify("%s served %s · %s%s" % [st.display_name, c.display_name, verdict,
-			(" · €%.2f tip" % float(res["tip"])) if float(res.get("tip", 0.0)) > 0.0 else ""], "good" if int(res.get("score", 0)) >= 75 else "info")
+	var score := int(res.get("score", 0))
+	if hud and (score < 60 or score >= 92):
+		# only the pints worth knowing about: a poor one (have a word) or a perfect one
+		notify("%s served %s a %s (%d)" % [st.display_name, c.display_name.split(" ")[0], str(res.get("verdict", "")).to_lower(), score], "good" if score >= 92 else "warn")
 	return true
 
 
@@ -1227,6 +1234,7 @@ func can_reorder(c: Customer) -> bool:
 
 
 func on_customer_at_bar(c: Customer) -> void:
+	c.set_meta("at_bar_t", run_time)
 	_tutorial_event("customer_at_bar")
 
 
@@ -1901,21 +1909,21 @@ func next_step() -> Dictionary:
 	if not collector and not spills.is_empty():
 		return {"text": "Wipe up the spill", "pos": spills[0].global_position}
 	if phase == "open" and customers.is_empty():
-		return {"text": "Quiet for now: customers will be in soon"}
+		return {"text": "Quiet for now: customers will be in soon", "idle": true}
 	if phase != "open":
-		return {"text": "Last orders: see the last few out the door"}
+		return {"text": "Last orders: see the last few out the door", "idle": true}
 	for c in customers:
 		if c.regular_id != "" and c.state in ["drinking", "stand_drink", "mingle"] and not stories.chapter_ready(c.regular_id).is_empty():
 			return {"text": "%s has something to tell you" % c.display_name.split(" ")[0], "pos": _above(c)}
 	if match_day and match_day.on:
-		return {"text": "Match on: %s" % match_day.score_text()}
+		return {"text": "Match on: %s" % match_day.score_text(), "idle": true}
 	var favours := stories.open_favours()
 	if not favours.is_empty():
-		return {"text": "A favour for %s: %s" % [favours[0]["name"], favours[0]["text"]]}
+		return {"text": "A favour for %s: %s" % [favours[0]["name"], favours[0]["text"]], "idle": true}
 	for c in customers:
 		if c.regular_id != "" and c.state in ["drinking", "stand_drink"] and not GameState.today.get("chatted", []).has(c.regular_id):
 			return {"text": "All in hand. Have a chat with %s" % c.display_name, "pos": _above(c)}
-	return {"text": "All in hand. Throw some darts or have a pint by the fire"}
+	return {"text": "All in hand. Throw some darts or have a pint by the fire", "idle": true}
 
 
 # ------------------------------------------------------------------ tutorial & messages
@@ -1965,7 +1973,7 @@ func _set_festival_look() -> void:
 func on_ready_with_hud() -> void:
 	_set_sign(GameState.phase != "prep")
 	if GameState.phase == "prep":
-		notify("Day %d · %s · %s. Flip the sign by the door to open." % [GameState.day, GameState.weekday_name(), GameState.weather.capitalize()])
+		notify("Day %d · %s · %s" % [GameState.day, GameState.weekday_name(), GameState.weather.capitalize()])
 		var fest := GameState.festival_today()
 		if not fest.is_empty():
 			celebrate(str(fest["name"]), str(fest["desc"]), "t05")

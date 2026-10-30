@@ -66,7 +66,7 @@ var next_pill: PanelContainer
 var next_label: Label
 var goals_box: VBoxContainer
 var _goals_t := 0.0
-var _goals_open_t := 10.0        # the goal list shows for a while at the start of the day
+var _goals_open_t := 0.0         # the goal list opens for a moment when one is met (or on a tap)
 var _goals_done := -1
 
 
@@ -620,6 +620,9 @@ func _process(delta: float) -> void:
 			subtitle_label.text = ""
 	if _tip_t > 0.0:
 		_tip_t -= delta
+		if _tip_t <= 0.0 and tip_panel.visible:
+			tip_panel.visible = false
+			tip_close.visible = false
 	var playing := not pour_root.visible and not drink_root.visible and not darts_root.visible and not menu.visible \
 		and not celebration.visible and not world.in_minigame()
 	if celebration.visible and tip_panel.visible:
@@ -633,7 +636,8 @@ func _process(delta: float) -> void:
 		next_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if long else TextServer.AUTOWRAP_OFF
 		next_label.custom_minimum_size = Vector2(540 if long else 0, 0)
 		next_pill.reset_size()
-	next_pill.visible = playing and next_label.text != "" and bool(GameState.settings.get("show_guide", true))
+	next_pill.visible = playing and next_label.text != "" and bool(GameState.settings.get("show_guide", true)) \
+		and not bool(world._guide.get("idle", false)) and not tip_panel.visible
 	_goals_t -= delta
 	if _goals_t <= 0.0:
 		_goals_t = 1.0
@@ -656,7 +660,7 @@ func refresh_goals() -> void:
 	var done := goals.filter(func(g): return g["done"]).size()
 	goal_chip.set_label("Goals %d/%d" % [done, goals.size()])
 	if _goals_done >= 0 and done > _goals_done:
-		_goals_open_t = 8.0      # show the list for a moment when one is met
+		_goals_open_t = 5.0      # show the list for a moment when one is met
 	_goals_done = done
 	for i in goals.size():
 		var g: Dictionary = goals[i]
@@ -748,8 +752,8 @@ func refresh_orders() -> void:
 	for c in world.customers:
 		if c.state in ["wait_order", "wait_drink"]:
 			waiting.append(c)
-	if waiting.is_empty():
-		return      # nothing to show: the screen stays clear
+	if waiting.size() < 2:
+		return      # one order is already in the Next line and over their head: keep the screen clear
 	# longest-waiting first: that's who to serve next
 	waiting.sort_custom(func(a, b): return a.patience_frac() < b.patience_frac())
 	var card := PanelContainer.new()
@@ -761,7 +765,7 @@ func refresh_orders() -> void:
 	vb.add_theme_constant_override("separation", 3)
 	card.add_child(vb)
 	var full := active >= int(caps[1])
-	vb.add_child(UITheme.hud_label("ORDERS  %d/%d%s" % [active, int(caps[1]), "  ·  BAR FULL" if full else ""], 13, Color(1.0, 0.72, 0.4) if full else UITheme.GOLD, 800))
+	vb.add_child(UITheme.hud_label("AT THE BAR  %d%s" % [waiting.size(), "  ·  FULL" if full else ""], 13, Color(1.0, 0.72, 0.4) if full else UITheme.GOLD, 800))
 	var shown := 0
 	for c in waiting:
 		if shown >= 4:
@@ -847,6 +851,11 @@ func show_pour_result(res: Dictionary) -> void:
 
 # ------------------------------------------------------------------ messages
 func toast(text: String, kind := "info") -> void:
+	for ch in toast_box.get_children():
+		if ch.has_meta("text") and ch.get_meta("text") == text:
+			return       # already showing
+	if kind == "info" and toast_box.get_child_count() >= 1:
+		return       # routine news doesn't stack on top of something that matters
 	var accents := {"good": Color(0.4, 0.85, 0.5), "bad": Color(0.95, 0.4, 0.3), "warn": Color(0.95, 0.7, 0.25), "info": Color(1, 1, 1, 0.0)}
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme.glass_box(0.66, 12, accents.get(kind, accents["info"]), 14, 7))
@@ -856,12 +865,13 @@ func toast(text: String, kind := "info") -> void:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.custom_minimum_size = Vector2(480, 0)
 	p.add_child(l)
+	p.set_meta("text", text)
 	toast_box.add_child(p)
-	while toast_box.get_child_count() > 3:
+	while toast_box.get_child_count() > 2:
 		toast_box.get_child(0).queue_free()
 		toast_box.remove_child(toast_box.get_child(0))
 	var tw := p.create_tween()
-	tw.tween_interval(3.2)
+	tw.tween_interval(2.6)
 	tw.tween_property(p, "modulate:a", 0.0, 0.5)
 	tw.tween_callback(p.queue_free)
 

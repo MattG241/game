@@ -51,7 +51,8 @@ func order_interval(live_music := false) -> float:
 	interval /= 1.0 + clampf((GameState.reputation - 20.0) / 100.0, 0.0, 0.3)
 	if live_music:
 		interval /= 1.2
-	return clampf(interval, 28.0, 200.0)
+	# a bigger team can take a faster stream of orders (the floor is per pair of hands)
+	return clampf(interval, 28.0 / servers(), 200.0)
 
 
 ## [soft, hard] limit on orders waiting at the bar.

@@ -1,0 +1,60 @@
+// Shared by glass.gdshader (the near side) and glass_back.gdshader (the far side, drawn first).
+// Pint glass: fresnel, smudges, condensation, and the GALAGERS print wrapped round the glass.
+#include "res://assets/shaders/noise.gdshaderinc"
+uniform float dirt = 0.0;
+uniform float emblem = 1.0;            // 0 hides the print (tumblers)
+uniform sampler2D print_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform float print_y0 = 0.05;         // printed band, metres from the glass base
+uniform float print_y1 = 0.14;
+uniform float print_half_angle = 0.95; // radians either side of the front
+uniform float cold = 0.0;              // condensation when a cold pint is in it (0..1)
+uniform float fill_y = 0.0;            // condensation only forms below the drink
+uniform vec3 tint : source_color = vec3(0.9, 0.95, 0.95);
+varying vec3 p;
+void vertex() { p = VERTEX; }
+
+void fragment() {
+	float fres = pow(1.0 - clamp(abs(dot(NORMAL, VIEW)), 0.0, 1.0), 3.0);
+	float a = 0.06 + fres * 0.5;
+	vec3 col = tint;
+	float rough = 0.04;
+	// smudges on a used glass
+	float sm = fbm3(p * 90.0);
+	float d = dirt * smoothstep(0.35, 0.75, sm);
+	col = mix(col, vec3(0.55, 0.5, 0.42), d);
+	a += d * 0.45;
+	rough += d * 0.5;
+	// condensation: a fine mist with larger beads, only where the cold drink is
+	if (cold > 0.01 && p.y < fill_y) {
+		float ang = atan(p.x, p.z);
+		vec2 dp = vec2(ang * 0.04, p.y) * 900.0;
+		vec2 cell = voronoi2(dp);
+		float size = 0.06 + 0.12 * fract(cell.y * 7.31);
+		float bead = (1.0 - smoothstep(size * 0.6, size, cell.x)) * step(0.68, cell.y);
+		// the odd drop that has run down, leaving a clear trail through the mist
+		float lane = floor(ang * 40.0);
+		float run = step(0.86, fract(sin(lane * 12.9898) * 43758.5453));
+		float trail = run * smoothstep(0.35, 0.0, abs(fract(ang * 40.0) - 0.5)) * step(p.y, fill_y - 0.01);
+		float mist = (0.25 + 0.15 * vnoise3(p * 400.0)) * (1.0 - trail * 0.9);
+		float edge = smoothstep(0.0, 0.01, fill_y - p.y);
+		a += (mist * 0.22 + bead * 0.3) * cold * edge;
+		col = mix(col, vec3(0.95, 0.97, 1.0), (mist * 0.28 + bead * 0.4) * cold * edge);
+		rough = mix(rough, 0.35, mist * cold * edge);
+	}
+	// printed brand, mapped round the curve of the glass
+	if (emblem > 0.5) {
+		float ang = atan(p.x, p.z);
+		vec2 uv = vec2((ang + print_half_angle) / (2.0 * print_half_angle), (print_y1 - p.y) / (print_y1 - print_y0));
+		if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+			vec4 pr = texture(print_tex, uv);
+			col = mix(col, pr.rgb, pr.a);
+			a = mix(a, 0.97, pr.a);
+			rough = mix(rough, 0.3, pr.a);
+		}
+	}
+	ALBEDO = col;
+	ALPHA = clamp(a, 0.0, 1.0);
+	ROUGHNESS = rough;
+	SPECULAR = 0.9;
+	METALLIC = 0.0;
+}
