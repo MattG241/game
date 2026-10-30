@@ -157,6 +157,44 @@ func _ready() -> void:
 				await _shot(v)
 				main.hud.visible = true
 				w.player.camera.current = true
+			"matchtv":
+				GameState.day = 4
+				GameState.upgrades["big_screen"] = 1
+				GameState.upgrades_changed.emit()
+				GameState.hour = 17.3
+				await _wait(3.0)
+				for k in 3:
+					w.match_day._score()
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 60.0
+				cam.global_transform = Transform3D(Basis(), Vector3(-3.6, 1.65, 2.6)).looking_at(Vector3(-6.6, 1.8, 2.2), Vector3.UP)
+				cam.current = true
+				await _wait(1.0)
+				await _shot(v)
+				w.player.camera.current = true
+			"story":
+				GameState.relationships["nora"] = 3
+				var sc := w.spawn_customer("nora")
+				sc.state = "drinking"
+				w._customer_action(sc)
+				await _wait(0.6)
+				await _shot(v)
+				main.hud.dismiss_celebration()
+			"session":
+				GameState.cash = 3000.0
+				GameState.upgrades["house_bodhran"] = 1
+				w.live.event_id = "fiddles_fire"
+				w.live.finished_tonight = false
+				w.live._start(GameData.events_by_id[w.live.event_id])
+				await _wait(3.0)
+				w.player.global_position = Vector3(-3.6, 0, 2.4)
+				w.player.rotation.y = PI * 0.5
+				w.session.begin(true)
+				await _wait(3.0)
+				w.session.tap()
+				await _shot(v)
+				w.session.stop()
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

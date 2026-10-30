@@ -13,6 +13,9 @@ var events_by_id: Dictionary = {}
 var objectives: Array = []
 var staff_pool: Array = []
 var staff_by_id: Dictionary = {}
+var festivals: Array = []
+var stories: Array = []
+var beats: Dictionary = {}
 var furniture: Array = []
 var furniture_by_id: Dictionary = {}
 var customer_lines: Dictionary = {}
@@ -44,6 +47,9 @@ func reload() -> void:
 	events_by_id = _index(events)
 	furniture_by_id = _index(furniture)
 	staff_by_id = _index(staff_pool)
+	festivals = _load("res://data/festivals.json", [])
+	stories = _load("res://data/stories.json", [])
+	beats = _load("res://data/beats.json", {})
 
 
 func staff_candidate(id: String) -> Dictionary:

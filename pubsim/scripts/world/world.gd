@@ -16,6 +16,9 @@ var drink_scene: DrinkScene
 var darts: DartsGame
 var live: LiveMusic
 var voices: VoiceDirector
+var match_day: MatchDay
+var stories := Stories.new()
+var session: SessionGame
 var _cam_tween: Tween
 var _vignette: CanvasLayer
 var _chatter_t := 20.0
@@ -113,6 +116,15 @@ func _ready() -> void:
 	live.name = "LiveMusic"
 	live.world = self
 	add_child(live)
+	stories.world = self
+	session = SessionGame.new()
+	session.name = "Session"
+	session.world = self
+	add_child(session)
+	match_day = MatchDay.new()
+	match_day.name = "MatchDay"
+	match_day.world = self
+	add_child(match_day)
 	GameState.upgrade_bought.connect(_on_upgrade_bought)
 	GameState.award_earned.connect(func(_id): voices.speak(null, "landlord", "milestone", true))
 	GameState.goal_done.connect(_on_goal_done)
@@ -240,17 +252,22 @@ func _make_interactables() -> void:
 		var idx := i
 		I.make(self, PubLayout.SETTLE_SLOTS[i] + Vector3(0, 0.08, 0), "settle", func(): return _settle_prompt(idx), func(): _settle_action(idx), 0.0, 1.5)
 	var sink := I.make(self, PubLayout.SINK_POS + Vector3(0, 0.1, 0), "sink", _sink_prompt, _sink_action)
-	I.make(self, PubLayout.DOOR_SIGN_POS, "door_sign", _sign_prompt, _sign_action, 0.0, 2.2)
+	var sign := I.make(self, PubLayout.DOOR_SIGN_POS, "door_sign", _sign_prompt, _sign_action, 0.0, 2.2)
+	sign.alt_prompt_fn = _lockin_prompt
+	sign.alt_action_fn = _lockin
 	I.make(self, PubLayout.TILL_POS + Vector3(0, 0.15, 0), "till", func(): return "Check the till & ledger", func(): hud.open_menu("ledger"))
 	for id in PubLayout.KEG_POS.keys():
 		var kid: String = id
 		I.make(self, PubLayout.KEG_POS[id] + Vector3(0, 0.6, 0), "keg_" + id, func(): return _keg_prompt(kid), func(): _keg_action(kid), 1.2)
 	I.make(self, PubLayout.STOCK_PILE + Vector3(0, 0.6, 0), "stock", func(): return "Order stock (phone)", func(): hud.open_menu("stock"))
+	I.make(self, LINE_CLEAN_POS, "lines", _lines_prompt, _lines_action, 2.5)
 	I.make(self, Vector3(PubLayout.OCHE_X + 0.4, 1.3, PubLayout.DARTBOARD.z), "darts", _darts_prompt, func(): start_darts(), 0.0, 2.4)
 	I.make(self, DrinkScene.SPLIT_POS + Vector3(0, 0.2, 0.25), "split", _split_prompt, func(): start_split(), 0.0, 1.8)
 	I.make(self, Vector3(-6.0, 0.9, 0.9), "fireside", _fireside_prompt, func(): start_relax(), 0.0, 2.0)
 	I.make(self, PubLayout.JUKEBOX_POS + Vector3(0.3, 1.0, 0), "jukebox", func(): return "Choose the music (jukebox)" if player.has_hands_free() else "", func(): hud.open_menu("music"), 0.0, 2.2)
 	I.make(self, PubLayout.STAGE_POS + Vector3(-1.4, 1.2, 0), "championship", _champ_prompt, func(): start_split(true), 0.0, 2.4)
+	for spot in [PubLayout.STAGE_POS + Vector3(-1.2, 1.0, -0.8), LiveMusic.FIRESIDE_SPOT + Vector3(1.0, 1.0, 0.6)]:
+		I.make(self, spot, "session", _session_prompt, func(): session.begin(), 0.0, 2.6)
 
 
 func _hint(text: String) -> String:
@@ -436,11 +453,85 @@ func _sign_action() -> void:
 				close_day()
 
 
+# ------------------------------------------------------------------ the lock-in
+## The regulars who'd stay behind the drawn blinds: the closest friends of the house.
+func lockin_guests() -> Array:
+	var ids := []
+	for id in GameState.relationships.keys():
+		if int(GameState.relationships[id]) >= 4 and GameData.regulars_by_id.has(id):
+			ids.append(id)
+	ids.sort_custom(func(a, b): return int(GameState.relationships[a]) > int(GameState.relationships[b]))
+	return ids.slice(0, 5)
+
+
+func _lockin_prompt() -> String:
+	if GameState.phase not in ["last_orders", "closing"] or not customers.is_empty() or GameState.today.get("lockin", false):
+		return ""
+	if lockin_guests().size() < 2:
+		return ""
+	return "Hold a lock-in with the regulars"
+
+
+## After hours, blinds down, the regulars stay on. Good money and better stories, unless the
+## Gardaí come knocking.
+func _lockin() -> void:
+	if _lockin_prompt() == "":
+		return
+	var guests := lockin_guests()
+	GameState.today["lockin"] = true
+	var names := []
+	for id in guests:
+		names.append(str(GameData.regulars_by_id[id]["name"]).split(" ")[0])
+		_relationship(id, 2)
+	var rounds := 2 + _rng.randi() % 2
+	var takings := 0.0
+	for id in guests:
+		takings += GameState.price_of(str(GameData.regulars_by_id[id].get("drink", "stout"))) * rounds
+	var raided := _rng.randf() < 0.1 + 0.03 * guests.size()
+	var who: String = ", ".join(names.slice(0, names.size() - 1)) + " and " + str(names[-1])
+	var body := ""
+	if raided:
+		var fine := float(GameData.econ("lockin_fine", 60))
+		GameState.earn(takings * 0.5, "sales")
+		GameState.spend(fine, "other", true)
+		GameState.reputation = maxf(0.0, GameState.reputation - 2.0)
+		Sfx.play("knock", -2.0)
+		body = "%s stayed on with the blinds down. Half an hour in there's a knock at the door: the Gardaí.\nA €%d fine and a warning. Takings €%.2f." % [who, int(fine), takings * 0.5]
+		celebrate("Garda at the door!", body, "t06")
+	else:
+		GameState.earn(takings, "sales")
+		GameState.reputation = minf(100.0, GameState.reputation + 0.5)
+		body = "%s stayed on with the blinds down. %d rounds, a few songs and the story about the bishop's bicycle.\nTakings €%.2f, and friends for life." % [who, rounds, takings]
+		celebrate("A lock-in", body, "t17")
+	GameState.stats["lockins"] = int(GameState.stats.get("lockins", 0)) + 1
+
+
 func _set_sign(open: bool) -> void:
 	var lbl: Label3D = info.get("door_sign_label")
 	if lbl:
 		lbl.text = "OPEN" if open else "CLOSED"
 		lbl.modulate = Color(0.4, 0.95, 0.5) if open else Color(0.9, 0.3, 0.2)
+
+
+const LINE_CLEAN_POS := Vector3(-5.6, 1.0, -6.0)
+
+
+func _lines_prompt() -> String:
+	var days := GameState.day - int(GameState.progress.get("lines_cleaned_day", GameState.day))
+	if days < 3:
+		return _hint("Beer lines are clean (done %s)" % ("today" if days == 0 else "%d days ago" % days))
+	var cost := int(GameData.econ("line_clean_cost", 8))
+	return "Hold to clean the beer lines (€%d)%s" % [cost, "  · overdue!" if GameState.line_penalty() > 0.0 else ""]
+
+
+func _lines_action() -> void:
+	if _lines_prompt().begins_with("~"):
+		return
+	if GameState.clean_lines():
+		Sfx.play("squeak", -4.0)
+		notify("Lines cleaned. Every draught pint tastes the way it should.", "good")
+	else:
+		notify("Not enough cash for the line cleaner.", "bad")
 
 
 func _keg_prompt(id: String) -> String:
@@ -483,7 +574,7 @@ func back_to_player_camera() -> void:
 
 
 func in_minigame() -> bool:
-	return (pour and pour.active) or (drink_scene and drink_scene.active) or (darts and darts.active)
+	return (pour and pour.active) or (drink_scene and drink_scene.active) or (darts and darts.active) or (session and session.active)
 
 
 func _darts_prompt() -> String:
@@ -501,6 +592,16 @@ func darts_opponent() -> String:
 
 func darts_opponent_name() -> String:
 	return str(GameData.regulars_by_id.get(darts_opponent(), {}).get("name", "Packie Walsh")).split(" ")[0]
+
+
+func _session_prompt() -> String:
+	if not player.has_hands_free() or live == null or not live.playing:
+		return ""
+	if not GameState.has_upgrade("house_bodhran"):
+		return _hint("Buy the house bodhrán to sit in on the session")
+	if not session.can_play():
+		return ""
+	return "Sit in on the bodhrán"
 
 
 func start_darts() -> void:
@@ -906,7 +1007,7 @@ func arrival_rate_per_hour() -> float:
 		wm += GameState.get_mod("rain_bonus")
 	var rep := 0.55 + GameState.reputation / 45.0
 	var arr := 1.0 + GameState.get_mod("arrival_mult")
-	var music := live.arrival_mult() if live else 1.0
+	var music := (live.arrival_mult() if live else 1.0) * (match_day.arrival_mult() if match_day else 1.0)
 	return float(GameData.econ("base_arrivals_per_hour", 7.0)) * curve * float(wd[GameState.weekday()]) * wm * rep * arr * music
 
 
@@ -922,7 +1023,7 @@ func _maybe_spawn(dt: float) -> void:
 		return
 	# keep the room as lively as the hour and reputation suggest, without flooding the bar:
 	# arrivals mostly sit and chat; the dispatcher decides when each of them orders
-	var music := live.arrival_mult() if live else 1.0
+	var music := (live.arrival_mult() if live else 1.0) * (match_day.arrival_mult() if match_day else 1.0)
 	var target := dispatcher.target_population(GameState.hour, music, max_customers())
 	if customers.size() >= target or dispatcher.pending.size() >= 4:
 		return
@@ -1159,9 +1260,12 @@ func _customer_prompt(c: Customer) -> String:
 			return _hint("%s is waiting for a %s" % [c.display_name, GameData.drink(c.drink_id).get("short", "")])
 		"queue":
 			return _hint("%s is queueing for the bar" % c.display_name)
-		"drinking", "stand_drink":
+		"drinking", "stand_drink", "mingle":
 			if c.regular_id != "" and player.has_hands_free():
-				return "Chat with %s" % c.display_name
+				if not stories.chapter_ready(c.regular_id).is_empty():
+					return "Talk to %s (something on their mind)" % c.display_name
+				if c.state != "mingle":
+					return "Chat with %s" % c.display_name
 	return ""
 
 
@@ -1178,8 +1282,11 @@ func _customer_action(c: Customer) -> void:
 		"wait_drink":
 			if player.held != null and not player.held.contents.is_empty():
 				serve_customer(c, player.held)
-		"drinking", "stand_drink":
-			if c.regular_id != "":
+		"drinking", "stand_drink", "mingle":
+			if c.regular_id != "" and not stories.chapter_ready(c.regular_id).is_empty():
+				stories.tell(c)
+				return
+			if c.regular_id != "" and c.state != "mingle":
 				var r: Dictionary = GameData.regulars_by_id[c.regular_id]
 				var chat: Array = r.get("chat", [])
 				if not chat.is_empty():
@@ -1198,7 +1305,11 @@ func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictio
 	if con.drink_id != c.drink_id:
 		c.refuse_drink(line("wrong_drink") + " (%s)" % GameData.drink(c.drink_id).get("short", ""))
 		return {"ok": false, "reason": "wrong_drink"}
-	var res := con.evaluate(g.dirt, GameState.get_mod("beer_quality") * 0.6)
+	var draught := str(GameData.drink(c.drink_id).get("stock_unit", "keg")) in ["keg", "cask"]
+	var lines := GameState.line_penalty() if draught else 0.0
+	var res := con.evaluate(g.dirt, GameState.get_mod("beer_quality") * 0.6 - lines)
+	if lines > 0.0:
+		(res["notes"] as Array).append("The beer lines need cleaning (in the cellar)")
 	var q: int = res["score"]
 	if q < 30:
 		c.refuse_drink(line("refuse"))
@@ -1249,6 +1360,8 @@ func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictio
 		GameState.stats["perfect_pints"] = int(GameState.stats["perfect_pints"]) + 1
 	GameState.stats["best_pour"] = maxi(int(GameState.stats["best_pour"]), q)
 	c.satisfaction_sum += sat
+	if c.regular_id != "":
+		stories.note_pint(c.regular_id, q)
 	c.receive_drink(g)
 	var reaction := ""
 	if c.regular_id != "":
@@ -1460,6 +1573,8 @@ func _process(delta: float) -> void:
 		if not in_minigame():
 			_check_awards()
 			GameState.check_goals()
+			stories.check()
+			stories.refresh_markers()
 	_update_guide(delta)
 
 
@@ -1700,6 +1815,8 @@ func next_step() -> Dictionary:
 		for id in PubLayout.KEG_POS.keys():
 			if GameState.drink_available(id) and GameState.serves_left(id) < 4.0 and int(GameState.stock.get(id, 0)) > 0:
 				return {"text": "Change the %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
+		if GameState.line_penalty() > 0.0 and GameState.can_afford(float(GameData.econ("line_clean_cost", 8))):
+			return {"text": "The beer lines need cleaning (cellar) before you open", "pos": LINE_CLEAN_POS}
 		return {"text": "Flip the sign by the front door to open up", "pos": sign_pos}
 	if phase in ["last_orders", "closing"] and customers.is_empty():
 		return {"text": "Everyone's gone home: flip the sign to cash up", "pos": sign_pos}
@@ -1781,6 +1898,14 @@ func next_step() -> Dictionary:
 	if phase != "open":
 		return {"text": "Last orders: see the last few out the door"}
 	for c in customers:
+		if c.regular_id != "" and c.state in ["drinking", "stand_drink", "mingle"] and not stories.chapter_ready(c.regular_id).is_empty():
+			return {"text": "%s has something to tell you" % c.display_name.split(" ")[0], "pos": _above(c)}
+	if match_day and match_day.on:
+		return {"text": "Match on: %s" % match_day.score_text()}
+	var favours := stories.open_favours()
+	if not favours.is_empty():
+		return {"text": "A favour for %s: %s" % [favours[0]["name"], favours[0]["text"]]}
+	for c in customers:
 		if c.regular_id != "" and c.state in ["drinking", "stand_drink"] and not GameState.today.get("chatted", []).has(c.regular_id):
 			return {"text": "All in hand. Have a chat with %s" % c.display_name, "pos": _above(c)}
 	return {"text": "All in hand. Throw some darts or have a pint by the fire"}
@@ -1821,10 +1946,24 @@ func _tutorial_event(ev: String) -> void:
 		GameState.tutorial["done"] = true
 
 
+## Bunting and shamrock go up on festival days.
+func _set_festival_look() -> void:
+	var on := not GameState.festival_today().is_empty()
+	for n in info.get("festival", []):
+		(n as Node3D).visible = on
+
+
 func on_ready_with_hud() -> void:
 	_set_sign(GameState.phase != "prep")
 	if GameState.phase == "prep":
 		notify("Day %d · %s · %s. Flip the sign by the door to open." % [GameState.day, GameState.weekday_name(), GameState.weather.capitalize()])
+		var fest := GameState.festival_today()
+		if not fest.is_empty():
+			celebrate(str(fest["name"]), str(fest["desc"]), "t05")
+		var m := GameState.match_today()
+		if not m.is_empty():
+			notify("Match day! The game's on the big screen from %d:00." % int(m[0]), "good")
+	_set_festival_look()
 	start_tutorial()
 
 

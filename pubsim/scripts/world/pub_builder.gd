@@ -24,6 +24,10 @@ var info := {
 	"rain": [],
 	"env": null,
 	"photos": [],
+	"festival": [],        # bunting and shamrock, shown on festival days
+	"tv_mat": null,        # the big screen's picture (ShaderMaterial, "on" 0..1)
+	"tv_label": null,      # the score in the corner of the screen
+	"tv_light": null,
 }
 var _title_font: Font
 
@@ -51,7 +55,69 @@ func build(parent: Node3D) -> Dictionary:
 	_darts_corner()
 	_stage()
 	_jukebox()
+	_big_screen()
+	_bunting()
 	return info
+
+
+## A wall-mounted screen over the fireplace for match days.
+func _big_screen() -> void:
+	var g := _group("BigScreen")
+	var p := PubLayout.FIREPLACE
+	var at := Vector3(p.x + 0.43, 2.28, p.z)
+	MeshKit.box(g, Vector3(0.05, 0.74, 1.28), at, MeshKit.color_mat(Color(0.02, 0.02, 0.02), 0.3, 0.3))
+	var mat := MeshKit.shader_mat("res://assets/shaders/tv_match.gdshader", {"on": 0.0})
+	var screen := MeshKit.quad(g, Vector2(1.2, 0.675), at + Vector3(0.027, 0, 0), mat, Vector3(0, PI / 2, 0))
+	screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var lbl := MeshKit.label(g, "", at + Vector3(0.035, 0.27, 0.0), 40, Color(1, 1, 1), Vector3(0, PI / 2, 0))
+	lbl.outline_size = 10
+	lbl.pixel_size = 0.0018
+	lbl.font_size = 44
+	var glow := OmniLight3D.new()
+	glow.position = at + Vector3(0.6, -0.2, 0)
+	glow.light_color = Color(0.6, 0.8, 1.0)
+	glow.light_energy = 0.0
+	glow.omni_range = 3.0
+	g.add_child(glow)
+	info["tv_mat"] = mat
+	info["tv_label"] = lbl
+	info["tv_light"] = glow
+	_tag("big_screen", g)
+
+
+## Festival bunting: strings of green, white and orange flags across the room, all in one mesh.
+func _bunting() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cols := [Color(0.1, 0.55, 0.25), Color(0.95, 0.95, 0.92), Color(0.95, 0.5, 0.12)]
+	var k := 0
+	for z in [-0.6, 1.4, 3.4]:
+		var x0 := PubLayout.ROOM_MIN.x + 0.3
+		var x1 := PubLayout.PARTITION_X - 0.2
+		var n := int((x1 - x0) / 0.24)
+		for i in n:
+			var u := float(i) / float(n - 1)
+			var x := lerpf(x0, x1, u)
+			var y := 3.05 - 0.35 * sin(u * PI)    # the string sags in the middle
+			var c: Color = cols[k % 3]
+			k += 1
+			st.set_color(c)
+			for v in [Vector3(x - 0.09, y, z), Vector3(x + 0.09, y, z), Vector3(x, y - 0.2, z)]:
+				st.set_normal(Vector3(0, 0, 1))
+				st.add_vertex(v)
+			for v in [Vector3(x + 0.09, y, z), Vector3(x - 0.09, y, z), Vector3(x, y - 0.2, z)]:
+				st.set_normal(Vector3(0, 0, -1))
+				st.add_vertex(v)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.roughness = 0.8
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	root.add_child(mi)
+	info["festival"].append(mi)
 
 
 func _tag(id: String, node: Node3D, show := true) -> Node3D:

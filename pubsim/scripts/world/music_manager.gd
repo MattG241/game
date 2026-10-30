@@ -175,6 +175,12 @@ func _next_song() -> void:
 		_gather_audience("dance", 6)
 	now_playing = t
 	_songs_played += 1
+	# the band moves to the song's real tempo (measured by tools/beat_track.py)
+	var b: Dictionary = GameData.beats.get(t, {})
+	if not b.is_empty():
+		for m in musicians:
+			if is_instance_valid(m):
+				m.beat = 60.0 / float(b["bpm"])
 	var s := MusicDirector.stream(t)
 	if s == null:
 		_between = 2.0

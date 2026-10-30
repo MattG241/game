@@ -25,7 +25,7 @@ func _log(s: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	if OS.get_environment("ONLY") in ["staff", "flow", "drinks"]:
+	if OS.get_environment("ONLY") in ["staff", "flow", "drinks", "features"]:
 		# quick run of one section while working on it
 		GameState.delete_save()
 		main = load("res://scripts/main.gd").new()
@@ -35,6 +35,8 @@ func _ready() -> void:
 			await _test_flow()
 		elif OS.get_environment("ONLY") == "drinks":
 			await _test_drinks()
+		elif OS.get_environment("ONLY") == "features":
+			await _test_features()
 		else:
 			await _test_staff()
 		_log("RESULT: %d passed, %d failed" % [passed, failed])
@@ -444,6 +446,7 @@ func _test_loop() -> void:
 	await _test_staff()
 	await _test_flow()
 	await _test_drinks()
+	await _test_features()
 
 
 func _test_voices_and_people(w: World) -> void:
@@ -1350,3 +1353,111 @@ func _test_drinks() -> void:
 	c.state = "wait_order"
 	var served := await _wait_until(func(): return c.served_count > 0, 90.0)
 	check(served and c.glass != null and c.glass.kind == "tumbler", "a bartender serves whiskey in a tumbler")
+
+
+# ------------------------------------------------------------------ the pub's own character
+func _test_features() -> void:
+	_log("== Integration: match days, festivals, beer lines, lock-ins, stories, the session ==")
+	main.quit_to_title()
+	await _frames(3)
+	GameState.delete_save()
+	main.start_new("career", "Features test")
+	await _frames(10)
+	GameState.tutorial["done"] = true
+	var w: World = main.world
+	GameState.cash = 5000.0
+	GameState.reputation = 60.0
+	# festivals
+	GameState.day = 17
+	check(GameState.festival_today().get("id", "") == "paddys", "St Patrick's Day comes round on the calendar")
+	check(GameState.get_mod("arrival_mult") >= 0.5, "festival days bring a crowd")
+	w._set_festival_look()
+	check((w.info["festival"][0] as Node3D).visible, "bunting goes up for the festival")
+	GameState.day = 18
+	w._set_festival_look()
+	check(not (w.info["festival"][0] as Node3D).visible, "and comes down after")
+	check(not GameState.next_festival().is_empty(), "the next festival is known")
+	# match day: Sunday afternoon on the big screen
+	GameState.day = 4
+	check(GameState.weekday_name().begins_with("Sun"), "day 4 is a Sunday")
+	check(GameState.match_today().is_empty(), "no match without a big screen")
+	GameState.buy_upgrade("big_screen")
+	await _frames(2)
+	check(not GameState.match_today().is_empty(), "with the screen, Sunday is match day")
+	w._sign_action()
+	GameState.hour = 17.2
+	await _frames(5)
+	check(w.match_day.on, "the match comes on at throw-in")
+	check(w.match_day.arrival_mult() > 1.0, "a match draws people in")
+	for i in 4:
+		w.match_day._score()
+	check(w.match_day.total("home") + w.match_day.total("away") >= 4, "scores come in during the match")
+	await _frames(90)
+	check(float((w.info["tv_mat"] as ShaderMaterial).get_shader_parameter("on")) > 0.5 and (w.info["tv_label"] as Label3D).text != "", "the screen shows the game and the score")
+	GameState.hour = 19.1
+	await _frames(3)
+	check(not w.match_day.on and str(GameState.today.get("match", "")) != "", "full time is called and remembered")
+	# beer lines
+	GameState.progress["lines_cleaned_day"] = GameState.day - 10
+	check(GameState.line_penalty() > 0.0, "a week and more without cleaning hurts the beer")
+	check(w._lines_prompt().begins_with("Hold to clean"), "the cellar offers to clean the lines")
+	var cash0 := GameState.cash
+	w._lines_action()
+	check(GameState.line_penalty() == 0.0 and GameState.cash < cash0, "cleaning the lines costs a little and fixes it")
+	check(w._lines_prompt().begins_with("~"), "then they're clean for a while")
+	# a regular's story: Nora's perfect pint
+	GameState.relationships["nora"] = 2
+	var nora := w.spawn_customer("nora")
+	nora.drink_id = "stout"
+	nora.state = "drinking"
+	check(w._customer_prompt(nora).begins_with("Talk to Nora"), "a regular with a story asks for a word")
+	w._customer_action(nora)
+	check(main.hud.celebration.visible and main.hud.celebration_title.text == "Jim's pint", "the story is told")
+	main.hud.dismiss_celebration()
+	check(w.stories.open_favours().size() == 1, "and she asks a favour")
+	check(str(w.next_step()["text"]).contains("Nora") or w.customers.any(func(x): return x.state == "wait_order"), "the guide reminds you of the favour when it's quiet")
+	nora.state = "wait_drink"
+	nora.glass = null
+	var res := w.serve_customer(nora, _stout_for(w, nora))
+	check(res.get("ok", false) and int(res["score"]) >= 90 and w.stories.open_favours().is_empty(), "a 90+ stout for Nora does the favour")
+	check(int(GameState.relationships["nora"]) >= 5, "and she warms to you")
+	check(w.stories.chapter_ready("nora").is_empty(), "the next chapter waits for another day")
+	GameState.day += 1
+	nora.state = "drinking"
+	check(not w.stories.chapter_ready("nora").is_empty(), "next day she has more to say")
+	var had_photos := GameState.has_upgrade("photos")
+	w._customer_action(nora)
+	main.hud.dismiss_celebration()
+	check(not had_photos and GameState.has_upgrade("photos"), "and gives the pub Jim's photographs")
+	# the lock-in
+	for cc in w.customers.duplicate():
+		cc.queue_free()
+	w.customers.clear()
+	GameState.relationships["packie"] = 6
+	GameState.phase = "closing"
+	GameState.hour = 24.8
+	check(w._lockin_prompt() != "", "after closing, the regulars can stay for a lock-in")
+	var cash1 := GameState.cash
+	w._lockin()
+	check(GameState.today.get("lockin", false) and GameState.cash != cash1 and main.hud.celebration.visible, "the lock-in happens (takings, maybe the Gardaí)")
+	main.hud.dismiss_celebration()
+	check(w._lockin_prompt() == "", "one lock-in a night")
+	# the session: sit in on the bodhrán and keep the beat
+	GameState.phase = "open"
+	GameState.hour = 21.0
+	GameState.buy_upgrade("snug_stage")
+	GameState.buy_upgrade("house_bodhran")
+	check(GameData.beats.size() == 20 and float(GameData.beats["t08"]["bpm"]) > 60.0, "every song's tempo is known")
+	check(w.session.begin(true), "sit in on the bodhrán")
+	check(w.in_minigame(), "the session takes over the controls")
+	var target := w.session.notes.duplicate(true)
+	var i := 0
+	while w.session.active and i < 20000:
+		await get_tree().process_frame
+		i += 1
+		for n in w.session.notes:
+			if n[1] == "" and absf(w.session.song_time() - float(n[0])) < 0.02:
+				w.session.tap()
+				break
+	check(not w.session.active and w.session.perfect >= 28, "strokes on the beat are judged perfect (%d of %d)" % [w.session.perfect, SessionGame.NOTES])
+	check(int(GameState.stats.get("sessions", 0)) == 1 and not w.in_minigame(), "the set ends and you're back behind the bar")

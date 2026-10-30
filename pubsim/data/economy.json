@@ -2,6 +2,8 @@
   "start_cash": 55,
   "sandbox_cash": 5000,
   "rent_per_day": 30,
+  "line_clean_cost": 8,
+  "lockin_fine": 60,
   "utilities_per_day": 8,
   "day_open_hour": 16.0,
   "last_orders_hour": 23.5,

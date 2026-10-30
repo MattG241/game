@@ -1,0 +1,31 @@
+[
+  {"id": "nora_jim", "regular": "nora", "title": "Jim's pint", "chapters": [
+    {"min_rel": 1, "text": "Nora turns her glass slowly. \"My Jim pulled pints in this very bar in 1971. He used to say you can tell everything about a barman from his stout.\"", "ask": "perfect_pint", "ask_text": "Pour Nora a stout that scores 90 or more", "reward": {"rel": 3}},
+    {"min_rel": 4, "text": "\"That was Jim's pint. I haven't tasted one like it in forty years.\" She slides an old photograph across the bar: the pub in 1971, Jim grinning behind the taps. \"Put it on the wall. It belongs here.\"", "reward": {"rep": 1, "upgrade": "photos"}}
+  ]},
+  {"id": "packie_title", "regular": "packie", "title": "The champion of the parish", "chapters": [
+    {"min_rel": 2, "text": "Packie taps the bar. \"Thirty years I've held the title in this parish. Not beaten since '94. Do you throw a dart yourself, or are you all talk like the rest of them?\"", "ask": "darts", "ask_text": "Give Packie a game of darts (you'll need the dartboard)", "reward": {"rel": 3}},
+    {"min_rel": 5, "text": "\"Fair play, you gave me a game.\" He lowers his voice. \"The parish league needs a home venue. I told them this was the only place. They'll be in, and they're thirsty men.\"", "reward": {"rep": 1, "cash": 20}}
+  ]},
+  {"id": "tomas_session", "regular": "tomas", "title": "A tune for the house", "chapters": [
+    {"min_rel": 2, "text": "Tomás rests his fiddle case on the stool beside him. \"I've tunes in me and nowhere to play them. Give me a corner and I'd bring the lads.\"", "ask": "upgrade:snug_stage", "ask_text": "Build the snug corner stage for Tomás", "reward": {"rel": 3}},
+    {"min_rel": 5, "text": "\"A stage! Now book us in some night. A fiddle by the fire on a quiet Tuesday, that's all it takes to fill a room.\"", "ask": "book_event", "ask_text": "Book a live music night (Menu, Live music)", "reward": {"rel": 2, "rep": 1}},
+    {"min_rel": 7, "text": "\"I hear you've a drum behind the bar. Sit in with us some night. You'd keep better time than Declan, God love him.\"", "ask": "session", "ask_text": "Sit in on the bodhrán during a live session", "reward": {"rel": 3, "cash": 30, "rep": 1}}
+  ]},
+  {"id": "liam_final", "regular": "liam", "title": "The under-12s final", "chapters": [
+    {"min_rel": 2, "text": "Liam is drawing plays on a beer mat. \"My under-12s are in the county final. If we win I'll bring the whole team and the parents in for minerals. Have you a soda gun at all?\"", "ask": "upgrade:soda_gun", "ask_text": "Put in a soda gun for the under-12s", "reward": {"rel": 2}},
+    {"min_rel": 4, "text": "Liam bursts in, hoarse. \"WE WON! Two points in injury time! The lads are outside. Lemonades all round, and I'll have a pint myself.\"", "reward": {"cash": 45, "rep": 1, "rel": 2}}
+  ]},
+  {"id": "margaret_quiz", "regular": "margaret", "title": "Margaret's table quiz", "chapters": [
+    {"min_rel": 2, "text": "\"A pub's not a pub without a table quiz,\" Margaret announces. \"I'd run one myself, if there was a drop of Ballyfinn behind the bar for the quizmaster.\"", "ask": "upgrade:whiskey_optics", "ask_text": "Put in the whiskey optic for Margaret", "reward": {"rel": 3}},
+    {"min_rel": 5, "text": "\"The quiz was a triumph. The Kilbrack crowd were robbed on the tie-break, of course.\" She presses an envelope into your hand. \"Your share of the raffle. Same time next month.\"", "reward": {"cash": 25, "rep": 1.5}}
+  ]},
+  {"id": "eamon_lines", "regular": "eamon", "title": "Eamon's palate", "chapters": [
+    {"min_rel": 1, "text": "Eamon sniffs his pint. \"There's a taste of the pipes off that. When did you last clean them lines? My father could tell a dirty line from the far end of the bar.\"", "ask": "lines", "ask_text": "Clean the beer lines in the cellar", "reward": {"rel": 3}},
+    {"min_rel": 4, "text": "\"Now that's a pint.\" He nods slowly, which from Eamon is a standing ovation. \"I'll tell the lads at the mart.\"", "reward": {"rep": 1.5}}
+  ]},
+  {"id": "aoife_cider", "regular": "aoife", "title": "After the night shift", "chapters": [
+    {"min_rel": 1, "text": "Aoife sinks onto a stool, still in her scrubs. \"Twelve hours on the ward. What I'd give for a cold cider on draught. Bottles just aren't the same.\"", "ask": "upgrade:drinks_fridge", "ask_text": "Put the cider tap on for Aoife", "reward": {"rel": 3}},
+    {"min_rel": 4, "text": "\"You're a saint.\" She raises the glass. \"The whole night shift will be in after this, you know. Nurses drink like fish.\"", "reward": {"rep": 1, "cash": 15}}
+  ]}
+]

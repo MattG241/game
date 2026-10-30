@@ -196,6 +196,20 @@ def sfx_step(seed):
     return normalize(thump + 0.5 * creak, 0.5)
 
 
+def sfx_knock():
+    """Three firm knocks on a wooden door."""
+    out = np.zeros(int(SR * 1.3))
+    for i, t0 in enumerate([0.0, 0.32, 0.64]):
+        d = 0.18
+        t = t_axis(d)
+        body = np.sin(2 * np.pi * (110 - 30 * t / d) * t) * np.exp(-t * 28)
+        click = lowpass_fast(noise(d), 1800) * np.exp(-t * 60) * 0.6
+        s0 = int(t0 * SR)
+        seg = (body + click) * (1.0 - 0.1 * i)
+        out[s0:s0 + len(seg)] += seg
+    return normalize(out, 0.85)
+
+
 def sfx_door_bell():
     d = 1.8
     tt = t_axis(d)
@@ -646,6 +660,7 @@ def main():
     for i in range(3):
         save(f"step{i}", sfx_step(40 + i))
     save("door_bell", sfx_door_bell())
+    save("knock", sfx_knock())
     save("church_bell", sfx_church_bell())
     save("crowd_loop", sfx_crowd_loop(1.6))
     save("rain_loop", sfx_rain_loop())

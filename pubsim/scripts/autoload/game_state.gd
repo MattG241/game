@@ -31,6 +31,7 @@ var keg_day: Dictionary = {}   # drink id -> day the keg was connected
 var prices: Dictionary = {}
 var relationships: Dictionary = {}
 var staff: Array = []
+var progress: Dictionary = {}   # stories, beer lines, lock-ins: things the pub remembers between days
 var bookings: Dictionary = {}  # "day" -> event id
 var furniture_placed: Array = []
 var objectives_done: Array = []
@@ -98,6 +99,7 @@ func _reset() -> void:
 	prices = {}
 	relationships = {}
 	staff = []
+	progress = {"lines_cleaned_day": 1}
 	bookings = {}
 	furniture_placed = []
 	objectives_done = []
@@ -311,7 +313,7 @@ func buy_upgrade(id: String) -> bool:
 
 ## Sums an effect key across purchased upgrades, placed furniture and hired staff.
 func get_mod(key: String) -> float:
-	var total := 0.0
+	var total := float(festival_today().get("effects", {}).get(key, 0.0))
 	for id in upgrades.keys():
 		var eff: Dictionary = GameData.upgrade(id).get("effects", {})
 		total += float(eff.get(key, 0.0))
@@ -503,6 +505,58 @@ func fire(id: String) -> void:
 	staff_changed.emit()
 
 
+# ------------------------------------------------------------------ the calendar
+const FESTIVAL_CYCLE := 28
+
+
+## Today's festival, if any (they come round every four weeks).
+func festival_today() -> Dictionary:
+	var d := (day - 1) % FESTIVAL_CYCLE + 1
+	for f in GameData.festivals:
+		if int(f["day"]) == d:
+			return f
+	return {}
+
+
+## The next festival: [days away, festival].
+func next_festival() -> Array:
+	for k in range(1, FESTIVAL_CYCLE + 1):
+		var d := (day - 1 + k) % FESTIVAL_CYCLE + 1
+		for f in GameData.festivals:
+			if int(f["day"]) == d:
+				return [k, f]
+	return []
+
+
+## Matches on the big screen: Sunday afternoons, Wednesday evenings and any final. [start, end] hours or [].
+func match_today() -> Array:
+	if not has_upgrade("big_screen"):
+		return []
+	if bool(festival_today().get("match", false)):
+		return [18.0, 20.0]
+	match weekday_name().substr(0, 3):
+		"Sun":
+			return [17.0, 19.0]
+		"Wed":
+			return [20.0, 22.0]
+	return []
+
+
+# ------------------------------------------------------------------ beer lines
+## Draught pints lose quality as the lines go a week or more without cleaning.
+func line_penalty() -> float:
+	var days := day - int(progress.get("lines_cleaned_day", day))
+	return clampf((days - 5) * 2.0, 0.0, 12.0)
+
+
+func clean_lines() -> bool:
+	var cost := float(GameData.econ("line_clean_cost", 8))
+	if not spend(cost, "other"):
+		return false
+	progress["lines_cleaned_day"] = day
+	return true
+
+
 func wages_today() -> float:
 	var w := 0.0
 	for s in staff:
@@ -560,7 +614,7 @@ func to_dict() -> Dictionary:
 		"version": SAVE_VERSION, "pub_name": pub_name, "mode": mode, "cash": cash, "day": day,
 		"hour": hour, "phase": phase, "reputation": reputation, "weather": weather,
 		"upgrades": upgrades, "stock": stock, "tap_units": tap_units, "keg_day": keg_day,
-		"prices": prices, "relationships": relationships, "staff": staff, "bookings": bookings,
+		"prices": prices, "relationships": relationships, "staff": staff, "progress": progress, "bookings": bookings,
 		"furniture_placed": furniture_placed, "objectives_done": objectives_done,
 		"deliveries": deliveries, "stats": stats, "today": today, "history": history,
 		"best_split_mm": best_split_mm, "tutorial": tutorial,
@@ -594,6 +648,7 @@ func from_dict(d: Dictionary) -> void:
 		keg_day[id] = int(keg_day.get(id, day))
 	relationships = d.get("relationships", {})
 	staff = d.get("staff", [])
+	progress = d.get("progress", {"lines_cleaned_day": day})
 	bookings = d.get("bookings", {})
 	furniture_placed = d.get("furniture_placed", [])
 	objectives_done = d.get("objectives_done", [])

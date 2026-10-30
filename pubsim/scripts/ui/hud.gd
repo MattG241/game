@@ -474,14 +474,26 @@ func show_celebration(title: String, body: String, track: String) -> void:
 	celebration_body.text = body + ("\n\nNow playing: %s" % now if now != "" else "")
 	celebration.visible = true
 	celebration_ok.visible = true
+	celebration_ok.set_label("Sláinte!")
 	_celebration_track = track
 	Sfx.play("cheer", -6.0)
+
+
+## A regular's story: the same card as a celebration, without the music or the cheering.
+func show_story(title: String, body: String) -> void:
+	celebration_title.text = title
+	celebration_body.text = body
+	celebration.visible = true
+	celebration_ok.visible = true
+	celebration_ok.set_label("Go on")
+	_celebration_track = ""
 
 
 func dismiss_celebration() -> void:
 	celebration.visible = false
 	celebration_ok.visible = false
-	MusicDirector.clear_override(_celebration_track)
+	if _celebration_track != "":
+		MusicDirector.clear_override(_celebration_track)
 	_celebration_track = ""
 
 
@@ -597,8 +609,19 @@ func _process(delta: float) -> void:
 			subtitle_label.text = ""
 	if _tip_t > 0.0:
 		_tip_t -= delta
-	var playing := not pour_root.visible and not drink_root.visible and not darts_root.visible and not menu.visible
-	next_label.text = str(world._guide.get("text", ""))
+	var playing := not pour_root.visible and not drink_root.visible and not darts_root.visible and not menu.visible \
+		and not celebration.visible and not world.in_minigame()
+	if celebration.visible and tip_panel.visible:
+		tip_panel.visible = false      # a card has the floor; the tip comes back with the next step
+		tip_close.visible = false
+	var nt := str(world._guide.get("text", ""))
+	if nt != next_label.text:
+		next_label.text = nt
+		# long steps wrap inside a fixed width so the pill never reaches the cash or the buttons
+		var long := nt.length() > 46
+		next_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if long else TextServer.AUTOWRAP_OFF
+		next_label.custom_minimum_size = Vector2(540 if long else 0, 0)
+		next_pill.reset_size()
 	next_pill.visible = playing and next_label.text != "" and bool(GameState.settings.get("show_guide", true))
 	_goals_t -= delta
 	if _goals_t <= 0.0:

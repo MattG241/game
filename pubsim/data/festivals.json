@@ -1,0 +1,6 @@
+[
+  {"id": "fleadh", "day": 6, "name": "Fleadh Cheoil weekend", "desc": "Musicians from three counties are in town. Live nights pull a crowd and everyone's in great form.", "effects": {"arrival_mult": 0.25, "event_draw": 0.4, "atmosphere": 6}},
+  {"id": "final", "day": 13, "name": "All-Ireland hurling final", "desc": "The county's in the final. With a big screen the place will be packed to the door.", "effects": {"arrival_mult": 0.15}, "match": true},
+  {"id": "paddys", "day": 17, "name": "St Patrick's Day", "desc": "Bunting, shamrock and the whole town out. The busiest day of the year.", "effects": {"arrival_mult": 0.5, "tips_mult": 0.2, "atmosphere": 10}},
+  {"id": "fair", "day": 24, "name": "Harvest fair", "desc": "Farmers in from the mart with money in their pockets. They stay for one more.", "effects": {"arrival_mult": 0.2, "stay_mult": 0.1, "tips_mult": 0.1}}
+]
