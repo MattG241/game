@@ -815,10 +815,35 @@ func _front_wall() -> void:
 	var door_pivot := Node3D.new()
 	door_pivot.position = Vector3(-door_w / 2.0 + 0.02, 0, z - 0.05)
 	g.add_child(door_pivot)
-	var door := MeshKit.box(door_pivot, Vector3(door_w - 0.04, door_h - 0.02, 0.06), Vector3((door_w - 0.04) / 2.0, door_h / 2.0, 0), MeshKit.mat("green_paint"))
-	MeshKit.box(door_pivot, Vector3(0.5, 0.6, 0.065), Vector3(door_w / 2.0, 1.6, 0), MeshKit.color_mat(Color(0.9, 0.62, 0.3, 0.7), 0.1, 0, 0.4))
-	MeshKit.sphere(door_pivot, 0.035, Vector3(door_w - 0.15, 1.05, -0.05), MeshKit.mat("brass"))
-	MeshKit.sphere(door_pivot, 0.035, Vector3(door_w - 0.15, 1.05, 0.05), MeshKit.mat("brass"))
+	# a glazed door: painted stiles and rails, a panelled kick plate, and one big pane of glass
+	var dw := door_w - 0.04
+	var dh := door_h - 0.02
+	var paint := MeshKit.mat("green_paint")
+	var stile := 0.11
+	var glass_y0 := 0.78
+	var glass_y1 := dh - 0.14
+	MeshKit.box(door_pivot, Vector3(stile, dh, 0.06), Vector3(stile / 2.0, dh / 2.0, 0), paint)
+	MeshKit.box(door_pivot, Vector3(stile, dh, 0.06), Vector3(dw - stile / 2.0, dh / 2.0, 0), paint)
+	MeshKit.box(door_pivot, Vector3(dw, dh - glass_y1, 0.06), Vector3(dw / 2.0, (glass_y1 + dh) / 2.0, 0), paint)
+	MeshKit.box(door_pivot, Vector3(dw, glass_y0, 0.06), Vector3(dw / 2.0, glass_y0 / 2.0, 0), paint)
+	for side in [-1, 1]:
+		# a raised panel on the kick plate and a slim moulding round the glass, both faces
+		MeshKit.box(door_pivot, Vector3(dw - 0.36, glass_y0 - 0.3, 0.012), Vector3(dw / 2.0, glass_y0 / 2.0, side * 0.034), paint)
+		MeshKit.box(door_pivot, Vector3(dw - 2.0 * stile + 0.03, 0.025, 0.012), Vector3(dw / 2.0, glass_y0, side * 0.034), MeshKit.mat("brass_dull"))
+	var pane := MeshKit.box(door_pivot, Vector3(dw - 2.0 * stile, glass_y1 - glass_y0, 0.012), Vector3(dw / 2.0, (glass_y0 + glass_y1) / 2.0, 0),
+		MeshKit.color_mat(Color(0.78, 0.86, 0.88, 0.14), 0.04, 0.3))
+	pane.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# the pub's name in gold leaf on the outside of the glass
+	var gilt := MeshKit.label(door_pivot, GameState.pub_name.to_upper(), Vector3(dw / 2.0, glass_y1 - 0.12, 0.009), 30, Color(0.95, 0.78, 0.35), Vector3.ZERO, _title_font)
+	gilt.pixel_size = 0.0014
+	gilt.outline_size = 4
+	gilt.outline_modulate = Color(0.25, 0.15, 0.05)
+	info["door_gilt"] = gilt
+	# brass push plate inside, pull handle outside
+	MeshKit.box(door_pivot, Vector3(0.08, 0.28, 0.006), Vector3(dw - 0.18, 1.05, -0.034), MeshKit.mat("brass"))
+	MeshKit.cyl(door_pivot, 0.013, 0.013, 0.3, Vector3(dw - 0.18, 1.05, 0.08), MeshKit.mat("brass"), 10)
+	for dy in [-0.13, 0.13]:
+		MeshKit.cyl(door_pivot, 0.008, 0.008, 0.05, Vector3(dw - 0.18, 1.05 + dy, 0.055), MeshKit.mat("brass"), 8, Vector3(PI / 2, 0, 0))
 	info["door"] = door_pivot
 	# door frame
 	MeshKit.box(g, Vector3(0.08, door_h, 0.28), Vector3(-door_w / 2.0, door_h / 2.0, z), MeshKit.mat("oak_y"))
@@ -826,20 +851,20 @@ func _front_wall() -> void:
 	# the OPEN / CLOSED sign hangs on two cords in the door's glass and flips over (it swings
 	# with the door); the same word is on both faces, so it reads right from inside and out
 	var hook := Node3D.new()
-	hook.position = Vector3(door_w / 2.0, 1.86, -0.05)
+	hook.position = Vector3(door_w / 2.0, glass_y1 - 0.05, -0.045)      # just inside the glass
 	door_pivot.add_child(hook)
 	MeshKit.cyl(hook, 0.008, 0.008, 0.01, Vector3.ZERO, MeshKit.mat("brass"), 8, Vector3(PI / 2, 0, 0))
 	var flip := Node3D.new()
-	flip.position = Vector3(0, -0.28, -0.01)
+	flip.position = Vector3(0, -0.36, -0.01)
 	hook.add_child(flip)
-	for sx in [-0.13, 0.13]:
-		MeshKit.cyl(hook, 0.0025, 0.0025, 0.2, Vector3(sx * 0.6, -0.1, -0.01), MeshKit.color_mat(Color(0.75, 0.62, 0.35), 0.8), 4, Vector3(0, 0, sx * 1.2))
-	MeshKit.box(flip, Vector3(0.36, 0.17, 0.012), Vector3.ZERO, MeshKit.color_mat(Color(0.08, 0.07, 0.06), 0.5))
-	MeshKit.box(flip, Vector3(0.38, 0.19, 0.008), Vector3.ZERO, MeshKit.mat("brass_dull"))
+	for sx in [-0.15, 0.15]:
+		MeshKit.cyl(hook, 0.0025, 0.0025, 0.28, Vector3(sx * 0.6, -0.14, -0.01), MeshKit.color_mat(Color(0.75, 0.62, 0.35), 0.8), 4, Vector3(0, 0, sx * 1.0))
+	MeshKit.box(flip, Vector3(0.42, 0.2, 0.012), Vector3.ZERO, MeshKit.color_mat(Color(0.08, 0.07, 0.06), 0.5))
+	MeshKit.box(flip, Vector3(0.44, 0.22, 0.008), Vector3.ZERO, MeshKit.mat("brass_dull"))
 	var labels := []
 	for side in [-1, 1]:
 		var lbl := MeshKit.label(flip, "CLOSED", Vector3(0, 0, side * 0.0075), 52, Color(0.92, 0.3, 0.2), Vector3(0, 0.0 if side == 1 else PI, 0), _title_font)
-		lbl.pixel_size = 0.0016
+		lbl.pixel_size = 0.0019
 		labels.append(lbl)
 	info["door_sign"] = flip
 	info["door_sign_labels"] = labels

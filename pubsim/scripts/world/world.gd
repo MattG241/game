@@ -518,13 +518,18 @@ func _set_sign(open: bool, animate := false) -> void:
 	if flip == null or not animate:
 		apply.call()
 		return
-	# turn the board over on its cords; the word changes as it goes edge-on
+	# lift it a touch, turn the board over on its cords (the word changes as it goes edge-on),
+	# let it settle with a little swing, and give it a clack against the glass
+	var y0 := flip.rotation.y
 	var tw := create_tween()
-	tw.tween_property(flip, "rotation:y", flip.rotation.y + PI * 0.5, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_property(flip, "position:y", flip.position.y + 0.02, 0.12)
+	tw.tween_property(flip, "rotation:y", y0 + PI * 0.5, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(apply)
-	tw.tween_property(flip, "rotation:y", flip.rotation.y + PI, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(flip, "rotation:z", 0.06, 0.35).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(flip, "rotation:z", 0.0, 0.6).set_trans(Tween.TRANS_ELASTIC)
+	tw.tween_property(flip, "rotation:y", y0 + PI, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(flip, "position:y", flip.position.y, 0.3).set_delay(0.2)
+	tw.tween_callback(func(): Sfx.play_at("clink", flip.global_position, self, -14.0))
+	tw.tween_property(flip, "rotation:x", 0.12, 0.18).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(flip, "rotation:x", 0.0, 1.0).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
 const LINE_CLEAN_POS := Vector3(-5.6, 1.0, -6.0)
@@ -1810,6 +1815,9 @@ func apply_upgrades() -> void:
 	var name_l: Label3D = info.get("facade_label")
 	if name_l:
 		name_l.text = GameState.pub_name
+	var gilt: Label3D = info.get("door_gilt")
+	if gilt:
+		gilt.text = GameState.pub_name.to_upper()
 	_refresh_stock_pile()
 	_update_lighting(true)
 
