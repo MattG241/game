@@ -287,6 +287,35 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - **Smaller fixes:** "The Snug" sign is out of the wall, the notice board is clear of the coats,
     and the held glass stays close.
 
+### Graphics overhaul
+
+- **Light and grade:** the pendant shades throw their light down in warm pools over the tables
+  and floor, and the room between them falls off into softer, cooler shade (the flat orange wash
+  is gone). A Filmic grade with a high white point rolls lamp highlights off gently while keeping
+  detail in dark wood and corners on a phone screen.
+- **Every lamp counts:** phones light each mesh with at most 8 lights, so the floor, ceiling and
+  walls, once single 14 m meshes, are built in pieces of 3.5 m or less. Each piece is lit by the
+  lamps actually near it.
+- **Wall sconces:** four brass sconces with tulip shades throw a fan of warm light up and down the
+  side walls. This is painted light, with no extra real lights.
+- **Surfaces:**
+  - Corners, the foot of the walls and the ceiling edges gather soft shadow, standing in for
+    baked ambient occlusion.
+  - Smoke has yellowed the upper walls.
+  - The ceiling is embossed paper in square panels.
+  - The tiles have crazed glaze, the odd chipped corner, uneven batches and grubby grout.
+- **Fireplace:** cut stone in courses, blackened up from the grate, carried up the chimney
+  breast. It used to be polka-dot "stones".
+- **Dressing:** the coats on the hooks are proper hanging coats (a tweed overcoat and a waxed
+  jacket), not dark capsules. The café curtain is a fine lace net with a scalloped border on a
+  brass rod with finials.
+- **Outside:** a night sky over the street, with slow rain clouds lit orange from below by the
+  town, a moon glowing through gaps, and dusk fading to night.
+- **Reflections:** the panorama that brass, glass and polished wood reflect was re-baked from the
+  new room. The title screen uses the same grade.
+- **Cost:** about 2% more draw calls on the Performance and Balanced presets, with no extra real
+  lights. The new tile shader keeps to one octave of noise.
+
 ## The soundtrack: who plays what
 | # | Song | When it plays |
 | --- | --- | --- |

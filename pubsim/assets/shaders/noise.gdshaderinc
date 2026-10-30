@@ -56,6 +56,57 @@ vec2 voronoi2(vec2 p) {
 	return vec2(sqrt(best), id);
 }
 
+// Cells with real edges: returns (distance to the nearest cell border (F2 - F1, halved), cell id
+// hash, distance to the nearest cell centre). Use it for stones, crazing and cracks.
+vec3 voronoi_edge2(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	float d1 = 8.0;
+	float d2 = 8.0;
+	float id = 0.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 g = vec2(float(x), float(y));
+			vec2 o = vec2(hash12(i + g), hash12(i + g + 17.3));
+			o = 0.5 + 0.42 * sin(6.2831 * o);
+			vec2 r = g + o - f;
+			float d = length(r);
+			if (d < d1) {
+				d2 = d1;
+				d1 = d;
+				id = hash12(i + g + 3.7);
+			} else if (d < d2) {
+				d2 = d;
+			}
+		}
+	}
+	return vec3((d2 - d1) * 0.5, id, d1);
+}
+
+// Soft darkening into the corners of the main room, where walls meet each other, the ceiling and
+// the floor (a stand-in for baked ambient occlusion). box = (min x, min z, max x, max z).
+float room_occlusion(vec3 wp, vec3 wn, vec4 box, float ceil_h) {
+	vec4 d = vec4(wp.x - box.x, box.z - wp.x, wp.z - box.y, box.w - wp.z);
+	float a = min(d.x, d.y);
+	float b = max(d.x, d.y);
+	float c = min(d.z, d.w);
+	float e = max(d.z, d.w);
+	float nearest = min(a, c);
+	float second = min(max(a, c), min(b, e));
+	if (nearest < -0.3) {
+		return 1.0;   // outside the room (the street, the cellar)
+	}
+	float ao = 1.0;
+	if (abs(wn.y) > 0.5) {
+		ao *= 1.0 - 0.38 * exp(-max(nearest, 0.0) * 3.0);   // ceiling or floor meeting a wall
+	} else {
+		ao *= 1.0 - 0.42 * exp(-max(second, 0.0) * 3.5);    // wall meeting a wall
+		ao *= 1.0 - 0.38 * exp(-max(ceil_h - wp.y, 0.0) * 3.0);
+		ao *= 1.0 - 0.3 * exp(-max(wp.y, 0.0) * 5.0);
+	}
+	return ao;
+}
+
 // Surface relief without normal maps: perturbs the (view-space) normal by the screen-space
 // gradient of a height value (Mikkelsen's surface-gradient bump). Cheap enough for phones.
 vec3 bump_normal(vec3 n, vec3 view_pos, float h, float strength) {

@@ -152,8 +152,11 @@ func _setup_env() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.55, 0.45, 0.36)
 	env.ambient_light_energy = 0.45
+	# Filmic with a high white point: lamp-lit highlights roll off softly while the shade keeps its
+	# detail (ACES crushed the dark wood and corners to black on a phone screen)
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 1.3
+	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
 	env.glow_bloom = 0.05
@@ -162,8 +165,8 @@ func _setup_env() -> void:
 	env.fog_light_color = Color(0.2, 0.22, 0.26)
 	env.fog_density = 0.012
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.08
-	env.adjustment_contrast = 1.05
+	env.adjustment_saturation = 1.04
+	env.adjustment_contrast = 1.03
 	# brass, chrome, glass and polished wood reflect the pub itself: a panorama rendered from
 	# inside the room (tools/bake) is used as the sky for reflections only
 	var pano: Texture2D = load("res://assets/env/pub_reflection.png")
@@ -1860,13 +1863,19 @@ func _update_lighting(force: bool) -> void:
 	var dusk := clampf((h - 17.5) / 2.5, 0.0, 1.0)  # 0 = late afternoon, 1 = night
 	env.background_color = Color(0.36, 0.4, 0.46).lerp(Color(0.02, 0.025, 0.045), dusk)
 	env.fog_light_color = env.background_color
+	var sky_m: ShaderMaterial = info.get("sky_mat")
+	if sky_m:
+		sky_m.set_shader_parameter("night", dusk)
+		sky_m.set_shader_parameter("cloud", 1.0 if GameState.weather in ["rain", "storm"] else (0.6 if GameState.weather == "cloudy" else 0.25))
 	var lamps_restored := GameState.has_upgrade("lamps")
-	var lamp_e := (1.3 if lamps_restored else 0.7) * (0.8 + 0.2 * dusk)
+	# pools of warm lamplight over the tables, with the room between them falling off into a softer,
+	# cooler shade (the ambient is only a gentle base, not the main light)
+	var lamp_e := (3.0 if lamps_restored else 1.6) * (0.8 + 0.2 * dusk)
 	for l in info["lamps"]:
-		(l as OmniLight3D).light_energy = lamp_e
-		(l as OmniLight3D).omni_range = 4.8 if lamps_restored else 3.2
-	env.ambient_light_energy = lerpf(0.6, 0.42, dusk) + (0.08 if lamps_restored else 0.0)
-	env.ambient_light_color = Color(0.55, 0.5, 0.45).lerp(Color(0.5, 0.38, 0.28), dusk)
+		(l as SpotLight3D).light_energy = lamp_e
+		(l as SpotLight3D).spot_range = 4.6 if lamps_restored else 3.2
+	env.ambient_light_energy = lerpf(0.6, 0.44, dusk) + (0.04 if lamps_restored else 0.0)
+	env.ambient_light_color = Color(0.52, 0.52, 0.55).lerp(Color(0.46, 0.4, 0.38), dusk)
 	var wet := 1.0 if GameState.weather in ["rain", "storm"] else 0.0
 	for m in info["window_mats"]:
 		(m as ShaderMaterial).set_shader_parameter("glow", Color(0.45, 0.5, 0.55).lerp(Color(0.02, 0.03, 0.05), dusk))

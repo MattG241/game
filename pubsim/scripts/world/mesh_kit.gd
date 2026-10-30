@@ -42,23 +42,27 @@ static func mat(key: String) -> Material:
 			m = shader_mat("res://assets/shaders/wood.gdshader", {"grain_dir": Vector3(1, 0, 0), "world_space": true,
 				"dark_color": Color(0.36, 0.25, 0.14), "light_color": Color(0.58, 0.43, 0.26)})
 		"plaster_old":
-			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.6, 0.5, 0.33), "stain": 0.55})
+			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.6, 0.5, 0.33), "stain": 0.55, "room_ao": 1.0})
 		"plaster_new":
-			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.82, 0.76, 0.6), "stain": 0.08})
+			m = shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.8, 0.73, 0.57), "stain": 0.2, "room_ao": 1.0})
 		"tiles_old_z":
-			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.24, 0.2, 0.14), "axis": 0})
+			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.24, 0.2, 0.14), "axis": 0, "age": 1.0, "room_ao": 1.0})
 		"tiles_old_x":
-			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.24, 0.2, 0.14), "axis": 1})
+			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.24, 0.2, 0.14), "axis": 1, "age": 1.0, "room_ao": 1.0})
 		"tiles_green_z":
-			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.04, 0.24, 0.14), "axis": 0, "glaze": 0.06})
+			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.035, 0.2, 0.12), "axis": 0, "glaze": 0.06, "age": 0.45, "room_ao": 1.0, "grout_color": Color(0.62, 0.6, 0.52)})
 		"tiles_green_x":
-			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.04, 0.24, 0.14), "axis": 1, "glaze": 0.06})
+			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.035, 0.2, 0.12), "axis": 1, "glaze": 0.06, "age": 0.45, "room_ao": 1.0, "grout_color": Color(0.62, 0.6, 0.52)})
 		"floor_tiles":
 			m = shader_mat("res://assets/shaders/tiles.gdshader", {"tile_color": Color(0.5, 0.15, 0.1), "axis": 2, "tile_size": Vector2(0.2, 0.2), "glaze": 0.5})
 		"stone":
-			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 0, "scale": 4.0})
+			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 3, "scale": 4.0})
 		"stone_x":
-			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 1, "scale": 4.0})
+			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 3, "scale": 4.0})
+		"hearth_stone":
+			# limestone round the fire, blackened up from the grate
+			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 3, "scale": 7.5, "soot": 0.4, "soot_top": 1.25, "dressed": 1,
+				"stone_a": Color(0.46, 0.43, 0.38), "stone_b": Color(0.3, 0.28, 0.25), "mortar": Color(0.2, 0.18, 0.15)})
 		"stone_floor":
 			m = shader_mat("res://assets/shaders/stone.gdshader", {"axis": 2, "scale": 3.0})
 		"cobbles":
@@ -251,6 +255,25 @@ static func box(parent: Node, size: Vector3, pos: Vector3, material: Material, r
 	mi.rotation = rot
 	parent.add_child(mi)
 	return mi
+
+
+## A large flat box (a floor, a ceiling, a long wall) built as a grid of pieces about `chunk` metres
+## across, inside one Node3D. On phones each mesh takes at most 8 lights, so one big floor would
+## ignore most of the lamps; in pieces, every part is lit by the lamps actually near it.
+static func tiled_box(parent: Node, size: Vector3, pos: Vector3, material: Material, chunk := 3.5) -> Node3D:
+	var root := Node3D.new()
+	root.position = pos
+	parent.add_child(root)
+	var nx := maxi(1, int(ceil(size.x / chunk)))
+	var ny := maxi(1, int(ceil(size.y / chunk)))
+	var nz := maxi(1, int(ceil(size.z / chunk)))
+	var piece := Vector3(size.x / nx, size.y / ny, size.z / nz)
+	for ix in nx:
+		for iy in ny:
+			for iz in nz:
+				var c := Vector3((ix + 0.5) * piece.x, (iy + 0.5) * piece.y, (iz + 0.5) * piece.z) - size / 2.0
+				box(root, piece, c, material)
+	return root
 
 
 static func cyl(parent: Node, r_top: float, r_bot: float, h: float, pos: Vector3, material: Material, segs := 16, rot := Vector3.ZERO) -> MeshInstance3D:

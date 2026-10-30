@@ -21,9 +21,12 @@ func _ready() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.02, 0.025, 0.045)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.5, 0.38, 0.28)
-	env.ambient_light_energy = 0.35
+	# the same grade as in the game (see World._setup_env)
+	env.ambient_light_color = Color(0.46, 0.4, 0.38)
+	env.ambient_light_energy = 0.48
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.3
+	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
 	env.glow_hdr_threshold = 1.1
@@ -38,8 +41,8 @@ func _ready() -> void:
 		env.sky = sky
 		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.08
-	env.adjustment_contrast = 1.05
+	env.adjustment_saturation = 1.04
+	env.adjustment_contrast = 1.03
 	we.environment = env
 	scene.add_child(we)
 	var info := PubBuilder.new().build(scene)
@@ -52,7 +55,8 @@ func _ready() -> void:
 		for n in info["upgrade_hide"][id]:
 			n.visible = false
 	for l in info["lamps"]:
-		l.light_energy = 1.3
+		l.light_energy = 3.0
+	(info["sky_mat"] as ShaderMaterial).set_shader_parameter("cloud", 1.0)
 	for sl in info["street_lights"]:
 		sl.visible = true
 	_cam = Camera3D.new()

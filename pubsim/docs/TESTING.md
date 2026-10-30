@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **425 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **428 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -28,7 +28,7 @@
 | **Every drink** (new) | Pass | every drink has an unlock; 31 upgrades, bigger ones gated by reputation; each of lager, ale, cider, Zero, whiskey and lemonade has a visible station, the right glass, an open prompt, and a careful pour scores 100; the optic stops at one measure; a bottle swaps itself; a bartender serves whiskey in a tumbler |
 | **The pub's character** (new) | Pass | festivals and bunting; match day on the big screen (throw-in, scores, picture and score on screen, full time); beer lines go off and are cleaned; Nora's story, favour, reward and next chapter; the lock-in (once a night); the bodhrán session hits 32 of 32 on the measured beats and hands back control |
 | **Audit regressions** (new) | Pass | darts in real time, Rematch, no stuck turn; leaving customers and closing time; settle guidance; tutorial not ended by a pour-away; booths; paint cleanliness; resumed gigs; refunds; supplier slate; session buttons and early exit; summary music |
-| **Physical world** (new) | Pass | people are solid; staff go round the bar end and wait while you use a tap; the door stays shut until someone is at it, swings in for arrivals and out for leavers, and closes behind them; the door sign has OPEN and CLOSED faces and turns round (not snapped) to show the street the pub's state; one person per seat and armchair; furniture you haven't bought isn't solid; people always sit on their chair, never in mid-air; the fireside musician is clear of the armchairs; dancers keep apart and out of the chairs with pints held in front, below the head; name tags hide up close; long action labels fit their button |
+| **Physical world** (new) | Pass | people are solid; staff go round the bar end and wait while you use a tap; the door stays shut until someone is at it, swings in for arrivals and out for leavers, and closes behind them; the door sign has OPEN and CLOSED faces and turns round (not snapped) to show the street the pub's state; one person per seat and armchair; furniture you haven't bought isn't solid; people always sit on their chair, never in mid-air; the fireside musician is clear of the armchairs; dancers keep apart and out of the chairs with pints held in front, below the head; name tags hide up close; long action labels fit their button; the floor and ceiling come in pieces of at most 3.5 m so every nearby lamp lights them; the pendants are downward spotlights; a night sky and a Filmic grade |
 | APK export | CI | signed arm64 APK, signature verified, published as a Release |
 
 ## Queue and difficulty: old vs new

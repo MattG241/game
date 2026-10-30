@@ -383,7 +383,7 @@ func _test_loop() -> void:
 	check(w.glass_count_check() == total, "glass count conserved after serving")
 	# buy the first upgrade
 	check(GameState.can_buy_upgrade("lamps"), "first upgrade affordable after one pint (cash €%.2f)" % GameState.cash)
-	var lamp: OmniLight3D = w.info["lamps"][0]
+	var lamp: Light3D = w.info["lamps"][0]
 	var e0 := lamp.light_energy
 	var restored: Array = w.info["upgrade_show"]["lamps"]
 	check(not restored[0].visible, "restored lamps not visible before buying")
@@ -1870,6 +1870,24 @@ func _test_fixes() -> void:
 	var tfs: int = tb._fit_size(tfont, PackedStringArray(["Chat with Ciara Nolan Fitzgerald"]))
 	check(tfont.get_string_size("Chat with Ciara Nolan Fitzgerald", HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x <= 230 - 22 and tfs < 23, "a long action label shrinks to fit the button")
 	tb.free()
+	# graphics: the big surfaces come in pieces small enough for every lamp near them to light them
+	# (phones light each mesh with at most 8 lights), the pendants throw their light down, and the
+	# street has a sky
+	var big_piece := 0.0
+	for n in w.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh is BoxMesh and mi.material_override and str(mi.material_override.resource_path) == "" and mi.is_inside_tree():
+			var bs: Vector3 = (mi.mesh as BoxMesh).size
+			var gp: Vector3 = mi.global_position
+			if absf(gp.x) < 7.2 and absf(gp.z) < 5.2 and (gp.y < 0.0 or gp.y > 3.2) and bs.y <= 0.11:
+				big_piece = maxf(big_piece, maxf(bs.x, bs.z))
+	check(big_piece > 0.0 and big_piece <= 3.6, "the floor and ceiling are built in pieces of at most 3.5 m (largest %.2f m)" % big_piece)
+	var down := true
+	for l in w.info["lamps"]:
+		if not (l is SpotLight3D) or (l as Node3D).global_transform.basis.z.y < 0.9:
+			down = false
+	check(down, "the pendant lamps throw their light down onto the tables")
+	check(w.info.has("sky_mat") and w.env.tonemap_mode == Environment.TONE_MAPPER_FILMIC, "a night sky over the street and a filmic grade")
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

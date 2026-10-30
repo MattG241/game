@@ -57,7 +57,25 @@ func build(parent: Node3D) -> Dictionary:
 	_jukebox()
 	_big_screen()
 	_bunting()
+	_sky()
 	return info
+
+
+## A big dome of sky round the whole street (seen through the windows and outside).
+func _sky() -> void:
+	var dome := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 60.0      # inside the far clip (80 m) from anywhere on the street
+	sm.height = 120.0
+	sm.radial_segments = 24
+	sm.rings = 12
+	dome.mesh = sm
+	var mat := MeshKit.shader_mat("res://assets/shaders/night_sky.gdshader")
+	dome.material_override = mat
+	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	dome.extra_cull_margin = 200.0
+	root.add_child(dome)
+	info["sky_mat"] = mat
 
 
 ## A wall-mounted screen over the fireplace for match days.
@@ -142,11 +160,12 @@ func _room() -> void:
 	var d := PubLayout.ROOM_MAX.y - PubLayout.ROOM_MIN.y
 	var h := PubLayout.ROOM_H
 	# floor & ceiling
-	var fl := MeshKit.box(g, Vector3(w, 0.1, d), Vector3(0, -0.05, 0), MeshKit.mat("floor"))
+	var fl := MeshKit.tiled_box(g, Vector3(w, 0.1, d), Vector3(0, -0.05, 0), MeshKit.mat("floor"))
 	MeshKit.solid(g, Vector3(w + 2, 0.1, d + 2), Vector3(0, -0.05, 0))
 	# an old pub ceiling: plaster yellowed by a century of turf smoke
-	var ceil_mat := MeshKit.shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.42, 0.32, 0.2), "stain": 0.7})
-	MeshKit.box(g, Vector3(w, 0.1, d), Vector3(0, h + 0.05, 0), ceil_mat)
+	var ceil_mat := MeshKit.shader_mat("res://assets/shaders/plaster.gdshader", {"base_color": Color(0.46, 0.36, 0.23), "stain": 0.7,
+		"room_ao": 1.0, "pattern": 1})
+	MeshKit.tiled_box(g, Vector3(w, 0.1, d), Vector3(0, h + 0.05, 0), ceil_mat)
 	# ceiling beams
 	for i in 6:
 		var x := PubLayout.ROOM_MIN.x + 1.2 + i * 2.3
@@ -203,10 +222,10 @@ func _wall_skin(g: Node3D, c: Vector3, s: Vector3, axis: int) -> void:
 	var up_size := Vector3(s.x, up_h, thick) if axis == 0 else Vector3(thick, up_h, s.z)
 	var low_pos := Vector3(c.x, low_h / 2, c.z) + off
 	var up_pos := Vector3(c.x, low_h + up_h / 2, c.z) + off
-	var old_low := MeshKit.box(g, low_size, low_pos, MeshKit.mat("tiles_old_z" if axis == 0 else "tiles_old_x"))
-	var old_up := MeshKit.box(g, up_size, up_pos, MeshKit.mat("plaster_old"))
-	var new_low := MeshKit.box(g, low_size, low_pos + inward * 0.002, MeshKit.mat("tiles_green_z" if axis == 0 else "tiles_green_x"))
-	var new_up := MeshKit.box(g, up_size, up_pos + inward * 0.002, MeshKit.mat("plaster_new"))
+	var old_low := MeshKit.tiled_box(g, low_size, low_pos, MeshKit.mat("tiles_old_z" if axis == 0 else "tiles_old_x"))
+	var old_up := MeshKit.tiled_box(g, up_size, up_pos, MeshKit.mat("plaster_old"))
+	var new_low := MeshKit.tiled_box(g, low_size, low_pos + inward * 0.002, MeshKit.mat("tiles_green_z" if axis == 0 else "tiles_green_x"))
+	var new_up := MeshKit.tiled_box(g, up_size, up_pos + inward * 0.002, MeshKit.mat("plaster_new"))
 	_tag("paint", old_low, false)
 	_tag("paint", old_up, false)
 	_tag("paint", new_low)
@@ -571,7 +590,7 @@ func _bottles(g: Node3D, base: Vector3, width: float) -> void:
 func _fireplace() -> void:
 	var g := _group("Fireplace")
 	var p := PubLayout.FIREPLACE
-	var stone := MeshKit.mat("stone_x")
+	var stone := MeshKit.mat("hearth_stone")
 	MeshKit.solid_box(g, Vector3(0.5, 1.4, 0.35), Vector3(p.x + 0.25, 0.7, p.z - 0.8), stone)
 	MeshKit.solid_box(g, Vector3(0.5, 1.4, 0.35), Vector3(p.x + 0.25, 0.7, p.z + 0.8), stone)
 	MeshKit.box(g, Vector3(0.55, 0.35, 1.95), Vector3(p.x + 0.27, 1.22, p.z), stone)
@@ -582,7 +601,7 @@ func _fireplace() -> void:
 	# a mantel clock on the shelf, facing the room
 	MeshKit.prop(g, "mantel_clock", Vector3(p.x + 0.42, 1.5, p.z + 0.55), -PI / 2)
 	# chimney breast above
-	MeshKit.box(g, Vector3(0.4, 1.85, 1.9), Vector3(p.x + 0.2, 2.4, p.z), MeshKit.mat("plaster_old"))
+	MeshKit.box(g, Vector3(0.4, 1.85, 1.9), Vector3(p.x + 0.2, 2.4, p.z), MeshKit.mat("hearth_stone"))   # the stone carries on up
 	# ash (unlit) vs turf fire (upgrade)
 	var ash := MeshKit.box(g, Vector3(0.4, 0.05, 0.7), Vector3(p.x + 0.35, 0.05, p.z), MeshKit.mat("ash"))
 	_tag("fireplace", ash, false)
@@ -891,7 +910,9 @@ func _window(g: Node3D, c: Vector3, size: Vector2) -> void:
 	for sx in [-1, 1]:
 		MeshKit.box(g, Vector3(0.06, size.y, 0.1), c + Vector3(sx * size.x / 2.0, 0, 0), frame)
 	# half-height café curtain on a brass rod (inside)
-	MeshKit.cyl(g, 0.01, 0.01, size.x, c + Vector3(0, -0.1, -0.12), MeshKit.mat("brass"), 6, Vector3(0, 0, PI / 2))
+	MeshKit.cyl(g, 0.012, 0.012, size.x - 0.02, c + Vector3(0, -0.1, -0.12), MeshKit.mat("brass"), 8, Vector3(0, 0, PI / 2))
+	for sx in [-1, 1]:
+		MeshKit.sphere(g, 0.022, c + Vector3(sx * (size.x / 2.0 - 0.01), -0.1, -0.12), MeshKit.mat("brass"))   # finials
 	MeshKit.quad(g, Vector2(size.x - 0.08, 0.6), c + Vector3(0, -0.42, -0.12), MeshKit.shader_mat("res://assets/shaders/lace.gdshader"))
 
 
@@ -932,6 +953,28 @@ func _decor() -> void:
 	MeshKit.box(g, Vector3(0.03, 0.54, 1.3), mp + Vector3(0.012, 0, 0), MeshKit.mat("oak_y"))
 	MeshKit.box(g, Vector3(0.01, 0.46, 1.22), mp, MeshKit.mat("mirror"))
 	MeshKit.quad(g, Vector2(1.16, 0.435), mp - Vector3(0.007, 0, 0), MeshKit.print_mat(BRAND + "galagers_mirror.png", 0.0, 0.2), Vector3(0, -PI / 2, 0))
+	# brass wall sconces with tulip shades, each throwing a fan of warm light up and down the wall
+	var wash_m := MeshKit.shader_mat("res://assets/shaders/wall_wash.gdshader")
+	var shade_m := MeshKit.color_mat(Color(1.0, 0.9, 0.72), 0.3)
+	(shade_m as StandardMaterial3D).emission_enabled = true
+	(shade_m as StandardMaterial3D).emission = Color(1.0, 0.78, 0.5)
+	(shade_m as StandardMaterial3D).emission_energy_multiplier = 1.6
+	for sc in [[Vector3(PubLayout.ROOM_MIN.x + 0.11, 2.0, -2.6), 1], [Vector3(PubLayout.ROOM_MIN.x + 0.11, 2.05, 3.85), 1],
+			[Vector3(PubLayout.ROOM_MAX.x - 0.11, 2.0, 1.55), -1], [Vector3(PubLayout.ROOM_MAX.x - 0.11, 2.0, -3.75), -1]]:
+		var sp: Vector3 = sc[0]
+		var out := Vector3(float(sc[1]), 0, 0)
+		var sconce := Node3D.new()
+		sconce.position = sp
+		sconce.rotation.y = PI / 2.0 if int(sc[1]) == 1 else -PI / 2.0     # local +z points into the room
+		g.add_child(sconce)
+		MeshKit.cyl(sconce, 0.045, 0.045, 0.02, Vector3(0, 0, 0.0), MeshKit.mat("brass"), 14, Vector3(PI / 2, 0, 0))
+		MeshKit.cyl(sconce, 0.008, 0.008, 0.14, Vector3(0, -0.02, 0.07), MeshKit.mat("brass"), 6, Vector3(PI / 2 - 0.35, 0, 0))
+		MeshKit.cyl(sconce, 0.07, 0.035, 0.11, Vector3(0, 0.05, 0.14), shade_m, 14)
+		MeshKit.torus(sconce, 0.066, 0.074, Vector3(0, 0.105, 0.14), MeshKit.mat("brass"))
+		MeshKit.halo(sconce, Vector3(0, 0.06, 0.14), 0.42, Color(1.0, 0.75, 0.45, 0.5))
+		var wash := MeshKit.quad(g, Vector2(1.3, 1.9), sp + out * 0.015 + Vector3(0, 0.05, 0), wash_m,
+			Vector3(0, PI / 2.0 if int(sc[1]) == 1 else -PI / 2.0, 0))
+		wash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# a patterned hearth rug in front of the fire
 	var rug := Vector3(PubLayout.FIREPLACE.x + 1.45, 0.006, PubLayout.FIREPLACE.z)
 	MeshKit.contact_shadow(g, rug, Vector2(1.4, 2.0), 0.25)
@@ -965,12 +1008,28 @@ func _decor() -> void:
 	MeshKit.box(g, Vector3(0.5, 0.73, 0.03), mb, MeshKit.mat("oak_y"))
 	MeshKit.quad(g, Vector2(0.44, 0.66), mb + Vector3(0, 0, 0.017), MeshKit.print_mat(BRAND + "galagers_menu.png", 0.0, 0.7))
 	# coats and a flat cap on the hooks by the door, an umbrella stand
-	var coat_cols := [Color(0.25, 0.2, 0.14), Color(0.12, 0.16, 0.22)]
+	# a tweed overcoat and a waxed jacket hang flat against the wall by their collars: a body
+	# widening to the hem with soft folds, the sleeves hanging down the front
+	var coat_mats := [MeshKit.shader_mat("res://assets/shaders/cloth.gdshader", {"base_color": Color(0.26, 0.2, 0.13)}),
+		MeshKit.shader_mat("res://assets/shaders/cloth.gdshader", {"base_color": Color(0.1, 0.13, 0.1), "sheen": 0.7, "weave": 0.3})]
 	for i in 2:
-		var hx := -2.4 + i * 0.44
-		var cm := MeshKit.color_mat(coat_cols[i], 0.9)
-		MeshKit.capsule(g, 0.11, 0.85, Vector3(hx, 1.25, PubLayout.ROOM_MAX.y - 0.24), cm)
-		MeshKit.sphere(g, 0.09, Vector3(hx, 1.64, PubLayout.ROOM_MAX.y - 0.24), cm, Vector3(1.3, 0.6, 0.8))
+		var coat := Node3D.new()
+		coat.position = Vector3(-2.4 + i * 0.44, 1.71, PubLayout.ROOM_MAX.y - 0.2)
+		coat.rotation.z = [0.03, -0.05][i]
+		g.add_child(coat)
+		var cm: Material = coat_mats[i]
+		var long_k := 1.0 if i == 0 else 0.75
+		var len_c := 0.95 * long_k
+		# a four-sided frustum turned square-on to the wall: narrow shoulders, wide hem, thin
+		var body := MeshKit.cyl(coat, 0.15, 0.24, len_c, Vector3(0, -0.06 - len_c / 2.0, -0.04), cm, 4, Vector3(0, PI / 4.0, 0))
+		body.scale = Vector3(1.0, 1.0, 0.28)
+		body.rotation.y = PI / 4.0
+		var collar := MeshKit.cyl(coat, 0.05, 0.11, 0.08, Vector3(0, -0.04, -0.03), cm, 4)
+		collar.rotation.y = PI / 4.0
+		collar.scale = Vector3(1.0, 1.0, 0.45)
+		for sx in [-1, 1]:
+			var sl := MeshKit.cyl(coat, 0.035, 0.05, 0.6 * long_k, Vector3(sx * 0.12, -0.12 - 0.3 * long_k, -0.075), cm, 8)
+			sl.rotation.z = sx * 0.1
 	MeshKit.cyl(g, 0.11, 0.12, 0.05, Vector3(-2.18, 1.73, PubLayout.ROOM_MAX.y - 0.2), MeshKit.color_mat(Color(0.3, 0.28, 0.22), 0.9), 14)
 	var us := Vector3(-0.95, 0, PubLayout.ROOM_MAX.y - 0.3)
 	MeshKit.contact_shadow(g, us, Vector2(0.4, 0.4), 0.5)
@@ -1081,11 +1140,16 @@ func _lights() -> void:
 		MeshKit.sphere(shade_root, 0.05, Vector3(0, -0.08, 0), MeshKit.mat("bulb"))
 		MeshKit.cyl(shade_root, 0.2, 0.2, 0.01, Vector3(0, -0.08, 0), MeshKit.mat("lamp_shade"), 20)
 		_tag("lamps", shade_root)
-		var light := OmniLight3D.new()
-		light.position = Vector3(0, -0.15, 0)
+		# the shade throws the light down: a pool over the table and the floor round it, the ceiling
+		# left to the soft ambient (as under real pendant shades)
+		var light := SpotLight3D.new()
+		light.position = Vector3(0, -0.1, 0)
+		light.rotation_degrees = Vector3(-90, 0, 0)
 		light.light_color = Color(1.0, 0.8, 0.58)
-		light.omni_range = 4.5
-		light.omni_attenuation = 1.2
+		light.spot_range = 4.6
+		light.spot_angle = 78.0
+		light.spot_angle_attenuation = 0.9
+		light.spot_attenuation = 0.9
 		lamp.add_child(light)
 		info["lamps"].append(light)
 		# a faint cone of light and drifting dust under each pendant (lit only once restored)
@@ -1129,8 +1193,8 @@ func _lights() -> void:
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, 2.8, 2.5)
 	fill.light_color = Color(0.8, 0.65, 0.5)
-	fill.light_energy = 0.35
-	fill.omni_range = 9.0
+	fill.light_energy = 0.32
+	fill.omni_range = 8.0
 	g.add_child(fill)
 	# a key light over the taps with shadows for the pour close-up
 	var key := SpotLight3D.new()

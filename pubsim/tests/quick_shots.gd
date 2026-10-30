@@ -504,6 +504,9 @@ func _ready() -> void:
 					"bottles": [Vector3(-2.0, 1.75, -3.6), Vector3(-2.0, 1.7, -5.0)],
 					"terrace": [Vector3(-2.0, 1.7, 6.6), Vector3(0.0, 3.0, 14.0)],
 					"window": [Vector3(-4.0, 1.55, 3.7), Vector3(-4.2, 1.6, 5.2)],
+					"leftwall": [Vector3(-2.5, 1.65, 1.0), Vector3(-7.0, 1.7, 0.4)],
+					"rightwall": [Vector3(2.8, 1.65, 0.2), Vector3(7.0, 1.7, 0.0)],
+					"coats": [Vector3(-2.2, 1.6, 3.0), Vector3(-2.2, 1.35, 5.0)],
 				}
 				if views_cam.has(v):
 					var pr: Array = views_cam[v]
