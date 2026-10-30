@@ -255,9 +255,9 @@ func _bar() -> void:
 		MeshKit.cyl(g, 0.012, 0.012, 0.3, Vector3(x0 + 0.5 + i * len / 8.0, 0.16, zf + 0.15), MeshKit.mat("brass_dull"), 6, Vector3(PI / 2.6, 0, 0))
 	# bartender-side shelf under the counter
 	MeshKit.box(g, Vector3(len - 0.2, 0.03, 0.4), Vector3(cx, 0.55, zb - 0.22), MeshKit.mat("oak"))
-	# bar stools (customer side, one per service spot)
+	# bar stools (customer side), set between the service spots so people stand at the bar beside them
 	for x in PubLayout.BAR_SPOT_X:
-		_stool(g, Vector3(x, 0, zf + 0.42))
+		_stool(g, Vector3(x + 0.6, 0, zf + 0.42))
 	# drip tray (old) vs brass drip tray (upgrade) under the taps
 	var tray_old := MeshKit.box(g, Vector3(1.6, 0.025, 0.32), Vector3(-1.9, top + 0.012, PubLayout.TAP_Z - 0.08), MeshKit.mat("iron"))
 	_tag("drip_tray", tray_old, false)
@@ -908,7 +908,7 @@ func _decor() -> void:
 		var jug := MeshKit.cyl(g, 0.05, 0.07, 0.16, Vector3(PubLayout.ROOM_MAX.x - 0.22, 2.65, -2.5 + i * 0.36), MeshKit.color_mat(Color(0.75, 0.68, 0.55).darkened(0.1 * (i % 3)), 0.5), 12)
 	# notice board with local notices
 	var nb := Node3D.new()
-	nb.position = Vector3(-1.8, 1.55, PubLayout.ROOM_MAX.y - 0.16)
+	nb.position = Vector3(-2.95, 1.55, PubLayout.ROOM_MAX.y - 0.16)      # clear of the coat hooks
 	nb.rotation.y = PI
 	g.add_child(nb)
 	MeshKit.box(nb, Vector3(0.8, 0.6, 0.03), Vector3.ZERO, MeshKit.color_mat(Color(0.55, 0.4, 0.25), 0.95))
@@ -1444,16 +1444,19 @@ func _stage() -> void:
 	MeshKit.solid_box(g, Vector3(2.5, 0.22, 2.1), Vector3(c.x + 0.05, 0.11, c.z + 0.05), MeshKit.mat("floor"))
 	MeshKit.box(g, Vector3(2.52, 0.04, 2.12), Vector3(c.x + 0.05, 0.22, c.z + 0.05), MeshKit.mat("oak_z"))
 	MeshKit.box(g, Vector3(0.04, 0.2, 2.1), Vector3(c.x - 1.2, 0.1, c.z + 0.05), MeshKit.mat("brass"))
-	# stools for the players
+	# stools for the players (put aside while a band brings its own)
+	var stools := Node3D.new()
+	g.add_child(stools)
 	for i in 5:
 		var spread := (i / 4.0 - 0.5) * 1.8
 		var sp := c + Vector3(spread * 0.5 + 0.15, 0.22, spread)
-		MeshKit.cyl(g, 0.17, 0.17, 0.05, sp + Vector3(0, 0.46, 0), MeshKit.mat("oak"), 14)
-		MeshKit.cyl(g, 0.03, 0.03, 0.44, sp + Vector3(0, 0.22, 0), MeshKit.mat("oak_y"), 8)
+		MeshKit.cyl(stools, 0.17, 0.17, 0.05, sp + Vector3(0, 0.46, 0), MeshKit.mat("oak"), 14)
+		MeshKit.cyl(stools, 0.03, 0.03, 0.44, sp + Vector3(0, 0.22, 0), MeshKit.mat("oak_y"), 8)
+	info["stage_stools"] = stools
 	# hanging sign
-	var l := MeshKit.label(g, "The Snug", c + Vector3(1.2, 2.3, 0.05), 64, Color(0.95, 0.8, 0.45), Vector3(0, -PI / 2.0, 0), _title_font)
+	var l := MeshKit.label(g, "The Snug", c + Vector3(1.14, 2.45, 0.05), 64, Color(0.95, 0.8, 0.45), Vector3(0, -PI / 2.0, 0), _title_font)
 	l.pixel_size = 0.0022
-	MeshKit.box(g, Vector3(0.03, 0.4, 1.2), c + Vector3(1.24, 2.3, 0.05), MeshKit.mat("green_paint"))
+	MeshKit.box(g, Vector3(0.03, 0.4, 1.2), c + Vector3(1.16, 2.45, 0.05), MeshKit.mat("green_paint"))
 	var spot := SpotLight3D.new()
 	spot.position = c + Vector3(-1.4, 2.9, 0)
 	spot.rotation_degrees = Vector3(-55, -90, 0)
@@ -1466,8 +1469,9 @@ func _stage() -> void:
 	var sp_g := _group("Speakers")
 	_tag("sound_system", sp_g)
 	for side in [-1, 1]:
-		var p := c + Vector3(0.6, 0.22, side * 1.0)
-		MeshKit.cyl(sp_g, 0.02, 0.02, 1.0, p + Vector3(0, 0.5, 0), MeshKit.mat("iron"), 6)
+		# on stands just off either end of the stage, clear of the players
+		var p := c + Vector3(0.6, 0.0, side * 1.3)
+		MeshKit.cyl(sp_g, 0.02, 0.02, 1.2, p + Vector3(0, 0.6, 0), MeshKit.mat("iron"), 6)
 		MeshKit.box(sp_g, Vector3(0.3, 0.45, 0.3), p + Vector3(0, 1.2, 0), MeshKit.mat("black_paint"), Vector3(0, -PI / 4.0 * side, 0))
 		MeshKit.cyl(sp_g, 0.09, 0.09, 0.02, p + Vector3(-0.15, 1.15, 0), MeshKit.color_mat(Color(0.15, 0.15, 0.15), 0.8), 16, Vector3(0, 0, PI / 2.0))
 

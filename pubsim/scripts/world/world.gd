@@ -78,6 +78,13 @@ func _ready() -> void:
 	nav_region.navigation_mesh = nm
 	var builder := PubBuilder.new()
 	info = builder.build(nav_region)
+	# furniture you haven't bought yet isn't solid, so the first floor plan leaves room for it
+	for id in info["upgrade_show"].keys():
+		for n in info["upgrade_show"][id]:
+			_set_solid(n, GameState.has_upgrade(id))
+	for id in info["upgrade_hide"].keys():
+		for n in info["upgrade_hide"][id]:
+			_set_solid(n, not GameState.has_upgrade(id))
 	nav_region.bake_navigation_mesh(false)
 	close_cam = Camera3D.new()
 	close_cam.fov = 50.0
@@ -314,7 +321,7 @@ func _rack_action(kind := "pint") -> void:
 
 
 func _tap_prompt(id: String) -> String:
-	if not GameState.drink_available(id):
+	if not GameState.drink_available(id) or not player_behind_bar():
 		return ""
 	var name: String = GameData.drink(id).get("short", id)
 	if player.held == null:
@@ -338,12 +345,20 @@ func _tap_prompt(id: String) -> String:
 
 
 func _tap_action(id: String) -> void:
-	if _tap_prompt(id).begins_with("~") or player.held == null:
+	var pr := _tap_prompt(id)
+	if pr == "" or pr.begins_with("~") or player.held == null:
 		return
 	pour.begin(id, info["taps"][id])
 
 
+## Behind the bar (taps, the drip tray and the settle slots are worked from this side only).
+func player_behind_bar() -> bool:
+	return player.global_position.z < PubLayout.BAR_BACK_Z + 0.15
+
+
 func _settle_prompt(i: int) -> String:
+	if not player_behind_bar():
+		return ""
 	var g: PintGlass = settle_slots[i]
 	if g != null:
 		if player.has_hands_free():
@@ -358,6 +373,8 @@ func _settle_prompt(i: int) -> String:
 
 
 func _settle_action(i: int) -> void:
+	if not player_behind_bar():
+		return
 	var g: PintGlass = settle_slots[i]
 	if g != null and player.has_hands_free():
 		settle_slots[i] = null
@@ -758,7 +775,7 @@ func _restore_overnight_dirty() -> void:
 		var g := PintGlass.new()
 		g.set_dirty(0.7)
 		g.lace_top = 0.7
-		leave_dirty_glass(g, PubLayout.SINK_POS + Vector3(-0.3 - (i % 4) * 0.09, 0, 0.12 - (i / 4) * 0.1))
+		leave_dirty_glass(g, sink_pile_pos())
 
 
 # ------------------------------------------------------------------ staff
@@ -813,6 +830,34 @@ func tap_in_use(id: String, by: StaffMember = null) -> bool:
 		if Vector2(player.global_position.x - spot.x, player.global_position.z - (spot.z - 0.4)).length() < 0.55:
 			return true
 	return staff_at_tap(id, by) != null
+
+
+## Where a member of staff should stand for a job at `want`: shifted along the bar so they're never
+## on top of the player, in front of the pour camera, or on another member of staff's spot.
+func staff_spot(want: Vector3, st: StaffMember) -> Vector3:
+	var p := want
+	for attempt in 6:
+		var clash := false
+		if Vector2(player.global_position.x - p.x, player.global_position.z - p.z).length() < 0.6:
+			clash = true
+		if pour and pour.active and absf(close_cam.global_position.x - p.x) < 0.55 and absf(close_cam.global_position.z - p.z) < 0.8:
+			clash = true
+		for other in staff_npcs:
+			if other != st and other.has_meta("spot") and (other.get_meta("spot") as Vector3).distance_to(p) < 0.6:
+				clash = true
+		if not clash:
+			break
+		var dir := 1.0 if (attempt % 2 == 0) == (player.global_position.x < want.x) else -1.0
+		p = want + Vector3(dir * 0.7 * (attempt / 2 + 1), 0, 0)
+		p.x = clampf(p.x, PubLayout.BAR_X.x + 0.4, PubLayout.BAR_X.y - 0.3)
+	st.set_meta("spot", p)
+	return p
+
+
+## A spot to wait in beside where a member of staff is now, away from the player.
+func staff_aside(from: Vector3, st: StaffMember) -> Vector3:
+	var dir := 1.0 if from.x >= player.global_position.x else -1.0
+	return staff_spot(Vector3(clampf(from.x + dir * 0.8, PubLayout.BAR_X.x + 0.4, PubLayout.BAR_X.y - 0.3), 0, from.z), st)
 
 
 ## The member of staff working a tap (pouring, or their stout settling under it), if any.
@@ -978,7 +1023,7 @@ func staff_drop_all(st: StaffMember) -> void:
 		if g.get_parent():
 			g.get_parent().remove_child(g)
 		# left by the sink for whoever washes up next
-		leave_dirty_glass(g, PubLayout.SINK_POS + Vector3(-0.3 - (i % 4) * 0.09, 0, 0.12 - (i / 4) * 0.1))
+		leave_dirty_glass(g, sink_pile_pos())
 		i += 1
 
 
@@ -1257,13 +1302,56 @@ func release_seat(i: int) -> void:
 	seats_taken.erase(i)
 
 
+## Where the next dirty glass goes when it's left by the sink: in rows along the free back counter
+## beside the sink (never into the sink, the wall or another glass).
+func sink_pile_pos() -> Vector3:
+	var n := 0
+	for g in loose_glasses:
+		if g.global_position.z < PubLayout.BACK_COUNTER_Z + 0.3 and g.global_position.x > PubLayout.SINK_POS.x + 0.35:
+			n += 1
+	var col := n % 14
+	var row := (n / 14) % 3
+	return Vector3(PubLayout.SINK_POS.x + 0.45 + col * 0.11, PubLayout.BACK_COUNTER_TOP, PubLayout.BACK_COUNTER_Z + 0.2 - row * 0.11)
+
+
+## Standing places for people with nowhere to sit, each held by one person (none on the darts lane).
+const STAND_SPOTS := [Vector3(-1.5, 0, 4.2), Vector3(-0.9, 0, 3.7), Vector3(1.6, 0, 4.3), Vector3(2.2, 0, 3.8),
+	Vector3(-6.3, 0, -0.6), Vector3(-5.6, 0, -0.9), Vector3(3.6, 0, 1.0), Vector3(-2.0, 0, 0.0),
+	Vector3(-2.6, 0, 0.5), Vector3(0.9, 0, 0.6)]
+var standing_taken: Dictionary = {}    # spot index -> Customer
+
+
+func release_standing(c: Customer) -> void:
+	if c.stand_spot >= 0 and standing_taken.get(c.stand_spot) == c:
+		standing_taken.erase(c.stand_spot)
+	c.stand_spot = -1
+
+
+## True if a point is on the walkable floor (within a few cm of the navmesh).
+func on_navmesh(p: Vector3) -> bool:
+	if not _nav_ready:
+		return true
+	var q := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, p)
+	return Vector2(q.x - p.x, q.z - p.z).length() < 0.05
+
+
 func seat_info(i: int) -> Dictionary:
 	return info["seats"][i]
 
 
 func standing_spot(c: Customer) -> Vector3:
-	var spots := [Vector3(-1.5, 0, 4.3), Vector3(1.6, 0, 4.4), Vector3(-6.3, 0, -0.6), Vector3(4.3, 0, 0.2), Vector3(-2.0, 0, 0.0)]
-	return spots[_rng.randi() % spots.size()] + Vector3(_rng.randf_range(-0.3, 0.3), 0, _rng.randf_range(-0.3, 0.3))
+	release_standing(c)
+	var free := []
+	for i in STAND_SPOTS.size():
+		if not standing_taken.has(i) or not is_instance_valid(standing_taken[i]):
+			free.append(i)
+	if free.is_empty():
+		# a packed house: squeeze in near the door
+		return STAND_SPOTS[_rng.randi() % STAND_SPOTS.size()] + Vector3(_rng.randf_range(-0.35, 0.35), 0, _rng.randf_range(-0.35, 0.35))
+	var i: int = free[_rng.randi() % free.size()]
+	standing_taken[i] = c
+	c.stand_spot = i
+	return STAND_SPOTS[i]
 
 
 func nearest_ledge(p: Vector3) -> Vector3:
@@ -1276,7 +1364,7 @@ func nearest_ledge(p: Vector3) -> Vector3:
 		if d < bd:
 			bd = d
 			best = q
-	for q in [Vector3(-4.2, 0.92, 4.8), Vector3(3.6, 0.92, 4.8)]:
+	for q in [Vector3(-4.2, 0.94, 4.93), Vector3(3.6, 0.94, 4.93)]:      # on the window sills
 		var d: float = q.distance_to(p)
 		if d < bd:
 			bd = d
@@ -1732,7 +1820,7 @@ func _update_door(delta: float) -> void:
 			Sfx.play_at("door_bell", d0 + Vector3(0, 2.0, 0), self, -8.0)   # the bell over the door
 		_door_anim = 0.8
 	_door_anim = maxf(0.0, _door_anim - delta)
-	var target := -1.2 if _door_anim > 0.0 else 0.0
+	var target := 1.3 if _door_anim > 0.0 else 0.0      # it swings inwards, into the pub
 	door.rotation.y = lerp(door.rotation.y, target, minf(1.0, delta * 4.0))
 
 
@@ -1801,14 +1889,20 @@ func _glasses_out() -> int:
 
 
 func apply_upgrades() -> void:
+	var changed := false
 	for id in info["upgrade_show"].keys():
 		var owned := GameState.has_upgrade(id)
 		for n in info["upgrade_show"][id]:
 			(n as Node3D).visible = owned
+			changed = _set_solid(n, owned) or changed
 	for id in info["upgrade_hide"].keys():
 		var owned2 := GameState.has_upgrade(id)
 		for n in info["upgrade_hide"][id]:
 			(n as Node3D).visible = not owned2
+			changed = _set_solid(n, not owned2) or changed
+	if changed and _nav_ready:
+		# the floor plan follows the furniture (a new stage, booths, the crates cleared away)
+		nav_region.bake_navigation_mesh(false)
 	var fl: OmniLight3D = info.get("fire_light")
 	if fl:
 		fl.visible = GameState.has_upgrade("fireplace")
@@ -1820,6 +1914,17 @@ func apply_upgrades() -> void:
 		gilt.text = GameState.pub_name.to_upper()
 	_refresh_stock_pile()
 	_update_lighting(true)
+
+
+## Furniture that isn't there has no collision. Returns true if anything changed.
+func _set_solid(n: Node, on: bool) -> bool:
+	var changed := false
+	for b in n.find_children("*", "StaticBody3D", true, false) + ([n] if n is StaticBody3D else []):
+		var layer := 1 if on else 0
+		if (b as StaticBody3D).collision_layer != layer:
+			(b as StaticBody3D).collision_layer = layer
+			changed = true
+	return changed
 
 
 func _refresh_stock_pile() -> void:
@@ -1896,7 +2001,11 @@ func _tap_spot(id: String) -> Vector3:
 
 
 func _above(c: Node3D) -> Vector3:
-	return c.global_position + Vector3(0, 1.85, 0)
+	# over their head, and higher still when a speech bubble is showing
+	var lift := 1.85
+	if c is Customer and (c as Customer)._bubble and (c as Customer)._bubble.visible:
+		lift += 0.45
+	return c.global_position + Vector3(0, lift, 0)
 
 
 ## The single most useful thing for the player to do now: {"text": ..., "pos": where (optional)}.

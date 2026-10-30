@@ -121,7 +121,10 @@ func _process(delta: float) -> void:
 			Sfx.play("spill", -8.0)
 			GameState.vibrate(15)
 			var p: Vector3 = tap["glass"] + Vector3(randf_range(-0.12, 0.12), 0.0, randf_range(-0.12, 0.05))
-			p.y = PubLayout.BAR_TOP
+			p.z = maxf(p.z, PubLayout.BAR_BACK_Z - 0.02)     # on the bar top, not over its back edge
+			# on top of the drip tray where there is one, not hidden under it
+			var on_tray := p.x > -2.7 and p.x < -1.1 and p.z > -2.32 and p.z < -2.0
+			p.y = PubLayout.BAR_TOP + (0.0265 if on_tray else 0.0)
 			world.add_spill(p, randf_range(0.05, 0.09))
 	_update_tap_visual(flow, delta)
 	Sfx.set_loop("pour", "pour_loop", flow * 0.9, "Effects")

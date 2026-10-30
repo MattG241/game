@@ -104,6 +104,10 @@ var _seat_yaw := 0.0
 var _say_t := 0.0
 var _rng := RandomNumberGenerator.new()
 var _block_t := 0.0          # how long the player has been in the way
+var _sidestepped := false
+var _final_target := Vector3.ZERO
+var stand_spot := -1         # the standing place this customer holds, if any
+var _drop_then := ""         # after putting a glass down on a ledge: "order" or "leave"
 var _collider: AnimatableBody3D
 
 
@@ -241,8 +245,9 @@ func _build(look: Dictionary) -> void:
 	_bubble.pixel_size = 0.0028
 	_bubble.outline_size = 14
 	_bubble.outline_modulate = Color(0.05, 0.03, 0.02, 0.9)
-	_bubble.width = 600.0
+	_bubble.width = 380.0              # narrow enough that neighbours at the bar don't overlap
 	_bubble.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bubble.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM   # longer lines grow upwards, clear of the name
 	_bubble.visible = false
 	add_child(_bubble)
 	_name_tag = Label3D.new()
@@ -408,9 +413,14 @@ func hide_bubble() -> void:
 
 
 func walk_to(target: Vector3, then_state: String) -> void:
+	_final_target = target
 	_path = world.nav_path(global_position, target)
 	if _path.is_empty():
 		_path = PackedVector3Array([target])
+	elif Vector2(_path[-1].x - target.x, _path[-1].z - target.z).length() > 0.02 \
+			and Vector2(_path[-1].x - target.x, _path[-1].z - target.z).length() < 0.8:
+		# seats and bar spots sit just inside the furniture's footprint: the last short step in
+		_path.append(target)
 	_path_i = 0
 	_after_path = then_state
 	state = "walk"
@@ -492,9 +502,21 @@ func _walk(delta: float) -> void:
 			var side := Vector3(-dir.z, 0, dir.x)
 			if side.dot(away) < 0.0:
 				side = -side
-			dir = (side * 0.85 + dir * 0.15).normalized()
+			var next := global_position + (side * 0.85 + dir * 0.15).normalized() * step
+			# only sidestep where there's floor to stand on (never into the bar or a wall)
+			if world.has_method("on_navmesh") and not world.on_navmesh(next):
+				return
+			global_position = next
+			_sidestepped = true
+			return
 		else:
 			_block_t = 0.0
+			if _sidestepped:
+				# back on course from wherever the sidestep left us
+				_sidestepped = false
+				var then := _after_path
+				walk_to(_final_target, then)
+				return
 	global_position += dir * step
 	var yaw := atan2(-to.x, -to.z)
 	rotation.y = lerp_angle(rotation.y, yaw, minf(1.0, delta * 8.0))
@@ -535,6 +557,9 @@ func _arrive() -> void:
 			_pick_glass_spot()
 			if glass and glass.get_parent() == _grip:
 				_start_glass_move("put", PUT_TIME)
+		"drop_glass":
+			state = "idle"
+			_drop_glass_on_ledge()
 		"audience":
 			state = "audience"
 		"mingle":
@@ -679,7 +704,8 @@ func _pick_glass_spot() -> void:
 	var b := global_transform.basis
 	var near := global_position - b.z * 0.46 + b.x * 0.14
 	near.y = tp.y
-	_glass_spot = near if near.distance_to(tp) < 0.32 else tp
+	# within reach and on the table top (the fireside side tables are small)
+	_glass_spot = _clamp_to_table(near, tp) if near.distance_to(tp) < 0.32 else tp
 
 
 ## Puts the glass straight down on the table (no animation).
@@ -861,16 +887,54 @@ func _finish_drink() -> void:
 	if glass:
 		glass.contents.reset()
 		glass.set_dirty(0.75)
-		var pos: Vector3
 		if seat >= 0:
-			pos = world.seat_info(seat)["table"]
+			var tp: Vector3 = world.seat_info(seat)["table"]
+			if glass.get_parent():
+				glass.get_parent().remove_child(glass)
+			world.leave_dirty_glass(glass, _clamp_to_table(_glass_spot if _glass_spot != Vector3.ZERO else tp, tp))
+			glass = null
 		else:
-			pos = world.nearest_ledge(global_position)
-		if glass.get_parent():
-			glass.get_parent().remove_child(glass)
-		world.leave_dirty_glass(glass, pos)
+			# standing: take the empty to the nearest ledge rather than vanishing it there
+			_walk_to_ledge("order")
+			return
+	_after_glass_down()
+
+
+## Walks the empty to the nearest bar top or sill, puts it down, then orders again or heads off.
+func _walk_to_ledge(then: String) -> void:
+	_drop_then = then
+	var ledge: Vector3 = world.nearest_ledge(global_position)
+	set_meta("ledge", ledge)
+	walk_to(Vector3(ledge.x, 0, ledge.z), "drop_glass")
+
+
+func _drop_glass_on_ledge() -> void:
+	var ledge: Vector3 = get_meta("ledge", world.nearest_ledge(global_position))
+	if glass:
+		var g := glass
 		glass = null
+		if g.get_parent():
+			g.get_parent().remove_child(g)
+		world.leave_dirty_glass(g, ledge)
+		Sfx.play_at("glass_place", ledge, world, -12.0)
 	_arm_rot[1] = Vector3.ZERO
+	if _drop_then == "leave":
+		_drop_then = ""
+		walk_to(world.exit_point(self), "exit")
+	else:
+		_drop_then = ""
+		_after_glass_down()
+
+
+func _clamp_to_table(p: Vector3, tp: Vector3) -> Vector3:
+	var off := Vector2(p.x - tp.x, p.z - tp.z).limit_length(0.12)    # stay on the table top
+	return Vector3(tp.x + off.x, tp.y, tp.z + off.y)
+
+
+func _after_glass_down() -> void:
+	_arm_rot[1] = Vector3.ZERO
+	if leaving:
+		return
 	if drinks_had < budget and world.can_reorder(self):
 		order_taken = false
 		patience = patience_max
@@ -888,6 +952,8 @@ func start_mingling(pos: Vector3, yaw: float) -> void:
 
 
 func go_to_bar(spot: int, pos: Vector3) -> void:
+	if stand_spot >= 0:
+		world.release_standing(self)
 	ordering = true
 	bar_spot = spot
 	patience = patience_max
@@ -906,20 +972,29 @@ func leave() -> void:
 		bar_spot = -1
 	if queue_slot >= 0:
 		world.release_queue_slot(self)
+	var table_pos := Vector3.ZERO
 	if seat >= 0:
+		table_pos = world.seat_info(seat)["table"]
 		world.release_seat(seat)
 		seat = -1
-	if glass:
-		# walked out holding a drink: leave it behind on the nearest ledge
-		var g := glass
-		glass = null
-		g.contents.reset()
-		g.set_dirty(0.75)
-		if g.get_parent():
-			g.get_parent().remove_child(g)
-		world.leave_dirty_glass(g, world.nearest_ledge(global_position))
+	if stand_spot >= 0:
+		world.release_standing(self)
 	if served_count > 0 and _rng.randf() < 0.5:
 		say(world.line("leave"), 2.5)
+	if glass:
+		var g := glass
+		g.contents.reset()
+		g.set_dirty(0.75)
+		if table_pos != Vector3.ZERO:
+			# seated: it stays on their table
+			glass = null
+			if g.get_parent():
+				g.get_parent().remove_child(g)
+			world.leave_dirty_glass(g, _clamp_to_table(g.global_position, table_pos))
+		else:
+			# standing: carry it to the nearest ledge on the way out
+			_walk_to_ledge("leave")
+			return
 	walk_to(world.exit_point(self), "exit")
 	state = "walk"
 	_after_path = "exit"

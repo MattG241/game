@@ -46,7 +46,16 @@ func setup_staff(w: Node, entry: Dictionary, seed_v: int) -> void:
 
 
 func home() -> Vector3:
-	return BAR_HOME if role == "bartender" else FLOOR_HOME
+	if role != "bartender":
+		return FLOOR_HOME
+	# each bartender has their own spot to wait in
+	var n := 0
+	for st in world.staff_npcs:
+		if st == self:
+			break
+		if st.role == "bartender":
+			n += 1
+	return BAR_HOME + Vector3(1.4 * n, 0, 0)
 
 
 func busy() -> bool:
@@ -97,7 +106,7 @@ func _process_state(delta: float) -> void:
 				_drop_target()
 			elif _job_t <= 0.0:
 				world.staff_take_order(self, target)
-				_go(Vector3(PubLayout.RACK_POS.x, 0, BACK_Z), "st_glass")
+				_go(world.staff_spot(Vector3(PubLayout.RACK_POS.x, 0, BACK_Z), self), "st_glass")
 		"st_glass":
 			_face_yaw(0.0, delta)
 			_idle_anim(delta)
@@ -113,8 +122,7 @@ func _process_state(delta: float) -> void:
 			if _job_t <= 0.0:
 				_job_t = 0.5
 				if not world.tap_in_use(_pour_id, self):
-					state = "st_pour"
-					_start_pour()
+					_go(_tap_spot(), "st_pour")
 		"st_serve":
 			_face_yaw(PI, delta)
 			_idle_anim(delta)
@@ -170,11 +178,13 @@ func _arrive() -> void:
 			_job_t = BREAK_SECONDS
 		"st_pour":
 			if world.tap_in_use(_pour_id, self):
-				state = "st_wait_tap"     # someone's at that tap: wait alongside
-				_job_t = 0.5
+				# someone's at that tap: step aside along the bar and wait
 				say("After you.", 1.5)
+				_go(world.staff_aside(global_position, self), "st_wait_tap")
 			else:
 				_start_pour()
+		"st_wait_tap":
+			_job_t = 0.5
 
 
 func _face_point(n: Node3D, delta: float) -> void:
@@ -209,7 +219,7 @@ func _find_work() -> void:
 		if c != null:
 			target = c
 			c.set_meta("served_by", self)
-			_go(Vector3(world.bar_spot_pos(c.bar_spot).x, 0, BEHIND_Z), "st_order")
+			_go(world.staff_spot(Vector3(world.bar_spot_pos(c.bar_spot).x, 0, BEHIND_Z), self), "st_order")
 		elif global_position.distance_to(home()) > 0.6:
 			_go_home()
 		return
@@ -228,7 +238,7 @@ func _find_work() -> void:
 			_go(g.global_position, "st_collect")
 			return
 	if not carried.is_empty():
-		_go(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), "st_wash")
+		_go(world.staff_spot(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), self), "st_wash")
 	elif global_position.distance_to(home()) > 0.6:
 		_go_home()
 
@@ -247,7 +257,7 @@ func _drop_target() -> void:
 		target.remove_meta("served_by")
 	target = null
 	if glass != null:
-		_go(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), "st_tip")
+		_go(world.staff_spot(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), self), "st_tip")
 	else:
 		_go_home()
 
@@ -268,9 +278,13 @@ func _take_clean_glass() -> void:
 	glass = world.staff_take_glass(self, GameData.drink(id).get("glass", "pint"))
 	_take_glass()
 	_pour_id = id
-	var tap: Dictionary = world.info["taps"].get(id, {})
-	var x := float(tap["glass"].x) if not tap.is_empty() else float(PubLayout.TAP_X.get(id, -1.0))
-	_go(Vector3(x, 0, BEHIND_Z), "st_pour")
+	_go(_tap_spot(), "st_pour")
+
+
+func _tap_spot() -> Vector3:
+	var tap: Dictionary = world.info["taps"].get(_pour_id, {})
+	var x := float(tap["glass"].x) if not tap.is_empty() else float(PubLayout.TAP_X.get(_pour_id, -1.0))
+	return Vector3(x, 0, BEHIND_Z)
 
 
 func _moan(text: String) -> void:
@@ -366,7 +380,7 @@ func _finish_pour() -> void:
 	if _tap.has("root"):
 		Sfx.play_at("tap_clunk", _tap["glass"], world, -12.0)
 	if _target_ok("wait_drink"):
-		_go(Vector3(world.bar_spot_pos(target.bar_spot).x, 0, BEHIND_Z), "st_serve")
+		_go(world.staff_spot(Vector3(world.bar_spot_pos(target.bar_spot).x, 0, BEHIND_Z), self), "st_serve")
 	else:
 		_hand_over()
 
@@ -398,7 +412,7 @@ func _hand_over() -> void:
 	if ok:
 		_go_home()
 	else:
-		_go(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), "st_tip")
+		_go(world.staff_spot(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), self), "st_tip")
 
 
 ## Where the held glass goes while pouring: tilted under the nozzle, straightening as it fills.

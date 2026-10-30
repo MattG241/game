@@ -36,7 +36,7 @@ func _ready() -> void:
 	add_child(camera)
 	camera.current = true
 	hand = Node3D.new()
-	hand.position = Vector3(0.2, -0.3, -0.45)
+	hand.position = Vector3(0.19, -0.3, -0.34)    # close in, so the glass doesn't push into taps, walls or people
 	camera.add_child(hand)
 	fp_hand = _build_hand()
 	hand.add_child(fp_hand)
@@ -154,7 +154,7 @@ func pop_dirty() -> PintGlass:
 func _layout_stack() -> void:
 	for i in dirty_stack.size():
 		var g: PintGlass = dirty_stack[i]
-		g.position = Vector3(-0.05 + (i % 2) * 0.09, -0.02, -(i / 2) * 0.09)
+		g.position = Vector3(-0.09 + (i % 3) * 0.09, -0.02, -(i / 3) * 0.08)     # a tight bunch, not a tray
 		g.rotation = Vector3.ZERO
 
 

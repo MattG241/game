@@ -254,6 +254,27 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
   - tutorial tips fade on their own.
 - **The glass** now draws its far wall, so a pint looks whole. **Menus scroll** under a finger
   anywhere on the list, with a little momentum, and a drag never presses a button.
+- **The physical world, from play notes and a second audit:**
+  - **The pint:** the GALAGERS print faces you while you pour.
+  - **The door:** a glazed front door with the OPEN/CLOSED sign hanging inside the glass, flipped
+    over with a swing when you open and close. It swings inwards for whoever is actually at it.
+  - **Moving around:** people are solid and step round you, and staff go round the end of the bar,
+    never through the counter. Bartenders step aside and wait while you use a tap, keep out of the
+    pour camera's view and each have their own spot.
+  - **Where people go:**
+    - customers sit on their chairs, not beside them;
+    - customers at the bar stand beside the stools, not in them;
+    - the live crowd stands on clear floor facing the band;
+    - musicians aren't in armchairs or speakers;
+    - standing customers each have their own place, off the darts lane;
+    - your fireside chair is yours.
+  - **Glasses:** they're carried to a ledge or left on the table, not teleported. They sit on the
+    sills and side tables, line up along the counter by the sink, and spills show on top of the drip
+    tray.
+  - **The bar and furniture:** you can't pour from the customers' side, and furniture you haven't
+    bought isn't an invisible wall.
+  - **Smaller fixes:** "The Snug" sign is out of the wall, the notice board is clear of the coats,
+    and the held glass stays close.
 
 ## The soundtrack: who plays what
 | # | Song | When it plays |

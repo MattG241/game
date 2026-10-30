@@ -1643,6 +1643,8 @@ func _test_fixes() -> void:
 	check(GameState.hire("ciaran"), "hire a bartender for the tap test")
 	await _frames(3)
 	var st: StaffMember = w.staff_npcs[0]
+	st.global_position = st.home()
+	st.state = "st_idle"
 	w.player.global_position = Vector3(-1.6, 0, -2.75)
 	w.player.dirty_stack.clear()
 	if w.player.held == null:
@@ -1659,13 +1661,15 @@ func _test_fixes() -> void:
 	st._after_path = "st_pour"
 	st._path = PackedVector3Array()
 	st._arrive()
-	check(st.state == "st_wait_tap", "a bartender waits rather than pouring on top of you")
+	check(st.state != "st_pour" and (st._after_path == "st_wait_tap" or st.state == "st_wait_tap"), "a bartender steps aside and waits rather than pouring on top of you")
+	await _frames(120)
+	check(st.global_position.distance_to(w.player.global_position) > 0.5, "and isn't standing in you while you pour")
 	w.pour.end(false)
 	await _frames(70)
-	check(st.state == "st_wait_tap", "and keeps waiting while you're still standing at it")
+	check(st.state != "st_pour", "and keeps waiting while you're still standing at it")
 	GameState.tap_units["stout"] = 50.0      # (the supplier test above emptied the cellar)
 	w.player.global_position = Vector3(0.5, 0, -3.6)
-	await _frames(70)
+	await _wait_until(func(): return st.state == "st_pour", 20.0)
 	check(st.state == "st_pour", "then takes the tap once you step away")
 	st.glass.queue_free()
 	st.glass = null
@@ -1685,6 +1689,73 @@ func _test_fixes() -> void:
 	check(w._fireside_prompt().begins_with("~"), "with both taken, you can't sit on anyone")
 	w.seats_taken.erase(arm[0])
 	w.seats_taken.erase(arm[1])
+	# second spatial pass: seats, stools, unbought furniture, the bar side, piles of glasses, standing room
+	var sitter := w.spawn_customer()
+	sitter.global_position = Vector3(0, 0, 3.0)
+	var chair := -1
+	for i in w.info["seats"].size():
+		if w.info["seats"][i]["kind"] == "chair" and not w.seats_taken.has(i):
+			chair = i
+			break
+	w.seats_taken[chair] = sitter
+	sitter.seat = chair
+	sitter._seat_yaw = w.info["seats"][chair]["yaw"]
+	sitter.walk_to(w.info["seats"][chair]["pos"], "seated")
+	await _wait_until(func(): return sitter.state != "walk", 20.0)
+	var gap := Vector2(sitter.global_position.x - w.info["seats"][chair]["pos"].x, sitter.global_position.z - w.info["seats"][chair]["pos"].z).length()
+	check(gap < 0.1, "customers sit on the chair, not beside it (%.2f m off)" % gap)
+	sitter.leave()
+	var ss := w.get_world_3d().direct_space_state
+	var bad_spot := false
+	for x in PubLayout.BAR_SPOT_X:
+		var q := PhysicsShapeQueryParameters3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = 0.15
+		q.shape = sph
+		q.transform = Transform3D(Basis(), Vector3(x, 0.6, PubLayout.BAR_SPOT_Z))
+		if not ss.intersect_shape(q, 1).is_empty():
+			bad_spot = true
+	check(not bad_spot, "customers at the bar stand beside the stools, not in them")
+	if not GameState.has_upgrade("booths"):
+		var qb := PhysicsShapeQueryParameters3D.new()
+		var sb := SphereShape3D.new()
+		sb.radius = 0.1
+		qb.shape = sb
+		qb.transform = Transform3D(Basis(), Vector3(5.6, 0.5, -1.2))
+		check(ss.intersect_shape(qb, 1).is_empty(), "booths you haven't bought aren't invisible walls")
+	w.player.global_position = Vector3(-1.6, 0, -1.4)
+	w.player.take_glass(PintGlass.new())
+	check(w._tap_prompt("stout") == "", "you can't pour from the customers' side of the bar")
+	w.player.release_glass().queue_free()
+	w.player.global_position = PubLayout.PLAYER_START
+	var pile := {}
+	var pile_ok := true
+	for i in 30:
+		var gp := PintGlass.new()
+		w.leave_dirty_glass(gp, w.sink_pile_pos())
+		var key := "%.2f,%.2f" % [gp.global_position.x, gp.global_position.z]
+		if pile.has(key) or gp.global_position.z < PubLayout.BACK_COUNTER_Z - 0.2 or gp.global_position.x > PubLayout.PARTITION_X - 0.1:
+			pile_ok = false
+		pile[key] = true
+	check(pile_ok, "glasses left by the sink line up on the counter, never in the wall or each other")
+	for gp in w.loose_glasses.duplicate():
+		w.loose_glasses.erase(gp)
+		gp.queue_free()
+	var spots_seen := {}
+	var stand_ok := true
+	for i in 6:
+		var sc := w.spawn_customer()
+		var sp: Vector3 = w.standing_spot(sc)
+		if spots_seen.has(sp) or absf(sp.z - PubLayout.DARTBOARD.z) < 0.6 and sp.x > PubLayout.OCHE_X - 0.6:
+			stand_ok = false
+		spots_seen[sp] = true
+	check(stand_ok, "standing customers each have their own place, off the darts lane")
+	GameState.phase = "open"
+	var dcust := w.spawn_customer()
+	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -0.6)
+	dcust.state = "idle"
+	await _frames(40)
+	check((w.info["door"] as Node3D).rotation.y > 0.3, "the door swings inwards, not out into the street")
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

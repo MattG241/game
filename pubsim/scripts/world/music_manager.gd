@@ -238,6 +238,9 @@ func _on_song_finished() -> void:
 
 
 func _finish() -> void:
+	var spare: Node3D = world.info.get("stage_stools")
+	if spare:
+		spare.visible = true
 	playing = false
 	finished_tonight = true
 	GameState.today["live_finished"] = true
@@ -321,7 +324,7 @@ func _spawn_musicians(ev: Dictionary) -> void:
 		for i in n:
 			var spread := 0.0 if n == 1 else (float(i) / (n - 1) - 0.5) * 1.8
 			var lift := 0.22 if where == "stage" else 0.0
-			var base := _centre if where != "table" else Vector3(-5.2, 0, 2.2)
+			var base := _centre if where != "table" else Vector3(-4.8, 0, 2.2)    # by the fire, clear of the armchairs
 			var p := base + Vector3(spread * 0.5, lift, spread)
 			var to := Vector3(1.5, 0, 1.5) - p if where == "stage" else Vector3(-2.0, 0, 2.2) - p
 			spots.append({"pos": p, "yaw": atan2(-to.x, -to.z), "seat": -1})
@@ -348,13 +351,30 @@ func _spawn_musicians(ev: Dictionary) -> void:
 		if int(sp["seat"]) < 0:
 			m.add_stool()
 		musicians.append(m)
+	# the band brings its own stools, so the stage's spare ones are put aside while they play
+	var spare: Node3D = world.info.get("stage_stools")
+	if spare:
+		spare.visible = where != "stage"
+	# the crowd faces where the band actually is (by the fire if their table was taken)
+	if not spots.is_empty():
+		var mid := Vector3.ZERO
+		for sp2 in spots.slice(0, players.size()):
+			mid += sp2["pos"]
+		mid /= float(mini(spots.size(), players.size()))
+		_centre = Vector3(mid.x, 0.0, mid.z)
+		player3d.global_position = _centre + Vector3(0, 1.3, 0)
 
 
 func _gather_audience(style: String, n: int) -> void:
+	# stand in rows in front of the band, wherever there's floor: never in a table, a chair or a musician
 	var spots := []
-	var base := _centre + (Vector3(-1.9, 0, 0) if _centre == PubLayout.STAGE_POS else Vector3(1.4, 0, 0))
-	for i in 9:
-		spots.append(base + Vector3(-(i / 3) * 0.6, 0, (i % 3 - 1) * 0.65))
+	var on_stage := _centre.distance_to(Vector3(PubLayout.STAGE_POS.x, 0, PubLayout.STAGE_POS.z)) < 1.5
+	var base := _centre + (Vector3(-1.9, 0, 0) if on_stage else Vector3(1.4, 0, 0))
+	var away := -1.0 if on_stage else 1.0
+	for i in 24:
+		var p := base + Vector3(away * (i / 5) * 0.6, 0, (i % 5 - 2) * 0.6)
+		if _spot_clear(p):
+			spots.append(p)
 	var k := 0
 	for c in world.customers:
 		if k >= mini(n, spots.size()):
@@ -363,6 +383,18 @@ func _gather_audience(style: String, n: int) -> void:
 			c.join_audience(spots[k] + Vector3(randf_range(-0.1, 0.1), 0, randf_range(-0.1, 0.1)), style, _centre)
 			_audience.append(c)
 			k += 1
+
+
+func _spot_clear(p: Vector3) -> bool:
+	if world.has_method("on_navmesh") and not world.on_navmesh(p):
+		return false
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.25
+	q.shape = sph
+	q.transform = Transform3D(Basis(), p + Vector3(0, 0.6, 0))
+	q.collision_mask = 1 | 4
+	return world.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
 func _release_audience() -> void:
