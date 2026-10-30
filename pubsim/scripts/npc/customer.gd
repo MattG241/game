@@ -68,6 +68,7 @@ var _hands: Array[Node3D] = []
 var _arm_rot: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var _leg_rot: Array[float] = [0.0, 0.0]
 var _elbow_bend: Array[float] = [-0.12, -0.12]
+var _elbow_pose: Array[float] = [0.0, 0.0]    # an explicit elbow bend asked for by a dance pose (0: automatic)
 var _grip: Node3D              # right fist; a held glass sits here
 var _ik_w := 0.0               # how much the right arm follows the glass (0 = posed)
 var _ik_goal: Array = []       # [glass base, glass basis] in body space
@@ -88,6 +89,7 @@ var _grip_q := Vector3(-0.075, -0.335, -0.015)
 var _lips_local := Vector3(0, -0.05, -0.105)
 var _scale_k := 1.0
 var _sit_drop := -0.4
+var _name_y := 1.9
 var _curl := 0.15
 var _mouth_open := 0.0
 var _talk_left := 0.0
@@ -101,6 +103,7 @@ var voice := ""
 var _head: Node3D
 var _right_hand: Node3D
 var _seat_yaw := 0.0
+var _seat_retries := 0
 var _say_t := 0.0
 var _rng := RandomNumberGenerator.new()
 var _block_t := 0.0          # how long the player has been in the way
@@ -251,15 +254,19 @@ func _build(look: Dictionary) -> void:
 	_bubble.visible = false
 	add_child(_bubble)
 	_name_tag = Label3D.new()
-	_name_tag.position = Vector3(0, 1.9 * height, 0)
+	_name_y = 1.9 * height
+	_name_tag.position = Vector3(0, _name_y, 0)
 	_name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_name_tag.font = MeshKit.font_ui(600)
 	_name_tag.font_size = 28
-	_name_tag.pixel_size = 0.0025
+	_name_tag.pixel_size = 0.0019
 	_name_tag.outline_size = 10
 	_name_tag.modulate = Color(0.9, 0.85, 0.7, 0.85)
 	_name_tag.visible = false
-	# names only when you're close enough to talk; the room stays uncluttered
+	# names only when you're close enough to talk; the room stays uncluttered. Right up close the
+	# name is on the action button instead, so the tag doesn't fill the screen
+	_name_tag.visibility_range_begin = 1.6
+	_name_tag.visibility_range_begin_margin = 0.4
 	_name_tag.visibility_range_end = 4.5
 	_name_tag.visibility_range_end_margin = 1.0
 	_name_tag.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
@@ -326,6 +333,8 @@ func _solve_joints(delta: float) -> void:
 		var want := -0.12
 		if state == "musician":
 			want = -0.35   # instrument poses are set at the shoulder; keep the elbow soft
+		elif state == "audience" and _elbow_pose[i] < 0.0:
+			want = _elbow_pose[i]
 		elif pose.x < -0.3:
 			want = clampf(pose.x * 0.9, -1.9, -0.3)  # raised arm: bend the elbow to bring the hand in
 		_elbow_bend[i] = lerpf(_elbow_bend[i], want, minf(1.0, delta * 12.0))
@@ -551,6 +560,8 @@ func _arrive() -> void:
 			state = "queue"
 			_refresh_bubble()
 		"seated":
+			if not _onto_seat("seated"):
+				return
 			state = "drinking"
 			rotation.y = _seat_yaw
 			_set_seated(true)
@@ -563,6 +574,8 @@ func _arrive() -> void:
 		"audience":
 			state = "audience"
 		"mingle":
+			if seat >= 0 and not _onto_seat("mingle"):
+				return
 			state = "mingle"
 			if seat >= 0:
 				rotation.y = _seat_yaw
@@ -573,6 +586,24 @@ func _arrive() -> void:
 			queue_free()
 		_:
 			state = next if next != "" else "idle"
+
+
+## Never sit down in mid-air: if the walk ended short of the chair (a detour, a sidestep, a crowd),
+## walk to it again, and close any last small gap by settling onto it. False while still walking.
+func _onto_seat(then_state: String) -> bool:
+	var sp: Vector3 = world.seat_info(seat)["pos"]
+	var gap := Vector2(sp.x - global_position.x, sp.z - global_position.z).length()
+	if gap > 0.9 and _seat_retries < 2:
+		_seat_retries += 1
+		walk_to(sp, then_state)
+		return false
+	_seat_retries = 0
+	var to := Vector3(sp.x, global_position.y, sp.z)
+	if gap > 0.15:
+		create_tween().tween_property(self, "global_position", to, 0.3).set_trans(Tween.TRANS_SINE)
+	elif gap > 0.01:
+		global_position = to
+	return true
 
 
 func _idle_anim(delta: float) -> void:
@@ -686,6 +717,8 @@ func _set_seated(on: bool) -> void:
 	if on and not _seated and is_inside_tree():
 		Sfx.play_at("stool", global_position + Vector3(0, 0.4, 0), world, -12.0)
 	_seated = on
+	# the name sits just above the head, standing or sitting
+	_name_tag.position.y = _name_y + (_sit_drop if on else 0.0)
 	if on:
 		_body.position.y = _sit_drop
 		_leg_rot[0] = -1.45
@@ -1045,19 +1078,30 @@ func _audience_anim(delta: float) -> void:
 	var t := _anim_t
 	match music_style:
 		"dance":
-			# a lively step: hops, alternating arms and a turn now and then
-			_body.position.y = absf(sin(t * 5.0)) * 0.08
-			_leg_rot[0] = sin(t * 5.0) * 0.6
-			_leg_rot[1] = -sin(t * 5.0) * 0.6
-			_arm_rot[0] = Vector3(-0.3, 0, -0.5 - 0.3 * sin(t * 2.5))
-			_arm_rot[1] = Vector3(-0.6, 0, 0.4)
-			_body.rotation.y = sin(t * 0.9) * 0.6
+			# a lively step on the spot: a bounce, kicks, the free fist pumping in front and the
+			# pint held close at the chest (arms in, so nobody is clouted or splashed)
+			var beat_k := maxf(0.0, sin(t * 5.0))
+			_body.position.y = absf(sin(t * 5.0)) * 0.06
+			_leg_rot[0] = sin(t * 5.0) * 0.45
+			_leg_rot[1] = -sin(t * 5.0) * 0.45
+			# upper arms near the sides, forearms up: the free fist pumps on the beat
+			_arm_rot[0] = Vector3(-0.35 - beat_k * 0.35, 0, -0.1)
+			_elbow_pose[0] = -1.5 - beat_k * 0.4
+			if glass:
+				_arm_rot[1] = Vector3(-0.3, 0, 0.1)
+				_elbow_pose[1] = -1.35
+			else:
+				_arm_rot[1] = Vector3(-0.35 - (1.0 - beat_k) * 0.35, 0, 0.1)
+				_elbow_pose[1] = -1.5 - (1.0 - beat_k) * 0.4
+			_body.rotation.y = sin(t * 0.9) * 0.3
 		"sing":
-			# glass raised, swaying with the crowd
+			# pint raised in a toast in front, the free arm loose, swaying with the crowd
 			_body.rotation.z = sin(t * 1.6) * 0.08
-			_arm_rot[1] = Vector3(-2.6, 0, 0.25)
-			_arm_rot[0] = Vector3(-0.2, 0, -0.9 - 0.2 * sin(t * 1.6))
-			_head.rotation.x = 0.2
+			_arm_rot[1] = Vector3(-1.0 + sin(t * 1.6) * 0.06, 0, 0.2)
+			_elbow_pose[1] = -1.25
+			_arm_rot[0] = Vector3(-0.25, 0, -0.3 - 0.1 * sin(t * 1.6))
+			_elbow_pose[0] = 0.0
+			_head.rotation.x = 0.12
 			_body.position.y = absf(sin(t * 3.2)) * 0.02
 		_:
 			_head.rotation.x = sin(t * 5.0) * 0.08
@@ -1071,8 +1115,12 @@ func _apply_reaction(delta: float) -> void:
 	_react_anim -= delta
 	if _react_kind == "cheer":
 		_arm_rot[0] = Vector3(-2.8, 0, -0.3)
-		if not glass or state == "audience":
+		if not glass:
 			_arm_rot[1] = Vector3(-2.6, 0, 0.3)
+		elif state == "audience":
+			# the pint up in a toast at face height in front, never over the head
+			_arm_rot[1] = Vector3(-1.5, 0, 0.2)
+			_elbow_pose[1] = -0.6
 	elif _react_kind == "laugh":
 		_head.rotation.x = 0.25 + sin(_react_anim * 22.0) * 0.08
 		_set_face("smile", clampf(_react_anim, 0.0, 1.0))

@@ -693,8 +693,8 @@ func _update_context() -> void:
 	if ctx_btn.visible:
 		ctx_btn.hold_seconds = f.hold_seconds
 		var short := text
-		if short.length() > 22:
-			short = _wrap(short, 20)
+		if short.length() > 17:
+			short = _wrap(short, 16)    # two lines (the button shrinks anything still too wide)
 		ctx_btn.set_label(short, "hold" if f.hold_seconds > 0.0 else "")
 		ctx_btn.queue_redraw()
 	var alt := f.alt_prompt() if f else ""

@@ -293,7 +293,7 @@ func _update_spatial() -> void:
 
 # ------------------------------------------------------------------ musicians & crowd
 ## Beside the hearth (not in front of it), so the fire still shows from the room.
-const FIRESIDE_SPOT := Vector3(-5.45, 0, 3.0)
+const FIRESIDE_SPOT := Vector3(-5.15, 0, 2.2)    # on the hearth rug, between (not in front of) the armchairs
 
 
 func performance_centre(ev: Dictionary) -> Vector3:
@@ -323,9 +323,12 @@ func _spawn_musicians(ev: Dictionary) -> void:
 		var n := players.size()
 		for i in n:
 			var spread := 0.0 if n == 1 else (float(i) / (n - 1) - 0.5) * 1.8
-			var lift := 0.22 if where == "stage" else 0.0
-			var base := _centre if where != "table" else Vector3(-4.8, 0, 2.2)    # by the fire, clear of the armchairs
-			var p := base + Vector3(spread * 0.5, lift, spread)
+			var p: Vector3
+			if where == "stage":
+				p = _centre + Vector3(spread * 0.5, 0.22, spread)
+			else:
+				# a shallow arc on the hearth rug facing the room, clear of the armchairs and table one
+				p = FIRESIDE_SPOT + Vector3(absf(spread) * 0.2, 0, spread * 0.7)
 			var to := Vector3(1.5, 0, 1.5) - p if where == "stage" else Vector3(-2.0, 0, 2.2) - p
 			spots.append({"pos": p, "yaw": atan2(-to.x, -to.z), "seat": -1})
 	for i in players.size():
@@ -369,10 +372,10 @@ func _gather_audience(style: String, n: int) -> void:
 	# stand in rows in front of the band, wherever there's floor: never in a table, a chair or a musician
 	var spots := []
 	var on_stage := _centre.distance_to(Vector3(PubLayout.STAGE_POS.x, 0, PubLayout.STAGE_POS.z)) < 1.5
-	var base := _centre + (Vector3(-1.9, 0, 0) if on_stage else Vector3(1.4, 0, 0))
+	var base := _centre + (Vector3(-2.4, 0, 0) if on_stage else Vector3(1.6, 0, 0))   # a clear metre off the stage
 	var away := -1.0 if on_stage else 1.0
 	for i in 24:
-		var p := base + Vector3(away * (i / 5) * 0.6, 0, (i % 5 - 2) * 0.6)
+		var p := base + Vector3(away * (i / 5) * 0.9, 0, (i % 5 - 2) * 0.9)   # room to move without touching
 		if _spot_clear(p):
 			spots.append(p)
 	var k := 0
@@ -390,7 +393,7 @@ func _spot_clear(p: Vector3) -> bool:
 		return false
 	var q := PhysicsShapeQueryParameters3D.new()
 	var sph := SphereShape3D.new()
-	sph.radius = 0.25
+	sph.radius = 0.4    # a dancer's elbows and the swing of a step, clear of chairs and tables
 	q.shape = sph
 	q.transform = Transform3D(Basis(), p + Vector3(0, 0.6, 0))
 	q.collision_mask = 1 | 4

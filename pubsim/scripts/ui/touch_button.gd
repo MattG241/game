@@ -110,13 +110,25 @@ func _draw() -> void:
 		draw_rect(pr, UITheme.GOLD)
 	var font := MeshKit.font_ui(800)
 	var lines := text.split("\n")
-	var total_h := lines.size() * font_size * 1.1 + (font_size * 0.8 if sub != "" else 0.0)
-	var y := (size.y - total_h) / 2.0 + font_size * 0.85
+	var fs := _fit_size(font, lines)
+	var total_h := lines.size() * fs * 1.1 + (fs * 0.8 if sub != "" else 0.0)
+	var y := (size.y - total_h) / 2.0 + fs * 0.85
 	for ln in lines:
-		draw_string(font, Vector2(8, y), ln, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, font_size, UITheme.CREAM if enabled else UITheme.MUTED)
-		y += font_size * 1.1
+		draw_string(font, Vector2(8, y), ln, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, fs, UITheme.CREAM if enabled else UITheme.MUTED)
+		y += fs * 1.1
 	if sub != "":
-		draw_string(font, Vector2(8, y - font_size * 0.2), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.7), UITheme.GOLD)
+		draw_string(font, Vector2(8, y - fs * 0.2), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.7), UITheme.GOLD)
+
+
+## The largest size up to font_size at which every line fits across the button (long names and
+## phrases shrink rather than run off the edge).
+func _fit_size(font: Font, lines: PackedStringArray) -> int:
+	var fs := font_size
+	var room := size.x - 22.0
+	for ln in lines:
+		while fs > 12 and font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+			fs -= 1
+	return fs
 
 
 ## Flat, modern look for the in-game HUD.
@@ -139,11 +151,12 @@ func _draw_modern() -> void:
 		draw_rect(Rect2(Vector2(radius * 0.5, size.y - 5), Vector2((size.x - radius) * hold_progress, 3)), UITheme.GOLD)
 	var font := MeshKit.font_ui(700)
 	var lines := text.split("\n")
-	var total_h := lines.size() * font_size * 1.1 + (font_size * 0.75 if sub != "" else 0.0)
-	var y := (size.y - total_h) / 2.0 + font_size * 0.85
+	var fs := _fit_size(font, lines)
+	var total_h := lines.size() * fs * 1.1 + (fs * 0.75 if sub != "" else 0.0)
+	var y := (size.y - total_h) / 2.0 + fs * 0.85
 	var col := Color(1, 0.98, 0.94) if enabled else Color(1, 1, 1, 0.4)
 	for ln in lines:
-		draw_string(font, Vector2(8, y), ln, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, font_size, col)
-		y += font_size * 1.1
+		draw_string(font, Vector2(8, y), ln, HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, fs, col)
+		y += fs * 1.1
 	if sub != "":
-		draw_string(font, Vector2(8, y - font_size * 0.2), sub.to_upper(), HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.6), Color(1, 1, 1, 0.6))
+		draw_string(font, Vector2(8, y - fs * 0.2), sub.to_upper(), HORIZONTAL_ALIGNMENT_CENTER, size.x - 16, int(font_size * 0.6), Color(1, 1, 1, 0.6))

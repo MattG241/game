@@ -1776,6 +1776,97 @@ func _test_fixes() -> void:
 	dcust.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -0.6)
 	await _frames(40)
 	check((w.info["door"] as Node3D).rotation.y < -0.3, "the door swings out to the street for someone leaving")
+	dcust.queue_free()
+	w.customers.erase(dcust)
+	await _frames(2)
+	# nobody sits down in mid-air: a walk that ends short of the chair finishes on it
+	w.player.global_position = PubLayout.PLAYER_START
+	GameState.phase = "open"
+	GameState.hour = 20.0
+	var seat_sitter := w.spawn_customer()
+	var si := w.request_seat(seat_sitter)
+	var sdict: Dictionary = w.seat_info(si)
+	seat_sitter.seat = si
+	seat_sitter._seat_yaw = sdict["yaw"]
+	seat_sitter.global_position = (sdict["pos"] as Vector3) + Vector3(0.5, 0, 0.3)
+	seat_sitter._path = PackedVector3Array()
+	seat_sitter._after_path = "mingle"    # sat waiting to be called up to order
+	seat_sitter._final_target = sdict["pos"]
+	seat_sitter._sidestepped = false
+	seat_sitter.state = "walk"
+	await _frames(40)
+	var sgap := Vector2(seat_sitter.global_position.x - sdict["pos"].x, seat_sitter.global_position.z - sdict["pos"].z).length()
+	check(seat_sitter.state == "mingle" and seat_sitter._seated and sgap < 0.05, "someone who stops short of their chair still sits on it, not in mid-air (gap %.2f)" % sgap)
+	check(absf(seat_sitter._name_tag.position.y - (seat_sitter._name_y + seat_sitter._sit_drop)) < 0.01, "a seated person's name sits just over their head")
+	var far_sitter := w.spawn_customer()
+	far_sitter.seat = w.request_seat(far_sitter)
+	far_sitter.global_position = (w.seat_info(far_sitter.seat)["pos"] as Vector3) + Vector3(2.0, 0, 0)
+	far_sitter._final_target = w.seat_info(far_sitter.seat)["pos"]
+	far_sitter._path = PackedVector3Array()
+	far_sitter._after_path = "seated"
+	far_sitter.state = "walk"
+	await _frames(2)
+	check(far_sitter.state == "walk" and not far_sitter._seated, "someone well short of their chair walks the rest of the way before sitting")
+	for cc in [seat_sitter, far_sitter]:
+		w.release_seat(cc.seat)
+		cc.queue_free()
+		w.customers.erase(cc)
+	check(seat_sitter._name_tag.visibility_range_begin >= 1.2, "name tags hide right up close instead of filling the screen")
+	# the fireside fiddler plays on the hearth rug, clear of both armchairs
+	var arm_clear := true
+	for sd2 in w.info["seats"]:
+		if sd2["kind"] == "armchair" and (sd2["pos"] as Vector3).distance_to(w.live.FIRESIDE_SPOT) < 1.2:
+			arm_clear = false
+	check(arm_clear, "the fireside musician's stool is clear of the armchairs")
+	# dancers keep their distance from each other and the furniture, pints held below the head
+	GameState.phase = "open"
+	var crowd: Array = []
+	for i in 7:
+		var dc2 := w.spawn_customer()
+		dc2.global_position = Vector3(1.0 + (i % 4) * 0.5, 0, 1.0 + (i / 4) * 0.6)
+		var dpint := PintGlass.new()
+		dpint.contents.drink_id = "stout"
+		dpint.contents.stage = 3
+		dpint.contents.body = 0.8
+		dc2.receive_drink(dpint)
+		dc2.state = "stand_drink"
+		crowd.append(dc2)
+	await _frames(3)
+	w.live._centre = Vector3(PubLayout.STAGE_POS.x, 0, PubLayout.STAGE_POS.z)
+	w.live._gather_audience("dance", 7)
+	for k in 360:
+		await get_tree().process_frame
+	var dancers: Array = crowd.filter(func(cc): return cc.state == "audience")
+	var spaced := dancers.size() >= 3
+	for a in dancers.size():
+		for b in range(a + 1, dancers.size()):
+			if (dancers[a] as Node3D).global_position.distance_to((dancers[b] as Node3D).global_position) < 0.65:
+				spaced = false
+		for sd3 in w.info["seats"]:
+			if not sd3.has("upgrade") and (sd3["pos"] as Vector3).distance_to((dancers[a] as Node3D).global_position) < 0.45:
+				spaced = false
+	check(spaced, "dancers (%d) have room: apart from each other and out of the chairs" % dancers.size())
+	var low := true
+	for dd in dancers:
+		dd.cheer()
+		await _frames(2)
+		var hp: Vector3 = (dd._head as Node3D).global_position
+		# a toast: in front of the face, never up over or behind the head
+		if dd.glass and (dd.glass.global_position.y > hp.y + 0.1 or Vector2(dd.glass.global_position.x - hp.x, dd.glass.global_position.z - hp.z).length() < 0.25):
+			low = false
+	check(low, "cheering dancers raise their pint in front, not over their heads")
+	w.live._release_audience()
+	for cc in crowd:
+		cc.queue_free()
+		w.customers.erase(cc)
+	# long action labels shrink to fit their button
+	var tb := TouchButton.new("Chat with Ciara Nolan Fitzgerald", Color.DARK_GREEN)
+	tb.size = Vector2(230, 116)
+	tb.font_size = 23
+	var tfont := MeshKit.font_ui(700)
+	var tfs: int = tb._fit_size(tfont, PackedStringArray(["Chat with Ciara Nolan Fitzgerald"]))
+	check(tfont.get_string_size("Chat with Ciara Nolan Fitzgerald", HORIZONTAL_ALIGNMENT_LEFT, -1, tfs).x <= 230 - 22 and tfs < 23, "a long action label shrinks to fit the button")
+	tb.free()
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

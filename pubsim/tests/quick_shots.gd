@@ -74,6 +74,42 @@ func _ready() -> void:
 				main.hud.visible = true
 				w.live.stop_now()
 				w.player.camera.current = true
+			"dance", "sing":
+				# a crowd up dancing (or singing along) in front of the stage band
+				GameState.cash = 3000.0
+				w.live.event_id = "old_country_jig"
+				w.live.finished_tonight = false
+				w.live._start(GameData.events_by_id[w.live.event_id])
+				for i in 7:
+					var c := w.spawn_customer()
+					c.global_position = Vector3(1.0 + (i % 4) * 0.5, 0, 1.0 + (i / 4) * 0.6)
+					var g := PintGlass.new()
+					g.contents.drink_id = "stout"
+					g.contents.serve = "stout"
+					g.contents.stage = 3
+					g.contents.body = 0.88
+					g.contents.foam = 0.1
+					c.receive_drink(g)
+					c.state = "stand_drink"
+					c._react_t = 0.0
+				await _wait(1.0)
+				w.live._gather_audience(v, 7)
+				await _wait(9.0)
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 60.0
+				cam.global_transform = Transform3D(Basis(), Vector3(0.6, 1.7, 1.6)).looking_at(Vector3(3.4, 1.0, 3.6), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.3)
+				await _shot(v)
+				cam.fov = 50.0
+				cam.global_transform = Transform3D(Basis(), Vector3(4.4, 1.6, 1.4)).looking_at(Vector3(2.2, 1.0, 3.6), Vector3.UP)
+				await _wait(0.45)
+				await _shot(v + "2")
+				main.hud.visible = true
+				w.live.stop_now()
+				w.player.camera.current = true
 			"staff", "staff_side", "staff_close":
 				# a hired bartender pouring for someone at the bar
 				GameState.cash = 500.0
@@ -120,6 +156,25 @@ func _ready() -> void:
 				hc.rotation.y = 0.0
 				w.player.global_position = Vector3(1.6, 0, -3.6)
 				w.player.rotation.y = PI * 0.8
+				w.player.camera.current = true
+				await _wait(1.5)
+				await _shot(v)
+			"chat":
+				# right next to a regular: their name is on the button, not floating over the screen
+				var cc := w.spawn_customer()
+				cc.regular_id = "test"
+				cc.display_name = "Ciara Nolan Fitzgerald"
+				cc.set_name_tag(cc.display_name)
+				cc.global_position = Vector3(1.0, 0, 2.0)
+				cc.state = "stand_drink"
+				cc.rotation.y = PI
+				var far_c := w.spawn_customer()
+				far_c.display_name = "Aoife Brennan"
+				far_c.set_name_tag(far_c.display_name)
+				far_c.global_position = Vector3(2.4, 0, 4.2)
+				far_c.state = "stand_drink"
+				w.player.global_position = Vector3(1.0, 0, 1.1)
+				w.player.rotation.y = PI
 				w.player.camera.current = true
 				await _wait(1.5)
 				await _shot(v)
