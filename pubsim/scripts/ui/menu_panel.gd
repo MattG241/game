@@ -9,6 +9,8 @@ var scroll: ScrollContainer
 var title: Label
 var tab_bar: HBoxContainer
 var _summary_mode := false
+var close_btn: Button
+var footer: HBoxContainer          # the end-of-day buttons, pinned below the scrolling content
 
 const TABS := [["upgrades", "Upgrades"], ["staff", "Staff"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["events", "Live music"], ["music", "Jukebox"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
 
@@ -41,6 +43,7 @@ func _ready() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	var close := UITheme.button("Back to the bar", _close, 24)
+	close_btn = close
 	close.custom_minimum_size = Vector2(240, 60)
 	head.add_child(close)
 	tab_bar = HBoxContainer.new()
@@ -54,6 +57,11 @@ func _ready() -> void:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	scroll.add_child(content)
+	footer = HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.visible = false
+	vb.add_child(footer)
 
 
 func _close() -> void:
@@ -66,6 +74,8 @@ func open(t: String) -> void:
 	_summary_mode = false
 	visible = true
 	tab_bar.visible = true
+	footer.visible = false
+	close_btn.visible = true
 	title.text = GameState.pub_name
 	_build_tabs()
 	show_tab(t)
@@ -735,13 +745,13 @@ func show_summary(s: Dictionary) -> void:
 	var v := _card()
 	_text(v, "%s at %s" % [str(s["weekday"]), GameState.pub_name], 24, UITheme.MUTED)
 	var rows := [
-		["Drink sales", s["sales"]], ["Tips", s["tips"]], ["Stock ordered", -float(s["stock_spend"])],
+		["Drink sales", s["sales"]], ["Tips", s["tips"]], ["Prizes & goal rewards", s.get("prizes", 0.0)], ["Stock ordered", -float(s["stock_spend"])],
 		["Upgrades bought", -float(s["upgrade_spend"])], ["Rent", -float(s["rent"])], ["Utilities", -float(s["utilities"])],
 		["Wages", -float(s["wages"])],
 	]
 	for r in rows:
 		if absf(float(r[1])) > 0.001:
-			_text(v, "%-22s €%.2f" % [r[0], float(r[1])], 24)
+			_text(v, "%-24s €%.2f" % [r[0], float(r[1])], 24)
 	var profit := float(s["profit"])
 	_text(v, "Profit today: €%.2f" % profit, 30, Color(0.6, 1, 0.6) if profit >= 0 else Color(1, 0.6, 0.5))
 	_text(v, "Cost of drinks sold €%.2f · Gross margin €%.2f · Wasted %.1f serves" % [float(s["cogs"]), float(s["gross_margin"]), float(s["wasted"])], 20, UITheme.MUTED)
@@ -769,14 +779,20 @@ func show_summary(s: Dictionary) -> void:
 		for line in ahead:
 			_text(tv, line, 20)
 	_text(v, "Progress saved.", 20, Color(0.6, 0.9, 0.65))
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 12)
-	content.add_child(h)
-	h.add_child(UITheme.button("Start the next day", func():
+	# always on screen, however long the day's report runs
+	for ch in footer.get_children():
+		ch.queue_free()
+	close_btn.visible = false
+	var next := UITheme.button("Start the next day", func():
 		_summary_mode = false
 		hud.close_menu()
-		hud.world.main.start_world()))
-	h.add_child(UITheme.button("Quit to title", func():
+		hud.world.main.start_world())
+	next.custom_minimum_size = Vector2(320, 72)
+	footer.add_child(next)
+	var quit := UITheme.button("Quit to title", func():
 		_summary_mode = false
 		hud.close_menu()
-		hud.world.main.quit_to_title()))
+		hud.world.main.quit_to_title())
+	quit.custom_minimum_size = Vector2(220, 72)
+	footer.add_child(quit)
+	footer.visible = true

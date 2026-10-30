@@ -1268,3 +1268,10 @@ func _test_flow() -> void:
 	var all := "\n".join(texts)
 	check(all.contains("Today's goals") and all.contains("Done"), "the day's summary lists the goals met")
 	check(all.contains("Looking ahead"), "and what to aim for tomorrow")
+	var menu: MenuPanel = main.hud.menu
+	var vis := get_viewport().get_visible_rect()
+	var reachable := menu.footer.visible and menu.footer.get_child_count() == 2
+	for b in menu.footer.get_children():
+		reachable = reachable and vis.encloses((b as Control).get_global_rect())
+	check(reachable, "the next-day and quit buttons stay on screen however long the report is")
+	check(all.contains("Prizes & goal rewards"), "goal rewards are listed, so the profit adds up")

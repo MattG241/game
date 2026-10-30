@@ -123,6 +123,22 @@ func _ready() -> void:
 				w.player.camera.current = true
 				await _wait(1.5)
 				await _shot(v)
+			"summary":
+				# the end of day 1, as the player sees it after flipping the sign
+				GameState.hour = 24.9
+				GameState.phase = "closing"
+				for sc in w.customers.duplicate():
+					sc.queue_free()
+				w.customers.clear()
+				w.close_day()
+				await _wait(1.0)
+				await _shot(v)
+				var m: MenuPanel = main.hud.menu
+				print("SUMMARY scroll max=%d page=%d" % [int(m.scroll.get_v_scroll_bar().max_value), int(m.scroll.size.y)])
+				for b in m.find_children("*", "Button", true, false):
+					if not (b as Button).is_visible_in_tree():
+						continue
+					print("SUMMARY button '%s' at %s size %s visible_in_window=%s" % [(b as Button).text, b.global_position, b.size, get_viewport().get_visible_rect().has_point(b.global_position + b.size / 2)])
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)
