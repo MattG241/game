@@ -1,0 +1,17 @@
+[
+  {"id": "ciaran", "name": "Ciarán Doyle", "role": "bartender", "skill": 0.55, "wage": 14, "min_rep": 0,
+   "model": "m_young_b", "gender": "m",
+   "blurb": "Student, three summers behind a bar in Salthill. Keen, a bit slow on the stout."},
+  {"id": "seanie", "name": "Seánie Byrne", "role": "collector", "skill": 0.6, "wage": 10, "min_rep": 0,
+   "model": "m_young_c", "gender": "m",
+   "blurb": "Collects the empties, washes them and wipes the spills. Never stops talking about hurling."},
+  {"id": "mags", "name": "Mags Quinn", "role": "collector", "skill": 0.85, "wage": 14, "min_rep": 25,
+   "model": "f_old_b", "gender": "f",
+   "blurb": "Forty years on the floor of a Dublin bar. Nothing sits empty on a table for long."},
+  {"id": "roisin", "name": "Róisín Kelly", "role": "bartender", "skill": 0.75, "wage": 22, "min_rep": 30,
+   "model": "f_mid_b", "gender": "f",
+   "blurb": "Quick, tidy and pours a lovely pint. Wants a pub that's going places."},
+  {"id": "brendan", "name": "Brendan Moran", "role": "bartender", "skill": 0.92, "wage": 30, "min_rep": 50,
+   "model": "m_mid_c", "gender": "m",
+   "blurb": "Thirty years at the taps. Customers come in just to watch him pour."}
+]

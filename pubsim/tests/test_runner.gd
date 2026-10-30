@@ -25,6 +25,16 @@ func _log(s: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
+	if OS.get_environment("ONLY") == "staff":
+		# quick run of one section while working on it
+		GameState.delete_save()
+		main = load("res://scripts/main.gd").new()
+		add_child(main)
+		await _frames(5)
+		await _test_staff()
+		_log("RESULT: %d passed, %d failed" % [passed, failed])
+		get_tree().quit(0 if failed == 0 else 1)
+		return
 	_log("== Unit: stout pour model ==")
 	_test_pour_model()
 	_log("== Unit: economy & inventory ==")
@@ -426,6 +436,7 @@ func _test_loop() -> void:
 	await _test_music(main.world)
 	await _test_voices_and_people(main.world)
 	await _test_queue_balance()
+	await _test_staff()
 
 
 func _test_voices_and_people(w: World) -> void:
@@ -1072,3 +1083,89 @@ func _test_queue_balance() -> void:
 	_log("    busier, day 9, rep 60, 45 s per pint: served %d, max waiting %d (caps %s), busy %d%%, walk-outs %d" % [late["served"], late["max_active"], str(late["caps"]), int(late["utilisation"] * 100), late["walkouts"]])
 	check(int(late["caps"][1]) > 3 and float(late["utilisation"]) > float(r["utilisation"]), "demand grows with progression and the Busier setting")
 	GameState.set_setting("difficulty", "balanced")
+
+
+# ------------------------------------------------------------------ staff
+func _test_staff() -> void:
+	_log("== Integration: hired staff ==")
+	main.quit_to_title()
+	await _frames(3)
+	GameState.set_setting("difficulty", "balanced")
+	main.start_new("career", "Staff test")
+	await _frames(10)
+	GameState.tutorial["done"] = true
+	var w: World = main.world
+	check(GameData.staff_pool.size() >= 4, "there are people looking for work (%d)" % GameData.staff_pool.size())
+	check(GameState.hire_block("roisin").begins_with("Needs reputation"), "the best staff want a pub with a name first")
+	GameState.cash = 500.0
+	check(GameState.hire("ciaran") and GameState.hire("seanie"), "hire a bartender and a glass collector")
+	check(not GameState.hire("ciaran"), "can't hire the same person twice")
+	GameState.reputation = 60.0
+	check(GameState.hire("roisin"), "a second bartender once the pub has a name")
+	check(GameState.hire_block("brendan").begins_with("No room"), "no room for a third bartender")
+	GameState.fire("roisin")
+	await _frames(2)
+	check(w.staff_npcs.size() == 2, "the hired staff come in to work (%d)" % w.staff_npcs.size())
+	var bar: StaffMember = null
+	var floor_st: StaffMember = null
+	for st in w.staff_npcs:
+		if st.role == "bartender":
+			bar = st
+		else:
+			floor_st = st
+	check(bar != null and floor_st != null and bar.model == "m_young_b", "staff are realistic people in their own faces")
+	check(OrderDispatcher.servers() > 1.4, "a bartender lets the pub take more orders")
+	# a mid-day hire walks in, so wait for everyone to reach their posts
+	await _wait_until(func(): return bar.state == "st_idle" and floor_st.state == "st_idle", 30.0)
+	var total := GameState.glasses_total()
+	# the player stands by the fire and leaves the bar to the staff
+	w.player.global_position = Vector3(-5.5, 0, 1.5)
+	var staff_results: Array = []
+	w.served.connect(func(r): if str(r.get("by", "")) != "": staff_results.append(r))
+	w._sign_action()
+	var hinted := false
+	var count_ok := true
+	var picked_up_at := -1
+	var t := 0.0
+	while t < 260.0 and staff_results.size() < 3:
+		await get_tree().process_frame
+		t += 1.0 / 60.0
+		if int(t * 60.0) % 30 == 0 and w.glass_count_check() != total:
+			count_ok = false
+		for c in w.customers:
+			if w.staff_serving(c) != null and c.state in ["wait_order", "wait_drink"]:
+				hinted = hinted or w._customer_prompt(c).begins_with("~")
+	check(staff_results.size() >= 3, "the bartender takes orders, pours and serves on their own (%d served in %ds)" % [staff_results.size(), int(t)])
+	check(hinted, "customers a bartender is seeing to aren't offered to the player")
+	check(count_ok and w.glass_count_check() == total, "no glasses lost or made while staff work")
+	var avg := 0.0
+	for r in staff_results:
+		avg += float(r.get("score", 0)) / maxf(1.0, staff_results.size())
+	check(avg >= 60.0, "a novice bartender's pints are drinkable (avg %d)" % int(avg))
+	# empties: leave one on a table and the collector clears it to the sink
+	var washed0 := int(GameState.stats["glasses_washed"])
+	var g := PintGlass.new()
+	g.set_dirty(0.6)
+	w.rack_clean -= 1
+	var seat0: Dictionary = w.seat_info(0)
+	w.leave_dirty_glass(g, seat0["table"])
+	w.add_spill(Vector3(1.5, 0, 0.5))
+	var ok := await _wait_until(func(): return not w.loose_glasses.has(g), 60.0)
+	check(ok, "the glass collector picks up empties")
+	ok = await _wait_until(func(): return int(GameState.stats["glasses_washed"]) > washed0, 60.0)
+	check(ok, "and washes them back onto the rack")
+	ok = await _wait_until(func(): return w.spills.is_empty(), 60.0)
+	check(ok, "and wipes up spills")
+	check(w.glass_count_check() == total, "glass count still right after collecting")
+	# letting someone go
+	GameState.fire("seanie")
+	await _frames(2)
+	check(w.staff_npcs.size() == 1 and not GameState.is_hired("seanie"), "let go staff head home")
+	check(w.glass_count_check() == total, "whatever they carried is left by the sink")
+	# wages at close, and saving
+	var wage := GameState.wages_today()
+	check(is_equal_approx(wage, 14.0), "wages add up (€%.0f)" % wage)
+	GameState.save_game()
+	GameState._reset()
+	GameState.load_game()
+	check(GameState.is_hired("ciaran") and GameState.staff.size() == 1, "staff are kept in the save")

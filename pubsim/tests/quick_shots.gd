@@ -74,6 +74,42 @@ func _ready() -> void:
 				main.hud.visible = true
 				w.live.stop_now()
 				w.player.camera.current = true
+			"staff", "staff_side", "staff_close":
+				# a hired bartender pouring for someone at the bar
+				GameState.cash = 500.0
+				GameState.hire("ciaran")
+				await _wait(0.2)
+				var st: StaffMember = w.staff_npcs[0]
+				st.global_position = Vector3(-1.0, 0, -2.62)
+				st.state = "st_idle"
+				var bc := w.spawn_customer()
+				bc.global_position = w.bar_spot_pos(3)
+				bc.bar_spot = 3
+				w.bar_spots[3] = bc
+				bc.state = "wait_order"
+				bc.rotation.y = 0.0
+				var phase := OS.get_environment("POUR_PHASE") if OS.get_environment("POUR_PHASE") != "" else "first"
+				for k in 600:
+					await _wait(0.1)
+					if st.state == "st_pour" and st._pour_phase == phase and st._pour_t > float(OS.get_environment("POUR_T") if OS.get_environment("POUR_T") != "" else "2.0"):
+						break
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 50.0
+				var tx := st.global_position.x
+				if v == "staff":
+					cam.global_transform = Transform3D(Basis(), Vector3(tx + 0.3, 1.55, -0.9)).looking_at(Vector3(tx, 1.2, -2.5), Vector3.UP)
+				elif v == "staff_side":
+					cam.global_transform = Transform3D(Basis(), Vector3(tx + 1.6, 1.5, -2.6)).looking_at(Vector3(tx, 1.2, -2.4), Vector3.UP)
+				else:
+					cam.global_transform = Transform3D(Basis(), Vector3(tx + 0.75, 1.42, -2.2)).looking_at(Vector3(tx, 1.25, -2.35), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.3)
+				print("STAFF state=%s phase=%s t=%.1f" % [st.state, st._pour_phase, st._pour_t])
+				await _shot(v)
+				main.hud.visible = true
+				w.player.camera.current = true
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

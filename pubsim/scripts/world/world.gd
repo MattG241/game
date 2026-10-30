@@ -30,6 +30,7 @@ var close_cam: Camera3D
 var nav_region: NavigationRegion3D
 
 var customers: Array[Customer] = []
+var staff_npcs: Array[StaffMember] = []
 var bar_spots: Array = []         # Customer or null
 var queue_slots: Array = []
 var seats_taken: Dictionary = {}  # seat index -> Customer
@@ -110,6 +111,8 @@ func _ready() -> void:
 	MusicDirector.context["milestone"] = false
 	await get_tree().physics_frame
 	_nav_ready = true
+	GameState.staff_changed.connect(refresh_staff)
+	refresh_staff(true)
 
 
 func _setup_env() -> void:
@@ -539,6 +542,8 @@ func glass_count_check() -> int:
 	for c in customers:
 		if c.glass != null:
 			n += 1
+	for st in staff_npcs:
+		n += st.glass_count()
 	if pour and pour.active and pour.glass and player.held != pour.glass:
 		n += 1
 	return n
@@ -581,6 +586,199 @@ func _restore_overnight_dirty() -> void:
 		g.set_dirty(0.7)
 		g.lace_top = 0.7
 		leave_dirty_glass(g, PubLayout.SINK_POS + Vector3(-0.3 - (i % 4) * 0.09, 0, 0.12 - (i / 4) * 0.1))
+
+
+# ------------------------------------------------------------------ staff
+## Brings the hired staff in to match GameState.staff (at their posts when the world loads,
+## through the front door when hired mid-day) and sends anyone let go home.
+func refresh_staff(at_start := false) -> void:
+	var want := {}
+	for e in GameState.staff:
+		want[str(e.get("id", ""))] = e
+	for st in staff_npcs.duplicate():
+		if not want.has(st.staff_id):
+			staff_npcs.erase(st)
+			st.clock_off()
+			st.walk_to(PubLayout.OUTSIDE_DOOR, "exit")
+	var models: Array = []
+	for e in GameState.staff:
+		models.append(str(e.get("model", "")))
+	Customer.reserved_models = models
+	for e in GameState.staff:
+		var id := str(e.get("id", ""))
+		var have := false
+		for st in staff_npcs:
+			if st.staff_id == id:
+				have = true
+		if have:
+			continue
+		var st := StaffMember.new()
+		st.setup_staff(self, e, hash(id))
+		add_child(st)
+		staff_npcs.append(st)
+		if at_start:
+			st.global_position = st.home()
+			st.rotation.y = PI
+			st.state = "st_idle"
+		else:
+			st.global_position = PubLayout.INSIDE_DOOR
+			st.walk_to(reach_point(st.home()), "st_idle")
+			_door_anim = 2.0
+			Sfx.play("door_bell", -10.0)
+			st.say("Grand, I'll get stuck in.", 3.0)
+
+
+func staff_serving(c: Customer) -> StaffMember:
+	var st: Variant = c.get_meta("served_by") if c.has_meta("served_by") else null
+	if st != null and is_instance_valid(st) and staff_npcs.has(st):
+		return st
+	return null
+
+
+## The nearest point people can walk to (glasses and spills sit on tables and the bar).
+func reach_point(pos: Vector3) -> Vector3:
+	if not _nav_ready:
+		return Vector3(pos.x, 0, pos.z)
+	var p := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3(pos.x, 0, pos.z))
+	return Vector3(p.x, 0, p.z)
+
+
+## The waiting customer a bartender should see to next: whoever has waited longest, leaving the
+## ones right in front of the player to the player.
+func staff_next_customer(st: StaffMember) -> Customer:
+	var best: Customer = null
+	var best_score := INF
+	var behind := player.global_position.z < PubLayout.BAR_BACK_Z + 0.3
+	for c in customers:
+		if c.state != "wait_order" or c.bar_spot < 0 or staff_serving(c) != null:
+			continue
+		var d := absf(player.global_position.x - bar_spot_pos(c.bar_spot).x)
+		if behind and d < 1.0 and c.patience_frac() > 0.5:
+			continue
+		var score := c.patience_frac() - minf(d, 6.0) * 0.05 + st.global_position.distance_to(c.global_position) * 0.02
+		if score < best_score:
+			best_score = score
+			best = c
+	return best
+
+
+func staff_take_order(_st: StaffMember, c: Customer) -> void:
+	c.take_order()
+	order_taken.emit(c)
+	if hud:
+		hud.refresh_orders()
+
+
+func staff_take_glass(st: StaffMember, kind: String) -> PintGlass:
+	rack_clean -= 1
+	var g := PintGlass.new(kind)
+	add_child(g)
+	g.global_position = PubLayout.RACK_POS
+	_refresh_rack()
+	Sfx.play_at("clink", PubLayout.RACK_POS, self, -10.0)
+	return g
+
+
+## Anyone else at the bar already waiting on this drink (their bartender may be busy).
+func staff_other_taker(_st: StaffMember, drink_id: String) -> Customer:
+	for c in customers:
+		if c.state == "wait_drink" and c.drink_id == drink_id and c.bar_spot >= 0:
+			var h := staff_serving(c)
+			if h == null or h == _st:
+				return c
+	return null
+
+
+func staff_serve(st: StaffMember, c: Customer) -> bool:
+	var g := st.glass
+	if g == null:
+		return false
+	var res := serve_customer(c, g, st)
+	if not res.get("ok", false):
+		return false
+	st.glass = null
+	if hud:
+		var verdict := str(res.get("verdict", ""))
+		notify("%s served %s · %s%s" % [st.display_name, c.display_name, verdict,
+			(" · €%.2f tip" % float(res["tip"])) if float(res.get("tip", 0.0)) > 0.0 else ""], "good" if int(res.get("score", 0)) >= 75 else "info")
+	return true
+
+
+## A pint nobody wants goes down the sink and the glass is washed.
+func staff_tip_away(st: StaffMember) -> void:
+	var g := st.glass
+	st.glass = null
+	if g == null:
+		return
+	if not g.contents.is_empty():
+		GameState.waste_units(g.contents.drink_id, g.contents.total())
+		Sfx.play_at("spill", PubLayout.SINK_POS, self, -10.0)
+	g.queue_free()
+	rack_clean += 1
+	_refresh_rack()
+
+
+func staff_next_spill(st: StaffMember) -> Node3D:
+	var best: Node3D = null
+	for s in spills:
+		var who: Variant = s.get_meta("staff") if s.has_meta("staff") else null
+		if who != null and who != st and is_instance_valid(who):
+			continue
+		if best == null or st.global_position.distance_to(s.global_position) < st.global_position.distance_to(best.global_position):
+			best = s
+	return best
+
+
+func staff_wipe(_st: StaffMember, s: Node3D) -> void:
+	spills.erase(s)
+	s.queue_free()
+	Sfx.play_at("squeak", s.global_position, self, -8.0)
+	GameState.stats["spills_cleaned"] = int(GameState.stats["spills_cleaned"]) + 1
+
+
+func staff_next_glass(st: StaffMember) -> PintGlass:
+	var best: PintGlass = null
+	for g in loose_glasses:
+		var who: Variant = g.get_meta("staff") if g.has_meta("staff") else null
+		if who != null and who != st and is_instance_valid(who):
+			continue
+		if best == null or st.global_position.distance_to(g.global_position) < st.global_position.distance_to(best.global_position):
+			best = g
+	return best
+
+
+func staff_pick_up(_st: StaffMember, g: PintGlass) -> void:
+	loose_glasses.erase(g)
+	for ch in g.get_children():
+		if ch is Interactable:
+			ch.queue_free()
+
+
+func staff_wash(_st: StaffMember, g: PintGlass) -> void:
+	g.queue_free()
+	rack_clean += 1
+	GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
+	_refresh_rack()
+	Sfx.play_at("squeak", PubLayout.SINK_POS, self, -10.0)
+	Sfx.play_at("clink", PubLayout.SINK_POS, self, -12.0)
+
+
+## Someone clocking off puts down what they hold: a pint goes down the sink, empties stay out.
+func staff_drop_all(st: StaffMember) -> void:
+	if st.role == "bartender":
+		staff_tip_away(st)
+		return
+	var gs := st.carried.duplicate()
+	st.carried.clear()
+	st.glass = null
+	gs.reverse()
+	var i := 0
+	for g in gs:
+		if g.get_parent():
+			g.get_parent().remove_child(g)
+		# left by the sink for whoever washes up next
+		leave_dirty_glass(g, PubLayout.SINK_POS + Vector3(-0.3 - (i % 4) * 0.09, 0, 0.12 - (i / 4) * 0.1))
+		i += 1
 
 
 # ------------------------------------------------------------------ customers
@@ -915,6 +1113,9 @@ func _on_customer_left(c: Customer) -> void:
 func _customer_prompt(c: Customer) -> String:
 	if not is_instance_valid(c):
 		return ""
+	var helper := staff_serving(c)
+	if helper != null and c.state in ["wait_order", "wait_drink"]:
+		return _hint("%s is looking after %s" % [helper.display_name, c.display_name])
 	match c.state:
 		"wait_order":
 			return "Take %s's order" % c.display_name
@@ -931,6 +1132,8 @@ func _customer_prompt(c: Customer) -> String:
 
 
 func _customer_action(c: Customer) -> void:
+	if staff_serving(c) != null and c.state in ["wait_order", "wait_drink"]:
+		return
 	match c.state:
 		"wait_order":
 			c.take_order()
@@ -951,7 +1154,7 @@ func _customer_action(c: Customer) -> void:
 
 
 ## Hands a glass to a waiting customer: scores it, takes payment and tips.
-func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
+func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictionary:
 	var con := g.contents
 	if con.drink_id != c.drink_id:
 		c.refuse_drink(line("wrong_drink") + " (%s)" % GameData.drink(c.drink_id).get("short", ""))
@@ -987,8 +1190,8 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 	var tip := snappedf(price * tip_rate, 0.1)
 	GameState.earn(price, "sales")
 	GameState.earn(tip, "tips")
-	if c.order_time >= 0.0:
-		OrderDispatcher.record_service(run_time - c.order_time)
+	if c.order_time >= 0.0 and by == null:
+		OrderDispatcher.record_service(run_time - c.order_time)   # the pacing follows the player's own speed
 	GameState.today["served"] = int(GameState.today["served"]) + 1
 	GameState.today["satisfaction_sum"] = float(GameState.today["satisfaction_sum"]) + sat
 	GameState.today["quality_sum"] = float(GameState.today["quality_sum"]) + q
@@ -1022,7 +1225,13 @@ func serve_customer(c: Customer, g: PintGlass) -> Dictionary:
 	res["tip"] = tip
 	res["satisfaction"] = sat
 	res["customer"] = c.display_name
+	res["by"] = by.display_name if by else ""
 	served.emit(res)
+	if by:
+		GameState.today["staff_served"] = int(GameState.today.get("staff_served", 0)) + 1
+		if hud:
+			hud.refresh_orders()
+		return res
 	if hud:
 		hud.show_pour_result(res)
 		hud.refresh_orders()
@@ -1237,6 +1446,8 @@ func close_day() -> void:
 			dirty += 1
 	if player.held:
 		dirty += 1
+	for st in staff_npcs:
+		dirty += st.glass_count()
 	GameState.tutorial["dirty_overnight"] = dirty
 	if live:
 		live.stop_now()

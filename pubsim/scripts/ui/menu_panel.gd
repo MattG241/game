@@ -10,7 +10,7 @@ var title: Label
 var tab_bar: HBoxContainer
 var _summary_mode := false
 
-const TABS := [["upgrades", "Upgrades"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["events", "Live music"], ["music", "Jukebox"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
+const TABS := [["upgrades", "Upgrades"], ["staff", "Staff"], ["stock", "Stock"], ["prices", "Prices"], ["ledger", "Ledger"], ["events", "Live music"], ["music", "Jukebox"], ["activities", "Pub games"], ["settings", "Settings"], ["game", "Game"]]
 
 var _event_day := -1
 var _now_label: Label
@@ -95,6 +95,8 @@ func show_tab(t: String) -> void:
 	match t:
 		"upgrades":
 			_upgrades()
+		"staff":
+			_staff()
 		"stock":
 			_stock()
 		"prices":
@@ -174,6 +176,71 @@ func _upgrades() -> void:
 			b.custom_minimum_size = Vector2(190, 70)
 			b.disabled = not GameState.can_buy_upgrade(id)
 			h.add_child(b)
+
+
+# ------------------------------------------------------------------ staff
+const ROLE_NAMES := {"bartender": "Bar staff", "collector": "Glass collector"}
+const ROLE_JOBS := {
+	"bartender": "Takes orders, pours and serves the customers you're not looking after.",
+	"collector": "Clears empties from the tables, washes them back onto the rack and wipes spills.",
+}
+
+
+func _skill_text(k: float) -> String:
+	var n := clampi(int(round(k * 5.0)), 1, 5)
+	return "Skill %d/5 (%s)" % [n, ["green", "learning", "capable", "good", "a natural"][n - 1]]
+
+
+func _staff() -> void:
+	_text(content, "Cash: €%.2f   ·   Wages are paid at closing each night (€%d tonight)." % [GameState.cash, int(GameState.wages_today())], 22, UITheme.GOLD)
+	_text(content, "Hired help works alongside you all day. Bar staff take on the orders you can't get to, and the pub gets busier to match; a glass collector keeps the rack full.", 20, UITheme.MUTED)
+	if not GameState.staff.is_empty():
+		_text(content, "On the payroll", 26, UITheme.GOLD)
+	for e in GameState.staff:
+		var id := str(e["id"])
+		var c := GameData.staff_candidate(id)
+		var v := _card(Color(0.1, 0.22, 0.13, 0.95))
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		_text(info, "%s   [%s]" % [e["name"], ROLE_NAMES.get(str(e["role"]), "")], 26, UITheme.GOLD)
+		_text(info, "%s   ·   €%d a night   ·   working here since day %d" % [_skill_text(float(e["skill"])), int(e["wage"]), int(e.get("hired_day", 1))], 20, Color(0.6, 0.9, 0.65))
+		_text(info, ROLE_JOBS.get(str(e["role"]), ""), 18)
+		var b := UITheme.button("Let go", func():
+			GameState.fire(id)
+			Sfx.play("ui_click", -4.0)
+			show_tab("staff"), 22)
+		b.custom_minimum_size = Vector2(170, 64)
+		h.add_child(b)
+	var open := []
+	for c in GameData.staff_pool:
+		if not GameState.is_hired(str(c["id"])):
+			open.append(c)
+	if not open.is_empty():
+		_text(content, "Looking for work", 26, UITheme.GOLD)
+	for c in open:
+		var id := str(c["id"])
+		var why := GameState.hire_block(id)
+		var v := _card()
+		var h := HBoxContainer.new()
+		v.add_child(h)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		_text(info, "%s   [%s]" % [c["name"], ROLE_NAMES.get(str(c["role"]), "")], 26, UITheme.GOLD)
+		_text(info, "%s   ·   €%d a night" % [_skill_text(float(c["skill"])), int(c["wage"])], 20, Color(0.6, 0.9, 0.65))
+		_text(info, str(c.get("blurb", "")), 18)
+		if why != "":
+			_text(info, why, 18, Color(1, 0.6, 0.5))
+		var b := UITheme.button("Hire", func():
+			if GameState.hire(id):
+				Sfx.play("ui_buy", -2.0)
+				show_tab("staff"), 24)
+		b.custom_minimum_size = Vector2(170, 70)
+		b.disabled = why != ""
+		h.add_child(b)
 
 
 func _effects_text(e: Dictionary) -> String:

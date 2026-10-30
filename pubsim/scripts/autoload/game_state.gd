@@ -352,6 +352,62 @@ func open_pub() -> void:
 		hour = maxf(hour, float(GameData.econ("day_open_hour", 16.0)))
 
 
+# ------------------------------------------------------------------ staff
+signal staff_changed
+
+## Most of each role the pub can take on at once.
+const STAFF_LIMIT := {"bartender": 2, "collector": 1}
+
+
+func is_hired(id: String) -> bool:
+	for s in staff:
+		if str(s.get("id", "")) == id:
+			return true
+	return false
+
+
+func staff_count(role: String) -> int:
+	var n := 0
+	for s in staff:
+		if str(s.get("role", "")) == role:
+			n += 1
+	return n
+
+
+## Why a candidate can't be taken on right now ("" if they can).
+func hire_block(id: String) -> String:
+	var c := GameData.staff_candidate(id)
+	if c.is_empty():
+		return "Unknown"
+	if is_hired(id):
+		return "Already working here"
+	if reputation < float(c.get("min_rep", 0)):
+		return "Needs reputation %d" % int(c.get("min_rep", 0))
+	var role := str(c["role"])
+	if staff_count(role) >= int(STAFF_LIMIT.get(role, 1)):
+		return "No room for another %s" % ("bartender" if role == "bartender" else "glass collector")
+	if cash < float(c.get("wage", 0)):
+		return "Need €%d for the first night's wages" % int(c.get("wage", 0))
+	return ""
+
+
+func hire(id: String) -> bool:
+	if hire_block(id) != "":
+		return false
+	var c := GameData.staff_candidate(id)
+	staff.append({"id": id, "name": c["name"], "role": c["role"], "skill": float(c["skill"]),
+		"wage": float(c["wage"]), "model": c.get("model", ""), "gender": c.get("gender", "m"), "hired_day": day})
+	staff_changed.emit()
+	return true
+
+
+func fire(id: String) -> void:
+	for i in range(staff.size() - 1, -1, -1):
+		if str(staff[i].get("id", "")) == id:
+			staff.remove_at(i)
+	staff_changed.emit()
+
+
 func wages_today() -> float:
 	var w := 0.0
 	for s in staff:

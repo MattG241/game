@@ -115,6 +115,7 @@ func setup(w: Node, look: Dictionary, seed_v: int) -> void:
 const MODELS_M := ["m_young_a", "m_mid_a", "m_old_a", "m_mid_b", "m_young_b", "m_old_b", "m_mid_c", "m_young_c"]
 const MODELS_F := ["f_young_a", "f_mid_a", "f_old_a", "f_young_b", "f_young_c", "f_mid_b", "f_mid_c", "f_old_b"]
 static var _model_info := {}
+static var reserved_models: Array = []   # worn by hired staff, so customers don't share their face
 
 
 static func model_info(model: String) -> Dictionary:
@@ -129,7 +130,9 @@ func _build(look: Dictionary) -> void:
 	var fem := gender == "f"
 	model = str(look.get("model", ""))
 	if model == "":
-		var pool: Array = MODELS_F if fem else MODELS_M
+		var pool: Array = (MODELS_F if fem else MODELS_M).filter(func(m): return not reserved_models.has(m))
+		if pool.is_empty():
+			pool = MODELS_F if fem else MODELS_M
 		model = pool[_rng.randi() % pool.size()]
 	var info := model_info(model)
 	_body = Node3D.new()
@@ -337,7 +340,13 @@ func _solve_joints(delta: float) -> void:
 	_glass_arm(delta)
 	if _rig:
 		_apply_rig()
+	_reach(delta)
 	_sync_bones()
+
+
+## Lets a subclass put a hand on something after the pose is solved (staff pulling a tap).
+func _reach(_delta: float) -> void:
+	pass
 
 
 func set_name_tag(text: String) -> void:

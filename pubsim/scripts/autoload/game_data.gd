@@ -12,6 +12,7 @@ var events: Array = []
 var events_by_id: Dictionary = {}
 var objectives: Array = []
 var staff_pool: Array = []
+var staff_by_id: Dictionary = {}
 var furniture: Array = []
 var furniture_by_id: Dictionary = {}
 var customer_lines: Dictionary = {}
@@ -42,6 +43,11 @@ func reload() -> void:
 	regulars_by_id = _index(regulars)
 	events_by_id = _index(events)
 	furniture_by_id = _index(furniture)
+	staff_by_id = _index(staff_pool)
+
+
+func staff_candidate(id: String) -> Dictionary:
+	return staff_by_id.get(id, {})
 
 
 func _index(arr: Array) -> Dictionary:
