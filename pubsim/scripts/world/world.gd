@@ -1110,8 +1110,9 @@ func _update_music_context() -> void:
 	# a quiet murmur for a few people, the busy room fading in as the pub fills
 	var fill := clampf(customers.size() / 10.0, 0.0, 1.0) * (0.35 if vocal else 0.8)
 	var busy := clampf((customers.size() - 3) / 6.0, 0.0, 1.0)
-	Sfx.set_loop("crowd_quiet", "quiet_crowd_loop", minf(fill * 2.0, 0.6) * (1.0 - busy), "Speech")
-	Sfx.set_loop("crowd", "crowd_loop", fill * busy, "Speech")
+	# the room's murmur sits under the words, on the ambience bus (it ducks when someone speaks)
+	Sfx.set_loop("crowd_quiet", "quiet_crowd_loop", minf(fill * 2.0, 0.6) * (1.0 - busy) * 0.6, "Ambience")
+	Sfx.set_loop("crowd", "crowd_loop", fill * busy * 0.5, "Ambience")
 
 
 func _relationship(id: String, delta: int, chat := false) -> void:
@@ -1272,10 +1273,10 @@ func _check_church_bell() -> void:
 func _update_audio() -> void:
 	var rain := 0.0
 	if GameState.weather == "rain":
-		rain = 0.45
+		rain = 0.5
 	elif GameState.weather == "storm":
-		rain = 0.8
-	Sfx.set_loop("rain", "rain_loop", rain)
+		rain = 0.85
+	Sfx.set_loop("rain", "rain_loop", rain, "Weather")
 	var lit := GameState.has_upgrade("fireplace")
 	if lit and not _fire_audio.playing:
 		_fire_audio.play()

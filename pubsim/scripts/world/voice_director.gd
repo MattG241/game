@@ -143,9 +143,9 @@ func speak(speaker: Node3D, voice: String, tag: String, important := false, drin
 		var p3 := AudioStreamPlayer3D.new()
 		p3.stream = stream
 		p3.bus = "Speech"
-		p3.unit_size = 3.5
-		p3.max_distance = 22.0
-		p3.volume_db = 2.0
+		p3.unit_size = 6.0          # carries across the room like a voice should
+		p3.max_distance = 24.0
+		p3.volume_db = 6.0
 		p3.attenuation_filter_cutoff_hz = 9000.0
 		speaker.add_child(p3)
 		p3.position = Vector3(0, 1.6, 0)
@@ -172,6 +172,7 @@ func speak(speaker: Node3D, voice: String, tag: String, important := false, drin
 	played.append(ln["id"])
 	last_text = str(ln["text"])
 	MusicDirector.duck_for_speech(stream.get_length() + 0.3)
+	Sfx.duck_for_speech(stream.get_length() + 0.3)
 	return str(ln["text"])
 
 

@@ -3,10 +3,13 @@ extends Node
 ## Sounds are synthesised by tools/gen_audio.py; where a recorded ElevenLabs effect exists
 ## (assets/sfx_el, made once offline by tools/elevenlabs/el.py) it is used instead.
 
-const BUSES := ["Music", "Ambience", "Speech", "Effects"]
+const BUSES := ["Music", "Ambience", "Speech", "Effects", "Weather"]
+## How far the room and the weather dip while someone is speaking (dB), so words come through.
+## (The music director ducks the music itself.)
+const SPEECH_DUCK_DB := {"Ambience": -9.0, "Weather": -9.0}
 const SETTING_FOR_BUS := {
 	"Master": "vol_master", "Music": "vol_music", "Ambience": "vol_ambience",
-	"Speech": "vol_speech", "Effects": "vol_effects",
+	"Speech": "vol_speech", "Effects": "vol_effects", "Weather": "vol_weather",
 }
 
 ## Game sound name -> recorded effect that replaces it when present.
@@ -31,7 +34,20 @@ func _ready() -> void:
 			AudioServer.add_bus()
 			var idx := AudioServer.bus_count - 1
 			AudioServer.set_bus_name(idx, b)
-			AudioServer.set_bus_send(idx, "Master")
+			AudioServer.set_bus_send(idx, "Ambience" if b == "Weather" else "Master")
+	# weather is heard from indoors, through the glass: muffled and well below the room
+	var weather := AudioServer.get_bus_index("Weather")
+	if AudioServer.get_bus_effect_count(weather) == 0:
+		var glass := AudioEffectLowPassFilter.new()
+		glass.cutoff_hz = 1400.0
+		glass.resonance = 0.4
+		AudioServer.add_bus_effect(weather, glass)
+	# a gentle limiter on the whole mix, so a cheer or a slammed glass never clips over the speech
+	var master := AudioServer.get_bus_index("Master")
+	if AudioServer.get_bus_effect_count(master) == 0:
+		var lim := AudioEffectHardLimiter.new()
+		lim.ceiling_db = -1.0
+		AudioServer.add_bus_effect(master, lim)
 	# a touch of room on voices, so they sound like people in the pub rather than a dry recording
 	var speech := AudioServer.get_bus_index("Speech")
 	if speech >= 0 and AudioServer.get_bus_effect_count(speech) == 0:
@@ -53,13 +69,32 @@ func _ready() -> void:
 	GameState.settings_changed.connect(apply_volumes)
 
 
+var _base_db := {}
+var _duck_left := 0.0
+var _duck := 0.0     # 0..1, eased in and out
+
+
+## Someone is speaking for `seconds`: the room, the weather and the music step back.
+func duck_for_speech(seconds: float) -> void:
+	_duck_left = maxf(_duck_left, seconds)
+
+
 func apply_volumes() -> void:
 	for bus in SETTING_FOR_BUS.keys():
 		var idx := AudioServer.get_bus_index(bus)
 		if idx >= 0:
 			var v := float(GameState.settings.get(SETTING_FOR_BUS[bus], 0.8))
-			AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(v, 0.0001)))
+			_base_db[bus] = linear_to_db(maxf(v, 0.0001))
+			AudioServer.set_bus_volume_db(idx, _base_db[bus])
 			AudioServer.set_bus_mute(idx, v <= 0.001)
+	_apply_duck()
+
+
+func _apply_duck() -> void:
+	for bus in SPEECH_DUCK_DB.keys():
+		var idx := AudioServer.get_bus_index(bus)
+		if idx >= 0 and _base_db.has(bus):
+			AudioServer.set_bus_volume_db(idx, float(_base_db[bus]) + float(SPEECH_DUCK_DB[bus]) * _duck)
 
 
 func get_stream(sound: String) -> AudioStream:
@@ -127,6 +162,7 @@ func set_loop(key: String, sound: String, volume_linear: float, bus := "Ambience
 	elif p.stream != get_stream(sound):
 		p.stream = get_stream(sound)
 		p.play()
+	p.bus = bus
 	p.set_meta("target", volume_linear)
 
 
@@ -138,6 +174,11 @@ func stop_all_loops() -> void:
 
 
 func _process(delta: float) -> void:
+	_duck_left = maxf(0.0, _duck_left - delta)
+	var want := 1.0 if _duck_left > 0.0 else 0.0
+	if not is_equal_approx(_duck, want):
+		_duck = move_toward(_duck, want, delta * (4.0 if want > _duck else 1.2))
+		_apply_duck()
 	for k in _loops.keys():
 		var p: AudioStreamPlayer = _loops[k]
 		var target := float(p.get_meta("target", 0.0))

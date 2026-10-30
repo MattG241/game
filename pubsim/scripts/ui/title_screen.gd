@@ -71,7 +71,7 @@ func _ready() -> void:
 	_scene = scene
 	_populate()
 	_build_ui()
-	Sfx.set_loop("rain", "rain_loop", 0.35)
+	Sfx.set_loop("rain", "rain_loop", 0.5, "Weather")
 	# Welcome to The Local plays on the title screen and fades when a game starts
 	MusicDirector.clear_override()
 	MusicDirector.set_screen("menu")

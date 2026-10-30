@@ -844,6 +844,24 @@ func _test_music(w: World) -> void:
 	GameState.set_setting("vol_music", 0.8)
 	var saved_settings: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(GameState.SETTINGS_PATH))
 	check(saved_settings.get("music_mode") == "manual" and float(saved_settings.get("vol_music")) == 0.8, "audio preferences are saved")
+	# the mix: rain sits on its own muffled bus under the room, and voices push everything else back
+	var wb := AudioServer.get_bus_index("Weather")
+	check(wb >= 0 and AudioServer.get_bus_send(wb) == "Ambience", "weather has its own bus feeding the room")
+	check(AudioServer.get_bus_effect_count(wb) > 0 and AudioServer.get_bus_effect(wb, 0) is AudioEffectLowPassFilter, "rain is muffled as if heard through the windows")
+	check(float(GameState.settings["vol_speech"]) > float(GameState.settings["vol_weather"]), "voices are set louder than the weather by default")
+	Sfx.set_loop("rain", "rain_loop", 0.5, "Weather")
+	check(Sfx._loops.has("rain") and Sfx._loops["rain"].bus == "Weather", "rain plays on the weather bus")
+	var amb := AudioServer.get_bus_index("Ambience")
+	var amb0 := AudioServer.get_bus_volume_db(amb)
+	var w0 := AudioServer.get_bus_volume_db(wb)
+	Sfx.duck_for_speech(1.0)
+	for i in 30:
+		await get_tree().process_frame
+	check(AudioServer.get_bus_volume_db(amb) < amb0 - 4.0 and AudioServer.get_bus_volume_db(wb) < w0 - 4.0, "the room and rain dip while someone speaks")
+	for i in 150:
+		await get_tree().process_frame
+	check(absf(AudioServer.get_bus_volume_db(amb) - amb0) < 0.1, "and come back up afterwards")
+	Sfx.set_loop("rain", "rain_loop", 0.0, "Weather")
 	md.set_mode("auto")
 	# live musicians
 	_log("== Integration: live music ==")

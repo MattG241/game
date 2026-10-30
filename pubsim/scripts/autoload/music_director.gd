@@ -374,8 +374,8 @@ func _process(delta: float) -> void:
 	if _speech_left > 0.0:
 		# dip the music a little under spoken lines so they stay clear
 		_speech_left -= delta
-		duck_target = minf(duck_target, 0.6)
-	_duck = move_toward(_duck, duck_target, delta * 1.5)
+		duck_target = minf(duck_target, 0.45)
+	_duck = move_toward(_duck, duck_target, delta * (3.0 if duck_target < _duck else 1.2))
 	for i in 2:
 		_levels[i] = move_toward(_levels[i], _targets[i], delta * _fade_speed[i])
 		var p2 := _players[i]

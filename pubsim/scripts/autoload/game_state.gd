@@ -52,8 +52,10 @@ var settings: Dictionary = {
 	"vibration": true,
 	"vol_master": 0.9,
 	"vol_music": 0.8,
-	"vol_ambience": 0.7,
-	"vol_speech": 0.7,
+	"vol_ambience": 0.6,
+	"vol_weather": 0.45,
+	"vol_speech": 1.0,
+	"mix_version": 2,
 	"vol_effects": 0.9,
 	"graphics": "balanced",
 	"render_scale": 1.0,
@@ -529,6 +531,11 @@ func load_settings() -> void:
 	if typeof(parsed) == TYPE_DICTIONARY:
 		for k in parsed.keys():
 			settings[k] = parsed[k]
+		if int(parsed.get("mix_version", 1)) < 2:
+			# the first mix had the rain over the voices: move older settings onto the new balance
+			settings["vol_speech"] = maxf(float(settings.get("vol_speech", 0.7)), 1.0)
+			settings["vol_ambience"] = minf(float(settings.get("vol_ambience", 0.7)), 0.6)
+			settings["mix_version"] = 2
 	settings["graphics"] = graphics_preset()
 
 
