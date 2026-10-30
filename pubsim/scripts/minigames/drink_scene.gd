@@ -27,6 +27,7 @@ var _result := {}
 var _anchor: Node3D
 var _sips := 0
 var _relax_cam_pos := Vector3.ZERO
+var relax_seat := Vector3.ZERO     # the armchair you sit in (set by the world)
 var championship := false
 var _gulp_start_body := 0.0
 var _final_body := 0.0
@@ -74,8 +75,11 @@ func begin(m: String, drink := "stout") -> void:
 		target = _split_cam()
 		_build_line()
 	else:
-		# sunk into the left armchair, the fire ahead and your pint in your hand
+		# sunk into a free armchair, the fire ahead and your pint in your hand
 		var seat := Vector3(-5.8, 1.12, 0.6)
+		if relax_seat != Vector3.ZERO:
+			# sit back in the chair, on the side away from the fire (the chairs face each other across it)
+			seat = relax_seat + Vector3(0.2, 1.12, -0.3 if relax_seat.z < PubLayout.FIREPLACE.z else 0.3)
 		var look_at := Vector3(-6.6, 0.55, 2.25)
 		target = Transform3D(Basis(), seat).looking_at(look_at, Vector3.UP)
 		_anchor.global_transform = target

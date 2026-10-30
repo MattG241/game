@@ -107,6 +107,14 @@ func _process_state(delta: float) -> void:
 			_face_yaw(PI, delta)
 			_idle_anim(delta)
 			_pour(delta)
+		"st_wait_tap":
+			_face_yaw(PI, delta)
+			_idle_anim(delta)
+			if _job_t <= 0.0:
+				_job_t = 0.5
+				if not world.tap_in_use(_pour_id, self):
+					state = "st_pour"
+					_start_pour()
 		"st_serve":
 			_face_yaw(PI, delta)
 			_idle_anim(delta)
@@ -161,7 +169,12 @@ func _arrive() -> void:
 		"st_break":
 			_job_t = BREAK_SECONDS
 		"st_pour":
-			_start_pour()
+			if world.tap_in_use(_pour_id, self):
+				state = "st_wait_tap"     # someone's at that tap: wait alongside
+				_job_t = 0.5
+				say("After you.", 1.5)
+			else:
+				_start_pour()
 
 
 func _face_point(n: Node3D, delta: float) -> void:

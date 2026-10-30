@@ -214,6 +214,17 @@ func _ready() -> void:
 				w.player.camera.current = true
 				await _wait(2.0)
 				await _shot(v)
+			"doorsign":
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 50.0
+				cam.global_transform = Transform3D(Basis(), Vector3(0.6, 1.6, 3.4)).looking_at(Vector3(0.0, 1.5, 4.9), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(2.0)
+				await _shot(v)
+				main.hud.visible = true
+				w.player.camera.current = true
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

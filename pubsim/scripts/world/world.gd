@@ -68,7 +68,7 @@ func _ready() -> void:
 	nav_region.name = "Nav"
 	add_child(nav_region)
 	var nm := NavigationMesh.new()
-	nm.agent_radius = 0.28
+	nm.agent_radius = 0.2     # narrow enough to fit the gap at the end of the bar (0.73 m)
 	nm.agent_height = 1.7
 	nm.agent_max_climb = 0.25
 	nm.cell_size = 0.1
@@ -322,6 +322,9 @@ func _tap_prompt(id: String) -> String:
 	var c := player.held.contents
 	if c.drink_id != "" and c.drink_id != id and not c.is_empty():
 		return _hint("That glass already has %s in it" % GameData.drink(c.drink_id).get("short", ""))
+	var busy_st := staff_at_tap(id)
+	if busy_st != null:
+		return _hint("%s is using the %s tap" % [busy_st.display_name, name])
 	var want := str(GameData.drink(id).get("glass", "pint"))
 	if c.is_empty() and player.held.kind != want:
 		return _hint("%s goes in a %s glass" % [name, want])
@@ -440,7 +443,7 @@ func _sign_action() -> void:
 		"prep":
 			GameState.open_pub()
 			Sfx.play("door_bell", -4.0)
-			_set_sign(true)
+			_set_sign(true, true)
 			voices.speak(null, "landlord", "welcome", true)
 			_tutorial_event("opened")
 			if int(GameState.stats["served"]) == 0:
@@ -505,11 +508,23 @@ func _lockin() -> void:
 	GameState.stats["lockins"] = int(GameState.stats.get("lockins", 0)) + 1
 
 
-func _set_sign(open: bool) -> void:
-	var lbl: Label3D = info.get("door_sign_label")
-	if lbl:
-		lbl.text = "OPEN" if open else "CLOSED"
-		lbl.modulate = Color(0.4, 0.95, 0.5) if open else Color(0.9, 0.3, 0.2)
+func _set_sign(open: bool, animate := false) -> void:
+	var flip: Node3D = info.get("door_sign")
+	var labels: Array = info.get("door_sign_labels", [])
+	var apply := func():
+		for l in labels:
+			(l as Label3D).text = "OPEN" if open else "CLOSED"
+			(l as Label3D).modulate = Color(0.45, 0.95, 0.55) if open else Color(0.92, 0.3, 0.2)
+	if flip == null or not animate:
+		apply.call()
+		return
+	# turn the board over on its cords; the word changes as it goes edge-on
+	var tw := create_tween()
+	tw.tween_property(flip, "rotation:y", flip.rotation.y + PI * 0.5, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(apply)
+	tw.tween_property(flip, "rotation:y", flip.rotation.y + PI, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flip, "rotation:z", 0.06, 0.35).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(flip, "rotation:z", 0.0, 0.6).set_trans(Tween.TRANS_ELASTIC)
 
 
 const LINE_CLEAN_POS := Vector3(-5.6, 1.0, -6.0)
@@ -626,9 +641,25 @@ func _champ_prompt() -> String:
 	return ""
 
 
+## A fireside armchair nobody is sitting in (the left one first), or -1.
+func free_armchair() -> int:
+	var seats: Array = info["seats"]
+	var best := -1
+	for i in seats.size():
+		if seats[i]["kind"] == "armchair" and not seats_taken.has(i):
+			if best < 0 or (seats[i]["pos"] as Vector3).z < (seats[best]["pos"] as Vector3).z:
+				best = i
+	return best
+
+
+var _relax_seat := -1
+
+
 func _fireside_prompt() -> String:
 	if not player.has_hands_free():
 		return ""
+	if free_armchair() < 0:
+		return _hint("Both fireside chairs are taken")
 	if pub_closed_for_you():
 		return "Sit by the fire with your own pint"
 	return "Sit by the fire with a Galagers Zero"
@@ -639,7 +670,12 @@ func pub_closed_for_you() -> bool:
 
 
 func start_relax() -> void:
-	if not in_minigame():
+	var seat := free_armchair()
+	if not in_minigame() and seat >= 0:
+		# your chair while you sit: nobody else takes it
+		_relax_seat = seat
+		seats_taken[seat] = player
+		drink_scene.relax_seat = info["seats"][seat]["pos"]
 		drink_scene.begin("relax", "stout" if pub_closed_for_you() else "zero")
 
 
@@ -755,12 +791,31 @@ func refresh_staff(at_start := false) -> void:
 		else:
 			st.global_position = PubLayout.INSIDE_DOOR
 			st.walk_to(reach_point(st.home()), "st_idle")
-			_door_anim = 2.0
-			Sfx.play("door_bell", -10.0)
 			st.say("Grand, I'll get stuck in.", 3.0)
 
 
 const STAFF_OVERFLOW_WAIT := 15.0
+
+
+## Whether a tap is taken: the player pouring at it or standing right at it, or another member of
+## staff pouring there or with a stout settling under it.
+func tap_in_use(id: String, by: StaffMember = null) -> bool:
+	if pour and pour.active and pour.drink_id == id:
+		return true
+	var t: Dictionary = info["taps"].get(id, {})
+	if not t.is_empty() and by != null:
+		var spot: Vector3 = t["glass"]
+		if Vector2(player.global_position.x - spot.x, player.global_position.z - (spot.z - 0.4)).length() < 0.55:
+			return true
+	return staff_at_tap(id, by) != null
+
+
+## The member of staff working a tap (pouring, or their stout settling under it), if any.
+func staff_at_tap(id: String, except: StaffMember = null) -> StaffMember:
+	for st in staff_npcs:
+		if st != except and st.state == "st_pour" and st._pour_id == id:
+			return st
+	return null
 
 
 func staff_serving(c: Customer) -> StaffMember:
@@ -928,7 +983,8 @@ func nav_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 		return PackedVector3Array([to])
 	var map := get_world_3d().navigation_map
 	var p := NavigationServer3D.map_get_path(map, from, to, true)
-	if p.size() > 0:
+	# only step onto the exact spot if the path really reaches it (never straight through a wall)
+	if p.size() > 0 and Vector2(p[-1].x - to.x, p[-1].z - to.z).length() < 0.45:
 		p.append(to)
 	return p
 
@@ -1120,8 +1176,6 @@ func spawn_customer(force_regular := "") -> Customer:
 		func(): return _customer_prompt(c), func(): _customer_action(c), 0.0, 2.3)
 	it.position = Vector3(0, 1.3, 0)
 	c.walk_to(PubLayout.INSIDE_DOOR, "choose")
-	_door_anim = 2.0
-	Sfx.play("door_bell", -10.0)
 	# price check: very expensive drinks put people off
 	return c
 
@@ -1580,6 +1634,10 @@ func _process(delta: float) -> void:
 		autosave()
 	_check_church_bell()
 	_update_music_context()
+	if _relax_seat >= 0 and not (drink_scene and drink_scene.active):
+		if seats_taken.get(_relax_seat) == player:
+			seats_taken.erase(_relax_seat)
+		_relax_seat = -1
 	_award_t -= delta
 	if _award_t <= 0.0:
 		_award_t = 2.0
@@ -1631,6 +1689,7 @@ func close_day() -> void:
 	if live:
 		live.stop_now()
 	var finished_day := GameState.day
+	_set_sign(false, true)
 	GameState.check_goals(true)
 	var goals: Array = GameState.daily_goals().duplicate(true)
 	var best_streak := int(GameState.today.get("best_streak", 0))
@@ -1655,6 +1714,18 @@ func _update_door(delta: float) -> void:
 	var door: Node3D = info.get("door")
 	if door == null:
 		return
+	# the door swings open for whoever is actually at it (inside or out), and closes behind them
+	var near := false
+	var d0 := PubLayout.DOOR_POS
+	for n in customers + staff_npcs + [player]:
+		var p: Vector3 = (n as Node3D).global_position
+		if absf(p.x - d0.x) < 0.9 and absf(p.z - d0.z) < 1.3:
+			near = true
+			break
+	if near:
+		if _door_anim <= 0.0:
+			Sfx.play_at("door_bell", d0 + Vector3(0, 2.0, 0), self, -8.0)   # the bell over the door
+		_door_anim = 0.8
 	_door_anim = maxf(0.0, _door_anim - delta)
 	var target := -1.2 if _door_anim > 0.0 else 0.0
 	door.rotation.y = lerp(door.rotation.y, target, minf(1.0, delta * 4.0))

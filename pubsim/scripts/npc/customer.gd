@@ -103,6 +103,8 @@ var _right_hand: Node3D
 var _seat_yaw := 0.0
 var _say_t := 0.0
 var _rng := RandomNumberGenerator.new()
+var _block_t := 0.0          # how long the player has been in the way
+var _collider: AnimatableBody3D
 
 
 func setup(w: Node, look: Dictionary, seed_v: int) -> void:
@@ -138,6 +140,19 @@ func _build(look: Dictionary) -> void:
 	var info := model_info(model)
 	_body = Node3D.new()
 	add_child(_body)
+	# a solid body the player bumps into (layer 3); NPCs themselves steer by navigation
+	_collider = AnimatableBody3D.new()
+	_collider.collision_layer = 4
+	_collider.collision_mask = 0
+	_collider.sync_to_physics = false
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.2
+	cap.height = 1.6
+	cs.shape = cap
+	cs.position.y = 0.8
+	_collider.add_child(cs)
+	add_child(_collider)
 	MeshKit.contact_shadow(self, Vector3.ZERO, Vector2(0.7, 0.7), 0.45)
 	var scene: Node3D = (load("res://assets/people_mh/%s.gltf" % model) as PackedScene).instantiate()
 	_body.add_child(scene)
@@ -462,7 +477,25 @@ func _walk(delta: float) -> void:
 		_path_i += 1
 		return
 	var step := minf(dist, speed * delta)
-	global_position += to / dist * step
+	var dir := to / dist
+	# step round the player rather than through them: pause a moment, then sidestep
+	var pl: Node3D = world.player if world and "player" in world else null
+	if pl:
+		var away := global_position - pl.global_position
+		away.y = 0.0
+		if away.length() < 0.7 and dir.dot(-away.normalized()) > 0.2:
+			_block_t += delta
+			if _block_t < 0.6:
+				_leg_rot[0] = 0.0
+				_leg_rot[1] = 0.0
+				return
+			var side := Vector3(-dir.z, 0, dir.x)
+			if side.dot(away) < 0.0:
+				side = -side
+			dir = (side * 0.85 + dir * 0.15).normalized()
+		else:
+			_block_t = 0.0
+	global_position += dir * step
 	var yaw := atan2(-to.x, -to.z)
 	rotation.y = lerp_angle(rotation.y, yaw, minf(1.0, delta * 8.0))
 	# the stride keeps pace with the walking speed, so feet don't skate

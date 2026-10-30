@@ -27,6 +27,7 @@ func _ready() -> void:
 	cs.shape = cap
 	cs.position.y = 0.875
 	add_child(cs)
+	collision_mask = 1 | 4      # walls and furniture, and people (who can't be walked through)
 	camera = Camera3D.new()
 	camera.position.y = EYE
 	camera.fov = 70.0

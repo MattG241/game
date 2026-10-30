@@ -1600,6 +1600,91 @@ func _test_fixes() -> void:
 	check(Time.get_ticks_msec() < UITheme.presses_blocked_until, "a button under the finger isn't pressed by the drag")
 	check(is_equal_approx(GameState.cash, cash_before), "nothing bought while scrolling")
 	main.hud.close_menu()
+	# the physical world: paths, the door, the sign, the taps, the fireside chair, bumping into people
+	var through := false
+	for pair in [[Vector3(-2, 0, -3.3), Vector3(-1, 0, 1.0)], [Vector3(3.15, 0, -0.9), Vector3(1.2, 0, -4.18)]]:
+		var path: PackedVector3Array = w.nav_path(pair[0], pair[1])
+		for k in path.size() - 1:
+			for st_i in 10:
+				var q: Vector3 = path[k].lerp(path[k + 1], st_i / 10.0)
+				if q.x > PubLayout.BAR_X.x and q.x < PubLayout.BAR_X.y and q.z < PubLayout.BAR_FRONT_Z and q.z > PubLayout.BAR_BACK_Z:
+					through = true
+	check(not through, "staff walk round the end of the bar, never through the counter")
+	for cc in w.customers.duplicate():
+		cc.queue_free()
+	w.customers.clear()
+	w.player.global_position = PubLayout.PLAYER_START
+	for k in 90:
+		await get_tree().process_frame
+	check(absf((w.info["door"] as Node3D).rotation.y) < 0.05, "the door stays shut when nobody's at it")
+	var walker := w.spawn_customer()
+	await _frames(30)
+	check(absf((w.info["door"] as Node3D).rotation.y) < 0.05, "a customer appearing down the street doesn't open the door")
+	walker.global_position = PubLayout.DOOR_POS + Vector3(0, 0, -0.6)
+	walker.state = "idle"
+	for k in 40:
+		await get_tree().process_frame
+	check(absf((w.info["door"] as Node3D).rotation.y) > 0.3, "the door opens for someone at it")
+	walker.queue_free()
+	w.customers.erase(walker)
+	GameState.phase = "prep"
+	w._set_sign(false)
+	w._sign_action()
+	await _frames(80)
+	check((w.info["door_sign_labels"][0] as Label3D).text == "OPEN" and (w.info["door_sign"] as Node3D).get_parent().get_parent() == w.info["door"], "the sign in the door glass flips to OPEN")
+	var bump := w.spawn_customer()
+	await _frames(2)
+	check((w.player.collision_mask & 4) != 0 and bump._collider != null and (bump._collider.collision_layer & 4) != 0, "people are solid: the player can't walk through them")
+	bump.queue_free()
+	w.customers.erase(bump)
+	# taps: a bartender waits while you pour at the same tap
+	GameState.reputation = 60.0
+	GameState.cash = 2000.0
+	check(GameState.hire("ciaran"), "hire a bartender for the tap test")
+	await _frames(3)
+	var st: StaffMember = w.staff_npcs[0]
+	w.player.global_position = Vector3(-1.6, 0, -2.75)
+	w.player.dirty_stack.clear()
+	if w.player.held == null:
+		w.player.take_glass(PintGlass.new())
+	w.pour.begin("stout", w.info["taps"]["stout"])
+	await _frames(5)
+	check(w.tap_in_use("stout", st), "the stout tap is in use while you pour")
+	var pglass: PintGlass = w.pour.glass
+	check(pglass.global_transform.basis.z.z < 0.0, "the GALAGERS print faces you while you pour")
+	st._pour_id = "stout"
+	st.glass = PintGlass.new()
+	w.add_child(st.glass)
+	st.state = "walk"
+	st._after_path = "st_pour"
+	st._path = PackedVector3Array()
+	st._arrive()
+	check(st.state == "st_wait_tap", "a bartender waits rather than pouring on top of you")
+	w.pour.end(false)
+	await _frames(70)
+	check(st.state == "st_wait_tap", "and keeps waiting while you're still standing at it")
+	GameState.tap_units["stout"] = 50.0      # (the supplier test above emptied the cellar)
+	w.player.global_position = Vector3(0.5, 0, -3.6)
+	await _frames(70)
+	check(st.state == "st_pour", "then takes the tap once you step away")
+	st.glass.queue_free()
+	st.glass = null
+	GameState.fire("ciaran")
+	await _frames(3)
+	var held := w.player.release_glass()
+	if held:
+		held.queue_free()
+	# the fireside: you never sit on someone
+	var arm: Array = []
+	for i in w.info["seats"].size():
+		if w.info["seats"][i]["kind"] == "armchair":
+			arm.append(i)
+	w.seats_taken[arm[0]] = w
+	check(w.free_armchair() == arm[1], "with one fireside chair taken, you get the other")
+	w.seats_taken[arm[1]] = w
+	check(w._fireside_prompt().begins_with("~"), "with both taken, you can't sit on anyone")
+	w.seats_taken.erase(arm[0])
+	w.seats_taken.erase(arm[1])
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

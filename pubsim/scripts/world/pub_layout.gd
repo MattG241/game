@@ -27,7 +27,7 @@ const BAR_SPOT_Z := -1.2
 const SERVE_Z := -1.95
 
 const DOOR_POS := Vector3(0.0, 0.0, 5.0)
-const DOOR_SIGN_POS := Vector3(1.05, 1.45, 4.88)
+const DOOR_SIGN_POS := Vector3(0.0, 1.58, 4.86)   # the hanging sign in the door's glass
 const INSIDE_DOOR := Vector3(0.0, 0.0, 4.2)
 const STREET_SPAWN_L := Vector3(-14.0, 0.0, 7.5)
 const STREET_SPAWN_R := Vector3(14.0, 0.0, 7.5)

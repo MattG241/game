@@ -133,7 +133,8 @@ func _place_glass() -> void:
 	var th := deg_to_rad(tilt)
 	var h := glass.height
 	# rotate about the view axis so the tilt reads clearly on screen
-	var basis := Basis(Vector3(0, 0, 1), th)
+	# turned so the printed GALAGERS faces the pour camera (the bartender's side), then tilted
+	var basis := Basis(Vector3(0, 0, 1), th) * Basis(Vector3.UP, PI)
 	var side := Vector3(-1, 0, 0)  # direction the top of the glass leans
 	var base := nozzle - Vector3(0, 0.035 + h * cos(th), 0) - side * h * sin(th) * 0.82
 	glass.global_transform = Transform3D(basis, base)
