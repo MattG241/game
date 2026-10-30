@@ -25,7 +25,7 @@ func _log(s: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	if OS.get_environment("ONLY") in ["staff", "flow"]:
+	if OS.get_environment("ONLY") in ["staff", "flow", "drinks"]:
 		# quick run of one section while working on it
 		GameState.delete_save()
 		main = load("res://scripts/main.gd").new()
@@ -33,6 +33,8 @@ func _ready() -> void:
 		await _frames(5)
 		if OS.get_environment("ONLY") == "flow":
 			await _test_flow()
+		elif OS.get_environment("ONLY") == "drinks":
+			await _test_drinks()
 		else:
 			await _test_staff()
 		_log("RESULT: %d passed, %d failed" % [passed, failed])
@@ -441,6 +443,7 @@ func _test_loop() -> void:
 	await _test_queue_balance()
 	await _test_staff()
 	await _test_flow()
+	await _test_drinks()
 
 
 func _test_voices_and_people(w: World) -> void:
@@ -1275,3 +1278,75 @@ func _test_flow() -> void:
 		reachable = reachable and vis.encloses((b as Control).get_global_rect())
 	check(reachable, "the next-day and quit buttons stay on screen however long the report is")
 	check(all.contains("Prizes & goal rewards"), "goal rewards are listed, so the profit adds up")
+
+
+# ------------------------------------------------------------------ every drink on the menu
+func _test_drinks() -> void:
+	_log("== Integration: every drink can be bought, poured and served ==")
+	main.quit_to_title()
+	await _frames(3)
+	GameState.delete_save()
+	main.start_new("career", "Drinks test")
+	await _frames(10)
+	GameState.tutorial["done"] = true
+	var w: World = main.world
+	var missing := []
+	for d in GameData.drinks:
+		var u := str(d.get("unlock", ""))
+		if u != "" and GameData.upgrade(u).is_empty():
+			missing.append(d["id"])
+	check(missing.is_empty(), "every drink has an upgrade that unlocks it %s" % str(missing))
+	check(GameData.upgrades.size() >= 30, "a long list of upgrades to work towards (%d)" % GameData.upgrades.size())
+	GameState.cash = 5000.0
+	GameState.reputation = 10.0
+	check(not GameState.can_buy_upgrade("big_screen"), "bigger upgrades wait for reputation")
+	GameState.reputation = 60.0
+	for u in ["lager_tap", "ale_pump", "drinks_fridge", "whiskey_optics", "soda_gun"]:
+		check(GameState.buy_upgrade(u), "buy %s" % u)
+	await _frames(3)
+	GameState.set_setting("pour_assist", true)
+	for id in ["lager", "ale", "cider", "zero", "whiskey", "soft"]:
+		var d := GameData.drink(id)
+		check(w.info["taps"].has(id) and (w.info["taps"][id]["root"] as Node3D).is_visible_in_tree(), "%s has a station on the bar" % id)
+		var kind := str(d.get("glass", "pint"))
+		if kind == "tumbler":
+			check(w._tumbler_prompt() != "", "the rack offers a tumbler for %s" % id)
+		w._rack_action(kind)
+		check(w.player.held != null and w.player.held.kind == kind, "picked up a %s" % kind)
+		check(not w._tap_prompt(id).begins_with("~"), "%s station offers to pour (%s)" % [id, w._tap_prompt(id)])
+		w._tap_action(id)
+		await _frames(30)
+		w.pour.lever = 1.0
+		var ok := await _wait_until(func(): return w.pour.glass.contents.total() >= (0.97 if id != "whiskey" else 1.0) or w.pour.glass.contents.spilled > 0.02, 30.0)
+		if id == "whiskey":
+			await _frames(60)
+			check(w.pour.glass.contents.total() < 1.05, "the optic stops at one measure (%.2f)" % w.pour.glass.contents.total())
+		w.pour.lever = 0.0
+		await _frames(5)
+		var res: Dictionary = w.pour.glass.contents.evaluate(0.0)
+		check(ok and int(res["score"]) >= 60, "a careful %s scores well (%d, %s)" % [id, int(res["score"]), res["verdict"]])
+		w.pour.end(false)
+		await _frames(30)
+		var g := w.player.release_glass()
+		if g:
+			g.queue_free()
+		w.rack_clean += 1
+	GameState.set_setting("pour_assist", false)
+	# bottles and syrup boxes are swapped automatically when one runs out
+	GameState.tap_units["whiskey"] = 0.0
+	GameState.stock["whiskey"] = 2
+	check(GameState.draw_units("whiskey", 1.0) and int(GameState.stock["whiskey"]) == 1, "a fresh bottle goes on the optic by itself")
+	# staff can serve the new drinks, glass and all
+	GameState.hire("ciaran")
+	await _frames(2)
+	var st: StaffMember = w.staff_npcs[0]
+	st.global_position = st.home()
+	st.state = "st_idle"
+	var c := w.spawn_customer()
+	c.drink_id = "whiskey"
+	c.global_position = w.bar_spot_pos(1)
+	c.bar_spot = 1
+	w.bar_spots[1] = c
+	c.state = "wait_order"
+	var served := await _wait_until(func(): return c.served_count > 0, 90.0)
+	check(served and c.glass != null and c.glass.kind == "tumbler", "a bartender serves whiskey in a tumbler")

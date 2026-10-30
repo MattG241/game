@@ -201,6 +201,10 @@ func available_drinks() -> Array:
 ## Takes serves from the connected keg. Returns false (and takes nothing) if it runs dry.
 func draw_units(drink_id: String, units: float) -> bool:
 	var left := float(tap_units.get(drink_id, 0))
+	# bottles and syrup boxes are swapped behind the bar as soon as one runs out
+	if left < units - 0.0001 and str(GameData.drink(drink_id).get("stock_unit", "keg")) not in ["keg", "cask"] and int(stock.get(drink_id, 0)) > 0:
+		change_keg(drink_id)
+		left = float(tap_units.get(drink_id, 0))
 	if left < units - 0.0001:
 		return false
 	tap_units[drink_id] = left - units
@@ -268,7 +272,29 @@ func can_buy_upgrade(id: String) -> bool:
 	var req: String = u.get("requires", "")
 	if req != "" and not has_upgrade(req):
 		return false
+	if reputation < float(u.get("min_rep", 0)):
+		return false
 	return can_afford(float(u["cost"]))
+
+
+## The pub's standing, by reputation: each tier opens bigger upgrades.
+const REP_TIERS := [[0, "A quiet local"], [15, "Known on the street"], [30, "Talk of the town"], [50, "The county's favourite"], [70, "Best pint in the west"], [90, "A legend of a pub"]]
+
+
+func rep_tier() -> String:
+	var t := str(REP_TIERS[0][1])
+	for r in REP_TIERS:
+		if reputation >= float(r[0]):
+			t = str(r[1])
+	return t
+
+
+## The next tier up: [reputation needed, name], or [] at the top.
+func next_rep_tier() -> Array:
+	for r in REP_TIERS:
+		if reputation < float(r[0]):
+			return r
+	return []
 
 
 func buy_upgrade(id: String) -> bool:

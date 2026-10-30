@@ -73,9 +73,12 @@ func begin(id: String, tap_info: Dictionary) -> void:
 
 func ideal_tilt() -> float:
 	var c := glass.contents
-	if serve == "stout" and c.stage >= 2:
-		return 0.0
+	if (serve == "stout" and c.stage >= 2) or serve in ["ale", "whiskey", "soda"]:
+		return 0.0     # a top-up, a hand pump, an optic and the soda gun all go in upright
 	var lvl := c.total()
+	if serve in ["lager", "cider"]:
+		# lager-style: down the side at 45° most of the way, straightening late for a two-finger head
+		return 45.0 if lvl < 0.65 else lerpf(45.0, 6.0, clampf((lvl - 0.65) / 0.25, 0.0, 1.0))
 	if lvl < 0.45:
 		return 45.0
 	return lerpf(45.0, 4.0, clampf((lvl - 0.45) / 0.35, 0.0, 1.0))
@@ -96,6 +99,8 @@ func _process(delta: float) -> void:
 			world.notify("The %s has run dry! Change it in the cellar." % GameData.drink(drink_id).get("stock_unit", "keg"), "bad")
 			Sfx.play("keg", -8.0)
 	var c := glass.contents
+	if serve == "whiskey" and c.total() >= 1.0:
+		flow = 0.0     # the optic gives one measure, then stops
 	if flow > 0.01:
 		var dv := c.pour(delta, flow, tilt, drink_id, serve)
 		if not GameState.draw_units(drink_id, dv):
@@ -188,6 +193,15 @@ func status_text() -> String:
 				return "Settled! Hold the glass upright and top it up gently"
 			3:
 				return "Top up until the head domes just over the rim"
+	match serve:
+		"ale":
+			return "Pull the pump in long, steady strokes until the glass is full"
+		"whiskey":
+			return "Push the glass up to the optic and hold it there until the measure stops" if c.total() < 0.99 else "One measure. Lower the glass"
+		"soda":
+			return "Hold the trigger and stop just under the rim"
+		"cider":
+			return "Tilt the glass and pour; it barely heads, so fill near the brim"
 	return "Tilt the glass, pull the handle, straighten near the top"
 
 

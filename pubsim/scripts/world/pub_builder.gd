@@ -247,6 +247,99 @@ func _taps() -> void:
 	# lager tap font (visible once purchased)
 	var lager := _lager_tap(g)
 	_tag("lager_tap", lager)
+	_tag("ale_pump", _ale_pump(g))
+	_tag("drinks_fridge", _keg_font(g, "cider", "ORCHARD\nGATE", Color(0.75, 0.55, 0.15), Color(0.95, 0.85, 0.55)))
+	_tag("drinks_fridge", _keg_font(g, "zero", "GALAGERS\n0.0", Color(0.05, 0.05, 0.05), Color(0.85, 0.7, 0.35)))
+	_tag("whiskey_optics", _optic(g))
+	_tag("soda_gun", _soda_gun(g))
+
+
+func _station(g: Node3D, id: String, name: String) -> Node3D:
+	var t := Node3D.new()
+	t.name = name
+	t.position = Vector3(PubLayout.TAP_X[id], PubLayout.BAR_TOP, PubLayout.TAP_Z)
+	g.add_child(t)
+	return t
+
+
+func _register(id: String, t: Node3D, handle: Node3D, nozzle_h: float) -> void:
+	info["taps"][id] = {"root": t, "handle": handle, "nozzle": t.position + Vector3(0, nozzle_h, -0.195), "glass": t.position + Vector3(0, 0.0, -0.195)}
+
+
+## A hand-pulled beer engine: tall turned handle with a pump clip, brass swan neck over the glass.
+func _ale_pump(g: Node3D) -> Node3D:
+	var t := _station(g, "ale", "AlePump")
+	MeshKit.box(t, Vector3(0.14, 0.05, 0.16), Vector3(0, 0.025, 0.02), MeshKit.mat("oak"))
+	MeshKit.cyl(t, 0.035, 0.045, 0.12, Vector3(0, 0.11, 0.02), MeshKit.color_mat(Color(0.92, 0.9, 0.84), 0.25), 16)   # ceramic barrel
+	MeshKit.torus(t, 0.03, 0.045, Vector3(0, 0.17, 0.02), MeshKit.mat("brass"))
+	MeshKit.cyl(t, 0.012, 0.012, 0.2, Vector3(0, 0.2, -0.08), MeshKit.mat("brass"), 10, Vector3(PI / 2, 0, 0))
+	MeshKit.cyl(t, 0.01, 0.012, 0.09, Vector3(0, 0.155, -0.195), MeshKit.mat("brass"), 10)
+	var pivot := Node3D.new()
+	pivot.position = Vector3(0, 0.18, 0.02)
+	t.add_child(pivot)
+	MeshKit.cyl(pivot, 0.016, 0.024, 0.34, Vector3(0, 0.17, 0), MeshKit.mat("oak_y"), 12)
+	MeshKit.sphere(pivot, 0.03, Vector3(0, 0.35, 0), MeshKit.mat("oak_y"))
+	# pump clip: the ale's name, facing the customers
+	MeshKit.box(pivot, Vector3(0.1, 0.12, 0.012), Vector3(0, 0.25, 0.03), MeshKit.color_mat(Color(0.5, 0.15, 0.06), 0.4))
+	MeshKit.label(pivot, "RED\nFOX", Vector3(0, 0.25, 0.038), 20, Color(0.98, 0.85, 0.55), Vector3.ZERO, _title_font)
+	_register("ale", t, pivot, 0.13)
+	return t
+
+
+## A slim keg font for the draught cider and the alcohol-free stout.
+func _keg_font(g: Node3D, id: String, text: String, body: Color, trim: Color) -> Node3D:
+	var t := _station(g, id, id.capitalize() + "Tap")
+	MeshKit.cyl(t, 0.05, 0.06, 0.04, Vector3(0, 0.02, 0.02), MeshKit.mat("chrome"), 16)
+	MeshKit.cyl(t, 0.045, 0.045, 0.28, Vector3(0, 0.18, 0.02), MeshKit.color_mat(body, 0.35, 0.2), 16)
+	MeshKit.torus(t, 0.04, 0.05, Vector3(0, 0.31, 0.02), MeshKit.color_mat(trim, 0.3, 0.8))
+	MeshKit.label(t, text, Vector3(0, 0.19, -0.03), 18, trim, Vector3(0, PI, 0), _title_font)
+	MeshKit.label(t, text, Vector3(0, 0.19, 0.07), 18, trim, Vector3.ZERO, _title_font)
+	MeshKit.cyl(t, 0.014, 0.014, 0.2, Vector3(0, 0.3, -0.11), MeshKit.mat("chrome"), 10, Vector3(PI / 2, 0, 0))
+	MeshKit.cyl(t, 0.011, 0.014, 0.05, Vector3(0, 0.28, -0.195), MeshKit.mat("chrome"), 10)
+	var pivot := Node3D.new()
+	pivot.position = Vector3(0, 0.34, -0.06)
+	t.add_child(pivot)
+	MeshKit.cyl(pivot, 0.016, 0.02, 0.15, Vector3(0, 0.075, 0), MeshKit.color_mat(body.lightened(0.15), 0.3), 10)
+	_register(id, t, pivot, 0.255)
+	return t
+
+
+## A bar-top optic stand: the whiskey bottle upside down over a measure you push the glass into.
+func _optic(g: Node3D) -> Node3D:
+	var t := _station(g, "whiskey", "WhiskeyOptic")
+	MeshKit.box(t, Vector3(0.16, 0.02, 0.16), Vector3(0, 0.01, -0.12), MeshKit.mat("brass_dull"))
+	MeshKit.box(t, Vector3(0.03, 0.62, 0.03), Vector3(0, 0.31, 0.0), MeshKit.mat("brass_dull"))
+	MeshKit.box(t, Vector3(0.03, 0.03, 0.22), Vector3(0, 0.6, -0.1), MeshKit.mat("brass_dull"))
+	var bottle := Node3D.new()
+	bottle.position = Vector3(0, 0.48, -0.195)
+	t.add_child(bottle)
+	MeshKit.cyl(bottle, 0.04, 0.04, 0.2, Vector3(0, 0.1, 0), MeshKit.color_mat(Color(0.55, 0.3, 0.08, 0.85), 0.1), 16)
+	MeshKit.cyl(bottle, 0.014, 0.04, 0.05, Vector3(0, -0.02, 0), MeshKit.color_mat(Color(0.55, 0.3, 0.08, 0.85), 0.1), 16)
+	MeshKit.box(bottle, Vector3(0.06, 0.07, 0.005), Vector3(0, 0.1, 0.041), MeshKit.color_mat(Color(0.92, 0.86, 0.7), 0.6))
+	# the measure and its plunger: pushing the glass up lifts it
+	MeshKit.cyl(t, 0.02, 0.02, 0.07, Vector3(0, 0.4, -0.195), MeshKit.color_mat(Color(0.9, 0.92, 0.95, 0.5), 0.05), 12)
+	var pivot := Node3D.new()
+	pivot.position = Vector3(0, 0.36, -0.195)
+	t.add_child(pivot)
+	MeshKit.cyl(pivot, 0.012, 0.012, 0.03, Vector3(0, -0.015, 0), MeshKit.mat("chrome"), 10)
+	_register("whiskey", t, pivot, 0.34)
+	return t
+
+
+## The soda gun in its holster, its hose running down behind the bar.
+func _soda_gun(g: Node3D) -> Node3D:
+	var t := _station(g, "soft", "SodaGun")
+	MeshKit.box(t, Vector3(0.1, 0.02, 0.1), Vector3(0, 0.01, -0.12), MeshKit.mat("chrome"))
+	MeshKit.box(t, Vector3(0.02, 0.36, 0.02), Vector3(0, 0.18, -0.12), MeshKit.mat("chrome"))
+	var pivot := Node3D.new()
+	pivot.position = Vector3(0, 0.3, -0.16)
+	t.add_child(pivot)
+	MeshKit.box(pivot, Vector3(0.05, 0.05, 0.12), Vector3(0, 0.02, -0.03), MeshKit.color_mat(Color(0.12, 0.12, 0.13), 0.4))
+	for i in 3:
+		MeshKit.cyl(pivot, 0.007, 0.007, 0.01, Vector3(-0.015 + i * 0.015, 0.05, -0.04), MeshKit.color_mat([Color(0.8, 0.2, 0.2), Color(0.95, 0.85, 0.2), Color(0.2, 0.6, 0.9)][i], 0.4), 8)
+	MeshKit.cyl(t, 0.012, 0.012, 0.3, Vector3(0, 0.15, -0.05), MeshKit.color_mat(Color(0.15, 0.15, 0.15), 0.6), 8)
+	_register("soft", t, pivot, 0.29)
+	return t
 
 
 func _stout_tap(g: Node3D) -> void:

@@ -307,6 +307,15 @@ func _finish(score: float, verdict: String, notes: Array[String], glass_dirt: fl
 func _verdict(score: float, head: float, fill: float, head_band := HEAD_IDEAL) -> String:
 	if spilled > 0.06:
 		return "Messy, Spilled"
+	if serve in ["whiskey", "soda"]:
+		# no head to judge: just the measure or the fill
+		if fill < 0.9:
+			return "Short Measure" if serve == "whiskey" else "Underfilled"
+		if score >= 90.0:
+			return "Spot-on Measure" if serve == "whiskey" else "Perfect Fill"
+		if score >= 75.0:
+			return "Good Measure" if serve == "whiskey" else "Good Fill"
+		return "Sloppy Measure" if serve == "whiskey" else "Poor Fill"
 	if fill < 0.9:
 		return "Underfilled"
 	if head > head_band.y + 0.06:

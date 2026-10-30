@@ -229,7 +229,9 @@ func apply_graphics() -> void:
 # ------------------------------------------------------------------ interactables
 func _make_interactables() -> void:
 	var I := Interactable
-	I.make(self, PubLayout.RACK_POS + Vector3(0, 0.1, 0), "rack", _rack_prompt, _rack_action)
+	var rack := I.make(self, PubLayout.RACK_POS + Vector3(0, 0.1, 0), "rack", _rack_prompt, _rack_action)
+	rack.alt_prompt_fn = _tumbler_prompt
+	rack.alt_action_fn = func(): _rack_action("tumbler")
 	for id in info["taps"].keys():
 		var t: Dictionary = info["taps"][id]
 		var tap_id: String = id
@@ -267,7 +269,16 @@ func _rack_prompt() -> String:
 	return "Take a clean pint glass (%d)" % rack_clean
 
 
-func _rack_action() -> void:
+## Whiskey and lemonade go in a tumbler (the second button at the rack, once either is sold).
+func _tumbler_prompt() -> String:
+	if player.held != null or not player.dirty_stack.is_empty() or rack_clean <= 0:
+		return ""
+	if GameState.drink_available("whiskey") or GameState.drink_available("soft"):
+		return "Take a tumbler"
+	return ""
+
+
+func _rack_action(kind := "pint") -> void:
 	if player.held != null:
 		if player.held.contents.is_empty() and player.held.dirt < 0.1:
 			var g := player.release_glass()
@@ -278,7 +289,7 @@ func _rack_action() -> void:
 	if not player.dirty_stack.is_empty() or rack_clean <= 0:
 		return
 	rack_clean -= 1
-	var g := PintGlass.new()
+	var g := PintGlass.new(kind)
 	player.take_glass(g)
 	_refresh_rack()
 	Sfx.play("clink", -8.0)
@@ -294,7 +305,12 @@ func _tap_prompt(id: String) -> String:
 	var c := player.held.contents
 	if c.drink_id != "" and c.drink_id != id and not c.is_empty():
 		return _hint("That glass already has %s in it" % GameData.drink(c.drink_id).get("short", ""))
-	if GameState.serves_left(id) <= 0.02:
+	var want := str(GameData.drink(id).get("glass", "pint"))
+	if c.is_empty() and player.held.kind != want:
+		return _hint("%s goes in a %s glass" % [name, want])
+	if GameState.serves_left(id) <= 0.02 and int(GameState.stock.get(id, 0)) <= 0:
+		return _hint("Out of %s. Order more from the stock pile" % name)
+	if GameState.serves_left(id) <= 0.02 and str(GameData.drink(id).get("stock_unit", "keg")) in ["keg", "cask"]:
 		return _hint("%s keg is empty. Change it in the cellar" % name)
 	if id == "stout" and c.stage >= 2:
 		return "Top up the stout"
@@ -370,13 +386,19 @@ func _sink_action() -> void:
 		return
 	if player.held != null and player.held.dirt >= 0.1:
 		player.add_dirty(player.release_glass())
-	var g := player.pop_dirty()
+	var batch := 1 + int(GameState.get_mod("wash_batch"))    # the glass washer takes more than one
+	var g: PintGlass = null
+	for i in batch:
+		var gi := player.pop_dirty()
+		if gi == null:
+			break
+		g = gi
+		gi.queue_free()
+		rack_clean += 1
+		GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
+		GameState.bump_today("washed")
 	if g == null:
 		return
-	g.queue_free()
-	rack_clean += 1
-	GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
-	GameState.bump_today("washed")
 	_refresh_rack()
 	Sfx.play("squeak", -6.0)
 	Sfx.play("clink", -10.0)
@@ -1675,7 +1697,7 @@ func next_step() -> Dictionary:
 	var phase := GameState.phase
 	var sign_pos := PubLayout.DOOR_SIGN_POS
 	if phase == "prep":
-		for id in ["stout", "lager"]:
+		for id in PubLayout.KEG_POS.keys():
 			if GameState.drink_available(id) and GameState.serves_left(id) < 4.0 and int(GameState.stock.get(id, 0)) > 0:
 				return {"text": "Change the %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
 		return {"text": "Flip the sign by the front door to open up", "pos": sign_pos}
@@ -1732,16 +1754,19 @@ func next_step() -> Dictionary:
 			return {"text": "Take %s's order" % c.display_name, "pos": _above(c)}
 	if unpoured != null:
 		if rack_clean > 0:
-			return {"text": "Grab a clean glass for %s's %s" % [unpoured.display_name, GameData.drink(unpoured.drink_id).get("short", "")], "pos": PubLayout.RACK_POS}
+			var gk := str(GameData.drink(unpoured.drink_id).get("glass", "pint"))
+			return {"text": "Grab a clean %s for %s's %s" % ["tumbler" if gk == "tumbler" else "glass", unpoured.display_name, GameData.drink(unpoured.drink_id).get("short", "")], "pos": PubLayout.RACK_POS}
 		if not loose_glasses.is_empty():
 			return {"text": "Out of clean glasses! Collect empties to wash", "pos": loose_glasses[0].global_position}
 	if settling != null:
 		return {"text": "The stout is settling (%d%%). Top it up when it's dark" % int(settling.contents.settled_fraction() * 100.0), "pos": PubLayout.SETTLE_SLOTS[settling_i]}
-	for id in ["stout", "lager"]:
-		if GameState.drink_available(id) and GameState.serves_left(id) < 4.0:
-			if int(GameState.stock.get(id, 0)) > 0:
+	for id in GameState.available_drinks():
+		if GameState.serves_left(id) < 4.0:
+			var spare := int(GameState.stock.get(id, 0))
+			if spare > 0 and PubLayout.KEG_POS.has(id):
 				return {"text": "The %s keg's nearly out: change it in the cellar" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
-			return {"text": "Running low on %s: order more at the stock pile" % GameData.drink(id).get("short", id), "pos": PubLayout.STOCK_PILE + Vector3(0, 0.7, 0)}
+			if spare <= 0:
+				return {"text": "Running low on %s: order more at the stock pile" % GameData.drink(id).get("short", id), "pos": PubLayout.STOCK_PILE + Vector3(0, 0.7, 0)}
 	var collector := GameState.staff_count("collector") > 0
 	if not collector and (loose_glasses.size() >= 2 or (rack_clean <= 2 and not loose_glasses.is_empty())):
 		var near := loose_glasses[0]

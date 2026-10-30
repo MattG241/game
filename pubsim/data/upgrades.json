@@ -1,134 +1,33 @@
 [
-  {
-    "id": "lamps",
-    "name": "Restore the Pendant Lamps",
-    "cost": 40,
-    "stage": 1,
-    "category": "Decor",
-    "desc": "Rewire and polish the old brass pendant lamps. Warm light over the bar and tables.",
-    "effects": {
-      "atmosphere": 8,
-      "tips_mult": 0.08
-    }
-  },
-  {
-    "id": "glasses_6",
-    "name": "Box of Pint Glasses",
-    "cost": 28,
-    "stage": 1,
-    "category": "Equipment",
-    "desc": "Six more nonic pint glasses on the rack. Fewer trips to the sink when it gets busy.",
-    "effects": {
-      "glasses": 6
-    }
-  },
-  {
-    "id": "chalkboard",
-    "name": "Hand-lettered Chalkboard",
-    "cost": 35,
-    "stage": 1,
-    "category": "Decor",
-    "desc": "A proper chalkboard by the door listing tonight's pours. Draws in passers-by.",
-    "effects": {
-      "arrival_mult": 0.08,
-      "atmosphere": 2
-    }
-  },
-  {
-    "id": "drip_tray",
-    "name": "Brass Drip Tray & Tap Polish",
-    "cost": 70,
-    "stage": 1,
-    "category": "Equipment",
-    "desc": "Clean lines, a polished font and a brass drip tray. Better beer quality and spills drain away.",
-    "effects": {
-      "beer_quality": 5,
-      "spill_mess_mult": -0.5
-    }
-  },
-  {
-    "id": "fireplace",
-    "name": "Light the Fireplace",
-    "cost": 60,
-    "stage": 1,
-    "category": "Decor",
-    "desc": "Sweep the chimney and keep a turf fire going. Locals linger longer, especially on rainy nights.",
-    "effects": {
-      "atmosphere": 10,
-      "rain_bonus": 0.15,
-      "stay_mult": 0.2
-    }
-  },
-  {
-    "id": "glasses_12",
-    "name": "Crate of Glassware",
-    "cost": 55,
-    "stage": 2,
-    "category": "Equipment",
-    "requires": "glasses_6",
-    "desc": "Twelve more pint glasses. Essential for busy weekend nights.",
-    "effects": {
-      "glasses": 12
-    }
-  },
-  {
-    "id": "paint",
-    "name": "Fresh Paint & Green Tiles",
-    "cost": 220,
-    "stage": 2,
-    "category": "Renovation",
-    "desc": "Strip the nicotine-yellow walls. Deep green tiles and cream plaster. The room feels bigger and cleaner.",
-    "effects": {
-      "atmosphere": 10,
-      "dirt_rate_mult": -0.3
-    }
-  },
-  {
-    "id": "dartboard",
-    "name": "Dartboard & Oche",
-    "cost": 120,
-    "stage": 2,
-    "category": "Games",
-    "desc": "A proper bristle board in a cabinet, a brass oche line and a lamp. Regulars love a game, and you can play them yourself.",
-    "effects": {
-      "arrival_mult": 0.06,
-      "atmosphere": 4,
-      "stay_mult": 0.1
-    }
-  },
-  {
-    "id": "snug_stage",
-    "name": "Snug Corner Stage",
-    "cost": 320,
-    "stage": 3,
-    "category": "Entertainment",
-    "desc": "Clear out the junk in the corner and build a low stage with stools for musicians. Unlocks trad sessions, singalongs and band nights.",
-    "effects": {
-      "atmosphere": 4
-    }
-  },
-  {
-    "id": "sound_system",
-    "name": "Small Sound System",
-    "cost": 380,
-    "stage": 3,
-    "category": "Entertainment",
-    "requires": "snug_stage",
-    "desc": "Two speakers and a little mixing desk. Music nights draw a bigger crowd.",
-    "effects": {
-      "event_draw": 0.3,
-      "utilities": 2
-    }
-  },
-  {
-    "id": "jukebox",
-    "name": "Restore the Jukebox",
-    "cost": 150,
-    "stage": 2,
-    "category": "Entertainment",
-    "desc": "Re-gild the old jukebox by the window and fix its lights and speaker. A glowing centrepiece that lifts the room.",
-    "effects": {
-      "atmosphere": 5
-    }
-  }
+  {"id": "lamps", "name": "Restore the Pendant Lamps", "cost": 40, "stage": 1, "category": "Decor", "desc": "Rewire and polish the old brass pendant lamps. Warm light over the bar and tables.", "effects": {"atmosphere": 8, "tips_mult": 0.08}, "min_rep": 0},
+  {"id": "glasses_6", "name": "Box of Pint Glasses", "cost": 28, "stage": 1, "category": "Equipment", "desc": "Six more nonic pint glasses on the rack. Fewer trips to the sink when it gets busy.", "effects": {"glasses": 6}, "min_rep": 0},
+  {"id": "chalkboard", "name": "Hand-lettered Chalkboard", "cost": 35, "stage": 1, "category": "Decor", "desc": "A proper chalkboard by the door listing tonight's pours. Draws in passers-by.", "effects": {"arrival_mult": 0.08, "atmosphere": 2}, "min_rep": 0},
+  {"id": "drip_tray", "name": "Brass Drip Tray & Tap Polish", "cost": 70, "stage": 1, "category": "Equipment", "desc": "Clean lines, a polished font and a brass drip tray. Better beer quality and spills drain away.", "effects": {"beer_quality": 5, "spill_mess_mult": -0.5}, "min_rep": 0},
+  {"id": "fireplace", "name": "Light the Fireplace", "cost": 60, "stage": 1, "category": "Decor", "desc": "Sweep the chimney and keep a turf fire going. Locals linger longer, especially on rainy nights.", "effects": {"atmosphere": 10, "rain_bonus": 0.15, "stay_mult": 0.2}, "min_rep": 0},
+  {"id": "glasses_12", "name": "Crate of Glassware", "cost": 55, "stage": 2, "category": "Equipment", "requires": "glasses_6", "desc": "Twelve more pint glasses. Essential for busy weekend nights.", "effects": {"glasses": 12}, "min_rep": 15},
+  {"id": "paint", "name": "Fresh Paint & Green Tiles", "cost": 220, "stage": 2, "category": "Renovation", "desc": "Strip the nicotine-yellow walls. Deep green tiles and cream plaster. The room feels bigger and cleaner.", "effects": {"atmosphere": 10, "dirt_rate_mult": -0.3}, "min_rep": 15},
+  {"id": "dartboard", "name": "Dartboard & Oche", "cost": 120, "stage": 2, "category": "Games", "desc": "A proper bristle board in a cabinet, a brass oche line and a lamp. Regulars love a game, and you can play them yourself.", "effects": {"arrival_mult": 0.06, "atmosphere": 4, "stay_mult": 0.1}, "min_rep": 15},
+  {"id": "snug_stage", "name": "Snug Corner Stage", "cost": 320, "stage": 3, "category": "Entertainment", "desc": "Clear out the junk in the corner and build a low stage with stools for musicians. Unlocks trad sessions, singalongs and band nights.", "effects": {"atmosphere": 4}, "min_rep": 30},
+  {"id": "sound_system", "name": "Small Sound System", "cost": 380, "stage": 3, "category": "Entertainment", "requires": "snug_stage", "desc": "Two speakers and a little mixing desk. Music nights draw a bigger crowd.", "effects": {"event_draw": 0.3, "utilities": 2}, "min_rep": 30},
+  {"id": "jukebox", "name": "Restore the Jukebox", "cost": 150, "stage": 2, "category": "Entertainment", "desc": "Re-gild the old jukebox by the window and fix its lights and speaker. A glowing centrepiece that lifts the room.", "effects": {"atmosphere": 5}, "min_rep": 15},
+  {"id": "soda_gun", "name": "Soda Gun", "cost": 60, "stage": 1, "category": "Bar", "desc": "A soda gun behind the bar for Brannock's lemonade. Drivers and families stop in too.", "effects": {"arrival_mult": 0.03}, "min_rep": 0},
+  {"id": "lager_tap", "name": "Lough Glas Lager Tap", "cost": 90, "stage": 1, "category": "Bar", "desc": "Put a lager on. A chrome font with a two-finger head: pour fast at an angle and straighten near the top.", "effects": {"arrival_mult": 0.06}, "min_rep": 0},
+  {"id": "photos", "name": "Old Photos of the Town", "cost": 50, "stage": 1, "category": "Decor", "desc": "Frame the old photos from the attic: the hurling team of '59, the harbour in the snow. People stop to look and stay to talk.", "effects": {"atmosphere": 3, "rep_gain": 0.2}, "min_rep": 0},
+  {"id": "flower_baskets", "name": "Hanging Flower Baskets", "cost": 65, "stage": 1, "category": "Decor", "desc": "Baskets of geraniums either side of the door. The street notices.", "effects": {"arrival_mult": 0.06}, "min_rep": 0},
+  {"id": "whiskey_optics", "name": "Ballyfinn Whiskey Optic", "cost": 120, "stage": 2, "category": "Bar", "desc": "An optic stand on the bar with a bottle of Ballyfinn 12. A tumbler goes up to the optic for one measure. Whiskey drinkers tip well.", "effects": {"tips_mult": 0.05}, "min_rep": 15},
+  {"id": "ale_pump", "name": "Red Fox Ale Hand Pump", "cost": 140, "stage": 2, "category": "Bar", "desc": "A proper beer engine with a turned oak handle. Long steady strokes for a full pint of red ale.", "effects": {"stay_mult": 0.05, "atmosphere": 2}, "min_rep": 15},
+  {"id": "drinks_fridge", "name": "Cider and Galagers Zero Taps", "cost": 160, "stage": 2, "category": "Bar", "desc": "Two more fonts: Orchard Gate draught cider and the alcohol-free Galagers Zero. Wider appeal, especially in summer.", "effects": {"arrival_mult": 0.06}, "min_rep": 15},
+  {"id": "line_cooler", "name": "Python Line Cooler", "cost": 180, "stage": 2, "category": "Equipment", "desc": "Chills the beer lines all the way to the font. Colder, crisper pints.", "effects": {"beer_quality": 4}, "min_rep": 15},
+  {"id": "card_reader", "name": "Card Reader at the Till", "cost": 90, "stage": 2, "category": "Equipment", "desc": "Tap to pay. People round up when it's that easy.", "effects": {"tips_mult": 0.06}, "min_rep": 15},
+  {"id": "brass_rail", "name": "Brass Foot Rail", "cost": 75, "stage": 2, "category": "Decor", "desc": "A polished brass rail along the foot of the bar. Somewhere to lean, so people linger.", "effects": {"tips_mult": 0.04, "stay_mult": 0.05}, "min_rep": 15},
+  {"id": "snug_curtains", "name": "Snug Curtains and Lamps", "cost": 85, "stage": 2, "category": "Decor", "desc": "Heavy velvet curtains and little brass lamps in the snug. The cosiest seats in the house.", "effects": {"atmosphere": 5, "stay_mult": 0.05}, "min_rep": 15},
+  {"id": "glass_washer", "name": "Under-counter Glass Washer", "cost": 260, "stage": 3, "category": "Equipment", "desc": "Washes two glasses at a time at the sink. A lifesaver on a busy night.", "effects": {"wash_batch": 1}, "min_rep": 30},
+  {"id": "glasses_24", "name": "Glass Shelf Extension", "cost": 110, "stage": 3, "category": "Equipment", "requires": "glasses_12", "desc": "Twelve more glasses and somewhere to put them.", "effects": {"glasses": 12}, "min_rep": 30},
+  {"id": "cellar_cooling", "name": "Cellar Cooling", "cost": 200, "stage": 3, "category": "Equipment", "desc": "A proper cooled cellar. Kegs stay fresh twice as long and pour better.", "effects": {"freshness_decay_mult": -0.5, "beer_quality": 3}, "min_rep": 30},
+  {"id": "big_screen", "name": "Big Screen for Match Days", "cost": 300, "stage": 3, "category": "Entertainment", "desc": "A screen over the fireplace for the hurling, the football and the rugby. Unlocks match days: the place fills and the roar when they score shakes the glasses.", "effects": {"atmosphere": 2}, "min_rep": 30},
+  {"id": "house_bodhran", "name": "A House Bodhrán", "cost": 90, "stage": 3, "category": "Entertainment", "requires": "snug_stage", "desc": "A goatskin drum and tipper kept behind the bar. When a session's on you can sit in and keep the beat yourself.", "effects": {"atmosphere": 2}, "min_rep": 30},
+  {"id": "stained_glass", "name": "Stained-glass Door Panel", "cost": 240, "stage": 3, "category": "Decor", "desc": "A Celtic knot in amber and green glass in the front door. Lovely in the evening light.", "effects": {"atmosphere": 6, "arrival_mult": 0.05}, "min_rep": 30},
+  {"id": "signwriting", "name": "Gold-leaf Signwriting", "cost": 280, "stage": 3, "category": "Renovation", "desc": "The pub's name re-done in gold leaf over the door by the last signwriter in the county.", "effects": {"arrival_mult": 0.1, "rep_gain": 0.3}, "min_rep": 30},
+  {"id": "beer_garden", "name": "Beer Garden Out Back", "cost": 600, "stage": 4, "category": "Renovation", "desc": "Clear the yard, lay flags, put out benches and heaters. Room for the overflow on a good night.", "effects": {"arrival_mult": 0.12, "stay_mult": 0.05}, "min_rep": 50},
+  {"id": "function_room", "name": "Function Room Upstairs", "cost": 900, "stage": 4, "category": "Renovation", "requires": "sound_system", "desc": "Open up the old function room for christenings, wakes and the GAA dinner dance. Live nights pull far bigger crowds.", "effects": {"event_draw": 0.3, "rep_gain": 0.5}, "min_rep": 50}
 ]

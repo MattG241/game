@@ -139,6 +139,24 @@ func _ready() -> void:
 					if not (b as Button).is_visible_in_tree():
 						continue
 					print("SUMMARY button '%s' at %s size %s visible_in_window=%s" % [(b as Button).text, b.global_position, b.size, get_viewport().get_visible_rect().has_point(b.global_position + b.size / 2)])
+			"stations", "stations_front":
+				for u in ["lager_tap", "ale_pump", "drinks_fridge", "whiskey_optics", "soda_gun"]:
+					GameState.upgrades[u] = 1
+				GameState.upgrades_changed.emit()
+				await _wait(0.5)
+				if w._cam_tween:
+					w._cam_tween.kill()
+				cam.fov = 60.0
+				if v == "stations":
+					cam.global_transform = Transform3D(Basis(), Vector3(-3.6, 1.65, -3.6)).looking_at(Vector3(-3.6, 1.2, -2.1), Vector3.UP)
+				else:
+					cam.global_transform = Transform3D(Basis(), Vector3(-3.4, 1.6, -0.3)).looking_at(Vector3(-3.8, 1.2, -2.1), Vector3.UP)
+				cam.current = true
+				main.hud.visible = false
+				await _wait(0.4)
+				await _shot(v)
+				main.hud.visible = true
+				w.player.camera.current = true
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

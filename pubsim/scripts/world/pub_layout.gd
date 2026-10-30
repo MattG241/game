@@ -13,7 +13,8 @@ const BACK_COUNTER_Z := -4.65
 const BACK_COUNTER_TOP := 0.95
 const PARTITION_X := 3.6
 
-const TAP_X := {"stout": -1.6, "lager": -2.3, "ale": -3.0, "soft": -0.9}
+## Every station sits along the bar top, served from behind (stout nearest the till end).
+const TAP_X := {"stout": -1.6, "lager": -2.3, "ale": -3.0, "cider": -3.7, "zero": -4.3, "whiskey": -5.0, "soft": -5.7}
 const TAP_Z := -2.08
 const SETTLE_SLOTS := [Vector3(-1.15, BAR_TOP, -2.2), Vector3(-0.85, BAR_TOP, -2.2), Vector3(-0.55, BAR_TOP, -2.2)]
 const RACK_POS := Vector3(-0.2, BACK_COUNTER_TOP, -4.62)
@@ -36,7 +37,8 @@ const QUEUE_POS := [Vector3(-0.5, 0.0, 0.4), Vector3(0.5, 0.0, 1.0), Vector3(-0.
 const CELLAR_DOOR := Vector3(-6.2, 0.0, -5.0)
 const CELLAR_MIN := Vector2(-7.0, -8.6)
 const CELLAR_MAX := Vector2(-3.8, -5.0)
-const KEG_POS := {"stout": Vector3(-6.5, 0.0, -6.0), "lager": Vector3(-6.5, 0.0, -6.8), "ale": Vector3(-6.5, 0.0, -7.6)}
+const KEG_POS := {"stout": Vector3(-6.5, 0.0, -6.0), "lager": Vector3(-6.5, 0.0, -6.8), "ale": Vector3(-6.5, 0.0, -7.6),
+	"cider": Vector3(-5.6, 0.0, -6.8), "zero": Vector3(-5.6, 0.0, -7.6)}
 const STOCK_PILE := Vector3(-4.6, 0.0, -7.8)
 
 const FIREPLACE := Vector3(-7.0, 0.0, 2.2)

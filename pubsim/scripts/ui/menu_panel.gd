@@ -154,7 +154,10 @@ func _text(parent: Node, t: String, size := 22, color := UITheme.CREAM) -> Label
 
 # ------------------------------------------------------------------ upgrades
 func _upgrades() -> void:
-	_text(content, "Cash: €%.2f   ·   Upgrades change the pub you can see and how it runs." % GameState.cash, 22, UITheme.GOLD)
+	_text(content, "Cash: €%.2f   ·   Reputation %d: %s" % [GameState.cash, int(GameState.reputation), GameState.rep_tier()], 22, UITheme.GOLD)
+	var nt := GameState.next_rep_tier()
+	if not nt.is_empty():
+		_text(content, "At reputation %d the pub becomes \"%s\" and bigger upgrades open up. Good pints, happy regulars and busy nights all help." % [int(nt[0]), nt[1]], 18, UITheme.MUTED)
 	var list := GameData.upgrades.duplicate()
 	list.sort_custom(func(a, b): return [int(GameState.has_upgrade(a["id"])), float(a["cost"])] < [int(GameState.has_upgrade(b["id"])), float(b["cost"])])
 	for u in list:
@@ -173,6 +176,8 @@ func _upgrades() -> void:
 		var req: String = u.get("requires", "")
 		if req != "" and not GameState.has_upgrade(req):
 			_text(info, "Requires: %s" % GameData.upgrade(req).get("name", req), 18, Color(1, 0.6, 0.5))
+		if not owned and GameState.reputation < float(u.get("min_rep", 0)):
+			_text(info, "Needs reputation %d (the pub has to be \"%s\")" % [int(u["min_rep"]), _tier_name(float(u["min_rep"]))], 18, Color(1, 0.6, 0.5))
 		var id: String = u["id"]
 		if owned:
 			var l := UITheme.label("Owned", 24, Color(0.6, 0.95, 0.6))
@@ -253,12 +258,21 @@ func _staff() -> void:
 		h.add_child(b)
 
 
+func _tier_name(rep: float) -> String:
+	var t := ""
+	for r in GameState.REP_TIERS:
+		if rep >= float(r[0]):
+			t = str(r[1])
+	return t
+
+
 func _effects_text(e: Dictionary) -> String:
 	var names := {
 		"atmosphere": "Atmosphere +%d", "tips_mult": "Tips +%d%%", "glasses": "+%d glasses", "arrival_mult": "Footfall +%d%%",
 		"beer_quality": "Pint quality +%d", "rain_bonus": "Rainy-night trade +%d%%", "stay_mult": "Customers linger +%d%%",
 		"dirt_rate_mult": "Stays cleaner", "spill_mess_mult": "Spills drain away", "capacity": "+%d seats",
-		"freshness_decay_mult": "Kegs stay fresh longer", "event_draw": "Event crowds +%d%%", "rep_gain": "Reputation +%d/day",
+		"freshness_decay_mult": "Kegs stay fresh longer", "event_draw": "Event crowds +%d%%", "rep_gain": "Reputation grows faster",
+		"wash_batch": "Washes %d more glass at a time",
 	}
 	var parts := []
 	for k in e.keys():
