@@ -9,7 +9,7 @@ and have tests.
   bottled cider over ice, whiskey optic, soda gun), queue polish, more upgrades, glasswasher.
 - **Phase 3:** live trad music nights with booking, musicians and crowd draw; bodhrán rhythm game;
   darts against regulars; the "Split the G" precision drinking challenge; your own after-shift pint.
-- **Phase 4:** staff hiring (bartender, glass collector), food (toasties, stew), furniture placement
+- **Phase 4:** staff hiring (bartender, glass collector: done in 0.2.0), food (toasties, stew), furniture placement
   with snap points, room expansions, events, objectives.
 - **Second pass (done):** GALAGERS brand everywhere, Split the G scoring on the measured G, paced
   orders with caps and difficulty modes, ElevenLabs voices and effects (offline), realism pass,

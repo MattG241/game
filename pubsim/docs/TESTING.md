@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **245 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **288 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -22,6 +22,9 @@
 | **First-person hand** (new) | Pass | shown while holding a glass, hidden otherwise |
 | **Graphics presets** (new) | Pass | old Low/Medium settings map to Performance/Balanced; Ultra turns on 4x MSAA and shadows; Performance lowers resolution, shadows and crowd size; 30 FPS mode caps the frame rate |
 | **Camera handover** (new, regression) | Pass | a close-up started straight after another keeps its camera, and the view returns to you afterwards |
+| **Audio mix** (new) | Pass | rain plays on its own low-passed weather bus feeding the room; voices are louder than the weather by default; the room and rain dip at least 4 dB while someone speaks and come back afterwards |
+| **Hired staff** (new) | Pass | hiring rules (reputation, room per role, no double hire); staff arrive on their own models; with the player away from the bar, a novice bartender takes orders, pours and serves on their own (pints average 79); customers a bartender is seeing to aren't offered to the player; the glass collector picks up, washes and wipes spills; no glass lost or made; let-go staff leave their glasses by the sink; wages and save |
+| **Next step, goals and streaks** (new) | Pass | overnight glasses don't skip the tutorial; the guide points at the sign before opening, then take order, grab a glass and pour in turn, then cash up at close; the gold marker shows when away; three daily goals pay out when met; a streak grows tips; the summary lists goals and looks ahead |
 | APK export | CI | signed arm64 APK, signature verified, published as a Release |
 
 ## Queue and difficulty: old vs new

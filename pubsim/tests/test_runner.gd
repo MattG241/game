@@ -25,13 +25,16 @@ func _log(s: String) -> void:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	if OS.get_environment("ONLY") == "staff":
+	if OS.get_environment("ONLY") in ["staff", "flow"]:
 		# quick run of one section while working on it
 		GameState.delete_save()
 		main = load("res://scripts/main.gd").new()
 		add_child(main)
 		await _frames(5)
-		await _test_staff()
+		if OS.get_environment("ONLY") == "flow":
+			await _test_flow()
+		else:
+			await _test_staff()
 		_log("RESULT: %d passed, %d failed" % [passed, failed])
 		get_tree().quit(0 if failed == 0 else 1)
 		return
@@ -437,6 +440,7 @@ func _test_loop() -> void:
 	await _test_voices_and_people(main.world)
 	await _test_queue_balance()
 	await _test_staff()
+	await _test_flow()
 
 
 func _test_voices_and_people(w: World) -> void:
@@ -1169,3 +1173,97 @@ func _test_staff() -> void:
 	GameState._reset()
 	GameState.load_game()
 	check(GameState.is_hired("ciaran") and GameState.staff.size() == 1, "staff are kept in the save")
+
+
+# ------------------------------------------------------------------ guidance, goals, streaks
+func _stout_for(w: World, c: Customer) -> PintGlass:
+	var g := PintGlass.new()
+	var con := g.contents
+	con.drink_id = c.drink_id
+	con.serve = str(GameData.drink(c.drink_id).get("serve", "stout"))
+	if con.serve == "stout":
+		con.stage = 3
+		con.first_pour_level = 0.75
+		con.angle_sum = 45.0
+		con.angle_vol = 1.0
+		con.topup_cascade = 0.05
+		con.body = 0.88
+		con.foam = 0.13
+	else:
+		con.body = 0.9
+		con.foam = 0.09
+	w.add_child(g)
+	w.rack_clean -= 1
+	return g
+
+
+func _test_flow() -> void:
+	_log("== Integration: what to do next, daily goals and streaks ==")
+	main.quit_to_title()
+	await _frames(3)
+	GameState.delete_save()
+	main.start_new("career", "Flow test")
+	await _frames(3)
+	GameState.tutorial["dirty_overnight"] = 3
+	main.start_world()
+	await _frames(10)
+	var w: World = main.world
+	check(w.loose_glasses.size() == 3 and w.tutorial_step <= 1, "last night's glasses don't skip the tutorial ahead (step %d)" % w.tutorial_step)
+	var step := w.next_step()
+	check(str(step["text"]).contains("sign") and step.has("pos"), "before opening, the guide points at the door sign")
+	var goals := GameState.daily_goals()
+	check(goals.size() == 3 and goals[0]["id"] == "serve", "three goals for the day, starting with a serving target")
+	check(GameState.daily_goals() == goals, "the day's goals stay the same once set")
+	await _frames(40)
+	check(main.hud.next_label.text.begins_with("Next:") and main.hud.goals_box.get_child_count() == 4, "the HUD shows the next step and today's goals")
+	w.player.global_position = Vector3(-5.5, 0, 1.5)
+	await _frames(30)
+	check(w.guide_marker.visible, "a gold marker floats over what to do next")
+	w.player.global_position = PubLayout.PLAYER_START
+	w._sign_action()
+	var ok := await _wait_until(func(): return w.customers.any(func(x): return x.state == "wait_order"), 40.0)
+	var c: Customer = null
+	for x in w.customers:
+		if x.state == "wait_order":
+			c = x
+	check(ok and str(w.next_step()["text"]).begins_with("Take %s" % c.display_name), "a customer at the bar: take their order")
+	w._customer_action(c)
+	check(str(w.next_step()["text"]).begins_with("Grab a clean glass"), "order taken: grab a glass")
+	w._rack_action()
+	check(str(w.next_step()["text"]).begins_with("Pour"), "glass in hand: pour at the tap")
+	w.player.release_glass().queue_free()
+	w.rack_clean += 1
+	# a good pint starts a streak, and the serving goal pays out when it's reached
+	var g0: Dictionary = goals[0]
+	GameState.today["served"] = int(g0["target"]) - 1
+	var cash0 := GameState.cash
+	c.tip_mult = 1.0
+	c.patience = c.patience_max
+	var res := w.serve_customer(c, _stout_for(w, c))
+	check(res.get("ok", false) and w.streak == 1 and int(res["streak"]) == 1, "a good pint starts a streak")
+	GameState.check_goals()
+	check(g0["done"] and GameState.cash > cash0 + float(res["price"]) + float(g0["reward"]) - 0.01, "reaching a goal pays its reward (€%d)" % int(g0["reward"]))
+	w.streak = 4
+	var c2 := w.spawn_customer()
+	c2.drink_id = "stout"
+	c2.state = "wait_drink"
+	c2.tip_mult = 1.0      # same customer generosity and wait, so only the streak differs
+	c2.patience = c2.patience_max
+	var res2 := w.serve_customer(c2, _stout_for(w, c2))
+	check(w.streak == 5 and int(GameState.today.get("best_streak", 0)) >= 5, "the streak keeps count (%d)" % w.streak)
+	check(float(res2.get("tip", 0.0)) > float(res.get("tip", 0.0)), "a longer streak means bigger tips (€%.2f vs €%.2f)" % [float(res2.get("tip", 0.0)), float(res.get("tip", 0.0))])
+	# the end-of-day summary reports the goals and looks ahead
+	GameState.hour = 24.9
+	GameState.phase = "closing"
+	for cc in w.customers.duplicate():
+		cc.leave()
+	await _wait_until(func(): return w.customers.is_empty(), 60.0)
+	check(str(w.next_step()["text"]).contains("cash up"), "everyone gone: the guide says to cash up")
+	w.close_day()
+	await _frames(3)
+	var texts := []
+	for n in main.hud.menu.content.find_children("*", "Label", true, false):
+		texts.append((n as Label).text)
+	var all := "\n".join(texts)
+	check(all.contains("Today's goals") and all.contains("Done"), "the day's summary lists the goals met")
+	check(all.contains("Looking ahead"), "and what to aim for tomorrow")

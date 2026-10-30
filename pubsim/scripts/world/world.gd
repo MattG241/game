@@ -51,6 +51,11 @@ var _door_anim := 0.0
 var _church_rung := -1
 var _fire_audio: AudioStreamPlayer3D
 var _nav_ready := false
+var streak := 0                   # good pints in a row from the player (tips grow with it)
+var _restoring := false
+var guide_marker: MeshInstance3D  # floats over whatever to do next
+var _guide_t := 0.0
+var _guide: Dictionary = {}
 
 
 func _ready() -> void:
@@ -85,8 +90,11 @@ func _ready() -> void:
 	settle_slots.resize(PubLayout.SETTLE_SLOTS.size())
 	rack_clean = GameState.glasses_total() - int(GameState.tutorial.get("dirty_overnight", 0))
 	rack_clean = clampi(rack_clean, 0, GameState.glasses_total())
+	_restoring = true      # last night's glasses shouldn't skip the tutorial ahead
 	_restore_overnight_dirty()
+	_restoring = false
 	_make_interactables()
+	_build_guide_marker()
 	apply_upgrades()
 	_refresh_rack()
 	GameState.upgrades_changed.connect(_on_upgrades_changed)
@@ -107,6 +115,7 @@ func _ready() -> void:
 	add_child(live)
 	GameState.upgrade_bought.connect(_on_upgrade_bought)
 	GameState.award_earned.connect(func(_id): voices.speak(null, "landlord", "milestone", true))
+	GameState.goal_done.connect(_on_goal_done)
 	MusicDirector.set_screen("world")
 	MusicDirector.context["milestone"] = false
 	await get_tree().physics_frame
@@ -340,11 +349,11 @@ func free_settle_slot() -> int:
 
 func _sink_prompt() -> String:
 	if not player.dirty_stack.is_empty():
-		return "Hold to wash a glass (%d dirty)" % player.dirty_stack.size()
+		return "Wash a glass (%d dirty)" % player.dirty_stack.size()
 	if player.held != null and not player.held.contents.is_empty():
 		return "Pour it away"
 	if player.held != null and player.held.dirt >= 0.1:
-		return "Hold to wash this glass"
+		return "Wash this glass"
 	return ""
 
 
@@ -367,6 +376,7 @@ func _sink_action() -> void:
 	g.queue_free()
 	rack_clean += 1
 	GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
+	GameState.bump_today("washed")
 	_refresh_rack()
 	Sfx.play("squeak", -6.0)
 	Sfx.play("clink", -10.0)
@@ -758,6 +768,7 @@ func staff_wash(_st: StaffMember, g: PintGlass) -> void:
 	g.queue_free()
 	rack_clean += 1
 	GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
+	GameState.bump_today("washed")
 	_refresh_rack()
 	Sfx.play_at("squeak", PubLayout.SINK_POS, self, -10.0)
 	Sfx.play_at("clink", PubLayout.SINK_POS, self, -12.0)
@@ -1095,6 +1106,7 @@ func on_customer_at_bar(c: Customer) -> void:
 
 func on_walkout(c: Customer) -> void:
 	if c.served_count == 0:
+		streak = 0
 		GameState.today["walkouts"] = int(GameState.today["walkouts"]) + 1
 		GameState.stats["walkouts"] = int(GameState.stats["walkouts"]) + 1
 		notify("%s gave up waiting and left." % c.display_name, "bad")
@@ -1151,6 +1163,11 @@ func _customer_action(c: Customer) -> void:
 				if not chat.is_empty():
 					c.speak("chatter", chat[_rng.randi() % chat.size()], 5.0, Color(1, 0.97, 0.9), true)
 					_relationship(c.regular_id, 1, true)
+					var chatted: Array = GameState.today.get("chatted", [])
+					if not chatted.has(c.regular_id):
+						chatted.append(c.regular_id)
+						GameState.today["chatted"] = chatted
+						GameState.today["chats"] = chatted.size()
 
 
 ## Hands a glass to a waiting customer: scores it, takes payment and tips.
@@ -1187,6 +1204,13 @@ func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictio
 	elif q >= 60:
 		tip_rate = 0.05
 	tip_rate *= c.tip_mult * (1.0 + GameState.get_mod("tips_mult") + GameState.live_tips) * (0.6 + wait_score * 0.4) * (0.5 + fair * 0.5)
+	if by == null:
+		# a run of good pints gets the bar talking: tips grow with the streak
+		streak = streak + 1 if q >= 75 else 0
+		GameState.today["best_streak"] = maxi(int(GameState.today.get("best_streak", 0)), streak)
+		tip_rate *= 1.0 + minf(streak, 10) * 0.03
+		if q >= 90:
+			GameState.bump_today("perfect")
 	var tip := snappedf(price * tip_rate, 0.1)
 	GameState.earn(price, "sales")
 	GameState.earn(tip, "tips")
@@ -1226,6 +1250,9 @@ func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictio
 	res["satisfaction"] = sat
 	res["customer"] = c.display_name
 	res["by"] = by.display_name if by else ""
+	res["streak"] = streak if by == null else 0
+	if by == null and streak in [3, 5, 10, 15, 20]:
+		notify("On a roll! %d good pints in a row. Tips +%d%%" % [streak, int(minf(streak, 10) * 3)], "good")
 	served.emit(res)
 	if by:
 		GameState.today["staff_served"] = int(GameState.today.get("staff_served", 0)) + 1
@@ -1410,6 +1437,8 @@ func _process(delta: float) -> void:
 		_award_t = 2.0
 		if not in_minigame():
 			_check_awards()
+			GameState.check_goals()
+	_update_guide(delta)
 
 
 func _last_orders() -> void:
@@ -1452,9 +1481,16 @@ func close_day() -> void:
 	if live:
 		live.stop_now()
 	var finished_day := GameState.day
+	GameState.check_goals(true)
+	var goals: Array = GameState.daily_goals().duplicate(true)
+	var best_streak := int(GameState.today.get("best_streak", 0))
+	var staff_served := int(GameState.today.get("staff_served", 0))
 	var sang := bool(GameState.today.get("singalong", false))
 	var summary := GameState.end_day()
 	summary["milestone"] = finished_day in [1, 3, 7, 14, 21, 30, 50, 75, 100] or sang
+	summary["goals"] = goals
+	summary["best_streak"] = best_streak
+	summary["staff_served"] = staff_served
 	MusicDirector.context["milestone"] = summary["milestone"]
 	if hud:
 		hud.show_day_summary(summary)
@@ -1576,6 +1612,155 @@ func _refresh_stock_pile() -> void:
 			i += 1
 
 
+# ------------------------------------------------------------------ what to do next
+func _on_goal_done(g: Dictionary) -> void:
+	notify("Goal complete: %s  +€%d" % [g["text"], int(g["reward"])], "good")
+	Sfx.play("coins", -4.0)
+	if hud and hud.has_method("refresh_goals"):
+		hud.refresh_goals()
+
+
+func _build_guide_marker() -> void:
+	guide_marker = MeshInstance3D.new()
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.1
+	cone.bottom_radius = 0.0
+	cone.height = 0.22
+	cone.radial_segments = 12
+	cone.rings = 1
+	guide_marker.mesh = cone
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.78, 0.25)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.no_depth_test = true          # seen through the bar and the crowd
+	m.render_priority = 10
+	guide_marker.material_override = m
+	guide_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	guide_marker.visible = false
+	add_child(guide_marker)
+
+
+func _update_guide(delta: float) -> void:
+	_guide_t -= delta
+	if _guide_t <= 0.0:
+		_guide_t = 0.4
+		_guide = next_step()
+	if guide_marker == null:
+		return
+	var on: bool = bool(GameState.settings.get("show_guide", true)) and _guide.has("pos") and not in_minigame() \
+		and not (pour and pour.active)
+	if on:
+		var at: Vector3 = _guide["pos"]
+		on = Vector2(at.x - player.global_position.x, at.z - player.global_position.z).length() > 1.3
+		var bob := sin(run_time * 3.0) * 0.05
+		guide_marker.global_position = at + Vector3(0, 0.32 + bob, 0)
+		guide_marker.rotation.y += delta * 1.5
+		var mat := guide_marker.material_override as StandardMaterial3D
+		mat.albedo_color.a = 0.65 + sin(run_time * 3.0) * 0.25
+	guide_marker.visible = on
+
+
+func _tap_spot(id: String) -> Vector3:
+	var t: Dictionary = info["taps"].get(id, {})
+	return (t["glass"] as Vector3) + Vector3(0, 0.25, 0) if not t.is_empty() else Vector3(PubLayout.TAP_X.get(id, -1.0), PubLayout.BAR_TOP, PubLayout.TAP_Z)
+
+
+func _above(c: Node3D) -> Vector3:
+	return c.global_position + Vector3(0, 1.85, 0)
+
+
+## The single most useful thing for the player to do now: {"text": ..., "pos": where (optional)}.
+func next_step() -> Dictionary:
+	var phase := GameState.phase
+	var sign_pos := PubLayout.DOOR_SIGN_POS
+	if phase == "prep":
+		for id in ["stout", "lager"]:
+			if GameState.drink_available(id) and GameState.serves_left(id) < 4.0 and int(GameState.stock.get(id, 0)) > 0:
+				return {"text": "Change the %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
+		return {"text": "Flip the sign by the front door to open up", "pos": sign_pos}
+	if phase in ["last_orders", "closing"] and customers.is_empty():
+		return {"text": "Everyone's gone home: flip the sign to cash up", "pos": sign_pos}
+	var held := player.held
+	var mine: Array = []          # customers waiting on a drink from the player
+	for c in customers:
+		if c.state == "wait_drink" and staff_serving(c) == null:
+			mine.append(c)
+	mine.sort_custom(func(a, b): return a.patience_frac() < b.patience_frac())
+	var needs := func(drink: String) -> Customer:
+		for c in mine:
+			if c.drink_id == drink:
+				return c
+		return null
+	if held != null and not held.contents.is_empty():
+		var hc := held.contents
+		if hc.serve == "stout" and hc.stage == 2:
+			return {"text": "Top up the stout at the tap", "pos": _tap_spot(hc.drink_id)}
+		var who: Customer = needs.call(hc.drink_id)
+		if who != null:
+			return {"text": "Serve %s their %s" % [who.display_name, GameData.drink(hc.drink_id).get("short", "")], "pos": _above(who)}
+		return {"text": "Nobody's waiting on that one: pour it away at the sink", "pos": PubLayout.SINK_POS}
+	# pints on the drip tray
+	var settling: PintGlass = null
+	var settling_i := -1
+	for i in settle_slots.size():
+		var g: PintGlass = settle_slots[i]
+		if g != null:
+			if g.contents.settled_fraction() >= 0.99 and player.has_hands_free():
+				return {"text": "Pick up the settled stout and top it up", "pos": PubLayout.SETTLE_SLOTS[i]}
+			settling = g
+			settling_i = i
+	if not player.dirty_stack.is_empty():
+		return {"text": "Wash the empties at the sink (%d)" % player.dirty_stack.size(), "pos": PubLayout.SINK_POS}
+	var covered := {}
+	for g in settle_slots:
+		if g != null:
+			covered[g.contents.drink_id] = int(covered.get(g.contents.drink_id, 0)) + 1
+	var unpoured: Customer = null
+	for c in mine:
+		if int(covered.get(c.drink_id, 0)) > 0:
+			covered[c.drink_id] = int(covered[c.drink_id]) - 1
+		elif unpoured == null:
+			unpoured = c
+	if held != null:
+		if unpoured != null:
+			return {"text": "Pour %s's %s at the tap" % [unpoured.display_name, GameData.drink(unpoured.drink_id).get("short", "")], "pos": _tap_spot(unpoured.drink_id)}
+		if mine.is_empty():
+			return {"text": "Take an order, or put the glass back on the rack", "pos": PubLayout.RACK_POS}
+	for c in customers:
+		if c.state == "wait_order" and staff_serving(c) == null:
+			return {"text": "Take %s's order" % c.display_name, "pos": _above(c)}
+	if unpoured != null:
+		if rack_clean > 0:
+			return {"text": "Grab a clean glass for %s's %s" % [unpoured.display_name, GameData.drink(unpoured.drink_id).get("short", "")], "pos": PubLayout.RACK_POS}
+		if not loose_glasses.is_empty():
+			return {"text": "Out of clean glasses! Collect empties to wash", "pos": loose_glasses[0].global_position}
+	if settling != null:
+		return {"text": "The stout is settling (%d%%). Top it up when it's dark" % int(settling.contents.settled_fraction() * 100.0), "pos": PubLayout.SETTLE_SLOTS[settling_i]}
+	for id in ["stout", "lager"]:
+		if GameState.drink_available(id) and GameState.serves_left(id) < 4.0:
+			if int(GameState.stock.get(id, 0)) > 0:
+				return {"text": "The %s keg's nearly out: change it in the cellar" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
+			return {"text": "Running low on %s: order more at the stock pile" % GameData.drink(id).get("short", id), "pos": PubLayout.STOCK_PILE + Vector3(0, 0.7, 0)}
+	var collector := GameState.staff_count("collector") > 0
+	if not collector and (loose_glasses.size() >= 2 or (rack_clean <= 2 and not loose_glasses.is_empty())):
+		var near := loose_glasses[0]
+		for g in loose_glasses:
+			if g.global_position.distance_to(player.global_position) < near.global_position.distance_to(player.global_position):
+				near = g
+		return {"text": "Collect the empty glasses (%d out)" % loose_glasses.size(), "pos": near.global_position}
+	if not collector and not spills.is_empty():
+		return {"text": "Wipe up the spill", "pos": spills[0].global_position}
+	if phase == "open" and customers.is_empty():
+		return {"text": "Quiet for now: customers will be in soon"}
+	if phase != "open":
+		return {"text": "Last orders: see the last few out the door"}
+	for c in customers:
+		if c.regular_id != "" and c.state in ["drinking", "stand_drink"] and not GameState.today.get("chatted", []).has(c.regular_id):
+			return {"text": "All in hand. Have a chat with %s" % c.display_name, "pos": _above(c)}
+	return {"text": "All in hand. Throw some darts or have a pint by the fire"}
+
+
 # ------------------------------------------------------------------ tutorial & messages
 func notify(text: String, kind := "info") -> void:
 	GameState.notify(text, kind)
@@ -1587,7 +1772,7 @@ func subtitle(who: String, text: String, c: Node3D) -> void:
 
 
 func _tutorial_event(ev: String) -> void:
-	if GameState.tutorial.get("done", false):
+	if GameState.tutorial.get("done", false) or _restoring:
 		return
 	var steps := {
 		"start": "Welcome to The Crooked Shamrock! Walk round the end of the bar to the front door and flip the sign to OPEN.",
@@ -1598,7 +1783,7 @@ func _tutorial_event(ev: String) -> void:
 		"settle": "While it settles you can serve, wash glasses or wait. Pick it up when it's dark, then top it up at the tap.",
 		"served": "Paid! Earnings go in the till. Open the menu (top right) to buy your first upgrade when you can afford it.",
 		"dirty": "Customers leave empty glasses behind. Collect them and wash them at the sink beside the rack.",
-		"washed": "Clean glass back on the rack. That's the loop. Close up after midnight to finish the day.",
+		"washed": "Clean glass back on the rack. That's the loop! The gold marker always shows what to do next. At midnight everyone heads home: then flip the sign again to cash up.",
 	}
 	var order := ["start", "opened", "customer_at_bar", "order", "glass", "settle", "served", "dirty", "washed"]
 	var idx := order.find(ev)

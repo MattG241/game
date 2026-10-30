@@ -627,6 +627,7 @@ func _settings() -> void:
 	_toggle("Invert look up/down", "invert_look")
 	_toggle("Vibration", "vibration")
 	_toggle("Pour assist (auto-tilts the glass; you still control the tap)", "pour_assist")
+	_toggle("Show what to do next (gold marker and the Next line)", "show_guide")
 	_text(content, "Audio", 26, UITheme.GOLD)
 	_slider("Master", "vol_master", 0.0, 1.0, 0.05)
 	_slider("Music", "vol_music", 0.0, 1.0, 0.05)
@@ -696,6 +697,34 @@ func _game() -> void:
 
 
 # ------------------------------------------------------------------ end of day
+## A few pointers for tomorrow: what can be bought now, who could be hired, what's running low.
+func _tomorrow_hints() -> Array:
+	var out := []
+	var afford := []
+	for u in GameData.upgrades:
+		if not GameState.has_upgrade(u["id"]) and GameState.can_buy_upgrade(u["id"]):
+			afford.append(u)
+	if not afford.is_empty():
+		afford.sort_custom(func(a, b): return float(a["cost"]) > float(b["cost"]))
+		out.append("You can afford %d upgrade%s, like %s (€%d). Menu → Upgrades." % [afford.size(), "" if afford.size() == 1 else "s", afford[0]["name"], int(afford[0]["cost"])])
+	var next_staff: Dictionary = {}
+	for c in GameData.staff_pool:
+		var why := GameState.hire_block(str(c["id"]))
+		if why == "" and GameState.staff.is_empty():
+			out.append("%s is looking for work (€%d a night). Menu → Staff." % [c["name"], int(c["wage"])])
+			break
+		if why.begins_with("Needs reputation") and (next_staff.is_empty() or float(c["min_rep"]) < float(next_staff["min_rep"])):
+			next_staff = c
+	if not next_staff.is_empty():
+		out.append("At reputation %d, %s will come and work for you." % [int(next_staff["min_rep"]), next_staff["name"]])
+	for id in ["stout", "lager"]:
+		if GameState.drink_available(id):
+			var serves := GameState.serves_left(id) + float(GameState.stock.get(id, 0)) * float(GameData.drink(id).get("units_per_stock", 80))
+			if serves < 25.0:
+				out.append("Only %d %s left in the cellar. Order more from the stock pile." % [int(serves), GameData.drink(id).get("short", id)])
+	return out
+
+
 func show_summary(s: Dictionary) -> void:
 	_summary_mode = true
 	visible = true
@@ -717,7 +746,28 @@ func show_summary(s: Dictionary) -> void:
 	_text(v, "Profit today: €%.2f" % profit, 30, Color(0.6, 1, 0.6) if profit >= 0 else Color(1, 0.6, 0.5))
 	_text(v, "Cost of drinks sold €%.2f · Gross margin €%.2f · Wasted %.1f serves" % [float(s["cogs"]), float(s["gross_margin"]), float(s["wasted"])], 20, UITheme.MUTED)
 	_text(v, "Served %d · Walk-outs %d · Avg satisfaction %d%% · Avg quality %d" % [int(s["served"]), int(s["walkouts"]), int(s["avg_satisfaction"]), int(s["avg_quality"])], 22)
+	var extras := []
+	if int(s.get("best_streak", 0)) >= 2:
+		extras.append("Best streak %d good pints" % int(s["best_streak"]))
+	if int(s.get("staff_served", 0)) > 0:
+		extras.append("Your staff served %d" % int(s["staff_served"]))
+	if not extras.is_empty():
+		_text(v, " · ".join(extras), 22)
 	_text(v, "Reputation %d (%+.1f) · Cash €%.2f" % [int(s["reputation"]), float(s["rep_change"]), float(s["cash"])], 22, UITheme.GOLD)
+	var goals: Array = s.get("goals", [])
+	if not goals.is_empty():
+		var gv := _card()
+		var met := goals.filter(func(g): return g["done"]).size()
+		_text(gv, "Today's goals: %d of %d" % [met, goals.size()], 26, UITheme.GOLD)
+		for g in goals:
+			_text(gv, ("Done   %s   +€%d" % [g["text"], int(g["reward"])]) if g["done"] else ("Missed   %s" % g["text"]),
+				22, Color(0.6, 0.95, 0.6) if g["done"] else Color(1, 0.7, 0.6))
+	var ahead := _tomorrow_hints()
+	if not ahead.is_empty():
+		var tv := _card()
+		_text(tv, "Looking ahead", 26, UITheme.GOLD)
+		for line in ahead:
+			_text(tv, line, 20)
 	_text(v, "Progress saved.", 20, Color(0.6, 0.9, 0.65))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 12)

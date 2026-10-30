@@ -153,6 +153,27 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
 - **Thick Irish accents**: lines were re-recorded one take per character with thick regional accent
   tags. This covers the old regular, the Cork local and most of the Dubliner's lines; the free credits
   ran out before the rest (see `docs/TESTING.md`). Voices also get a light room reverb.
+- **A mix you can hear people in**: rain and storms have their own muffled "through the windows"
+  bus and volume slider, set well below the room. The crowd murmur sits on the room bus. Whenever
+  someone speaks, the room and the weather dip 9 dB and the music dips further. A limiter on the
+  master stops peaks from clipping. Older settings are moved onto the new balance once.
+- **Hire staff** (Menu → Staff): five people are looking for work. Two of them want a pub with some
+  reputation first.
+  - Bar staff take the orders you aren't seeing to. They fetch a glass, pour with a hand on the tap
+    (stout gets its two-part pour and settle) and serve. Their skill sets their speed and how good
+    the pint is. Customers they're looking after aren't offered to you.
+  - A glass collector clears empties to the sink, washes them back onto the rack and wipes spills.
+  - Wages are paid at close. More bar staff means the pub can take more orders.
+- **Always know what to do next**: a "Next" line (top right) and a floating gold marker point at the
+  most useful thing to do. For example: open up, take Nora's order, grab a glass, pour, top up the
+  settled stout, serve, wash the empties, change the keg, or chat with a regular when it's quiet.
+  It can be turned off in Settings.
+- **Daily goals and streaks**: three goals a day pay cash when you meet them (serve 8 drinks, pour
+  two 90+ pints, nobody walks out...). Good pints in a row build a streak that adds up to +30% on
+  tips. The end-of-day summary shows the goals and looks ahead: what you can afford, who you could
+  hire, and what's running low.
+- **Tutorial fixes**: last night's empty glasses no longer skip the tutorial ahead. Tips sit low in
+  the middle of the screen, clear of the status panel. The sink prompt no longer says "hold".
 
 ## The soundtrack: who plays what
 | # | Song | When it plays |
@@ -188,7 +209,7 @@ The songs are MP3s, kept exactly as supplied and loaded only when needed; they'r
 than all at once, and the APK carries them for offline play.
 
 Planned next (not claimed): lager/ale/cider/spirits serving mechanics, the bodhrán rhythm game,
-staff, food, furniture placement and room expansions. See `docs/ROADMAP.md`.
+food, furniture placement and room expansions. See `docs/ROADMAP.md`.
 
 ## Signing (for consistent updates)
 The CI workflow derives the release keystore from **one** repository secret so every build has the

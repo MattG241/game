@@ -63,6 +63,7 @@ var settings: Dictionary = {
 	"reduced_motion": false,
 	"reduced_effects": false,
 	"pour_assist": false,
+	"show_guide": true,
 	"day_length": 10,
 	"show_fps": false,
 	"subtitles": true,
@@ -350,6 +351,74 @@ func open_pub() -> void:
 	if phase == "prep":
 		phase = "open"
 		hour = maxf(hour, float(GameData.econ("day_open_hour", 16.0)))
+
+
+# ------------------------------------------------------------------ daily goals
+signal goal_done(goal: Dictionary)
+
+
+## Today's three goals (always a serving target plus two others), made the first time they're asked for.
+func daily_goals() -> Array:
+	if today.has("goals"):
+		return today["goals"]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(day * 104729 + 17)
+	var always: Array = []
+	var others: Array = []
+	for o in GameData.objectives:
+		if bool(o.get("always", false)):
+			always.append(o)
+		elif not (str(o["id"]) == "chat" and day <= 1):
+			others.append(o)
+	for i in range(others.size() - 1, 0, -1):
+		var j := rng.randi() % (i + 1)
+		var t: Variant = others[i]
+		others[i] = others[j]
+		others[j] = t
+	var goals: Array = []
+	for o in always + others.slice(0, 3 - always.size()):
+		var target := 0
+		if o.has("base"):
+			target = mini(int(round(float(o["base"]) + float(o.get("per_day", 0)) * (day - 1))), int(o.get("max", 99)))
+		var text := str(o["text"])
+		goals.append({"id": o["id"], "text": text % target if text.contains("%d") else text, "stat": o["stat"],
+			"kind": o.get("kind", "count"), "target": target, "min_served": int(o.get("min_served", 0)),
+			"reward": float(o.get("reward", 10)), "done": false})
+	today["goals"] = goals
+	return goals
+
+
+## Where a goal's counter stands today.
+func goal_value(g: Dictionary) -> float:
+	match str(g["stat"]):
+		"avg_quality":
+			return float(today["quality_sum"]) / maxi(1, int(today["pours"]))
+		"tips":
+			return float(today["tips"])
+	return float(today.get(str(g["stat"]), 0))
+
+
+## Counting goals pay out the moment they're reached; "nobody walks out" and averages at closing.
+func check_goals(closing := false) -> void:
+	for g in daily_goals():
+		if g["done"]:
+			continue
+		var met := false
+		match str(g["kind"]):
+			"count":
+				met = goal_value(g) >= float(g["target"])
+			"zero":
+				met = closing and goal_value(g) <= 0.0 and int(today["served"]) >= int(g["min_served"])
+			"avg":
+				met = closing and goal_value(g) >= float(g["target"]) and int(today["pours"]) >= int(g["min_served"])
+		if met:
+			g["done"] = true
+			earn(float(g["reward"]), "prizes")
+			goal_done.emit(g)
+
+
+func bump_today(key: String, n := 1) -> void:
+	today[key] = int(today.get(key, 0)) + n
 
 
 # ------------------------------------------------------------------ staff

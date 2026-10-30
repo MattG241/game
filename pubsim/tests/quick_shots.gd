@@ -110,6 +110,19 @@ func _ready() -> void:
 				await _shot(v)
 				main.hud.visible = true
 				w.player.camera.current = true
+			"hud":
+				# normal play: the Next line, today's goals and the marker over a waiting customer
+				var hc := w.spawn_customer()
+				hc.global_position = w.bar_spot_pos(1)
+				hc.bar_spot = 1
+				w.bar_spots[1] = hc
+				hc.state = "wait_order"
+				hc.rotation.y = 0.0
+				w.player.global_position = Vector3(1.6, 0, -3.6)
+				w.player.rotation.y = PI * 0.8
+				w.player.camera.current = true
+				await _wait(1.5)
+				await _shot(v)
 			"barwait":
 				var bc := w.spawn_customer()
 				bc.global_position = w.bar_spot_pos(3)

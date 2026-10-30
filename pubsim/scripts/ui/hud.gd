@@ -60,6 +60,10 @@ var _result_t := 0.0
 var _order_t := 0.0
 var _subtitle_t := 0.0
 var _tip_t := 0.0
+var goal_card: PanelContainer
+var next_label: Label
+var goals_box: VBoxContainer
+var _goals_t := 0.0
 
 
 func _ready() -> void:
@@ -148,6 +152,23 @@ func _build_status() -> void:
 	ff_btn.font_size = 30
 	ff_btn.pressed.connect(func(): world.set_fast_forward(not world.fast_forward))
 	frame.add_child(ff_btn)
+	# what to do next, and today's goals
+	goal_card = PanelContainer.new()
+	goal_card.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.08, 0.06, 0.04, 0.82), Color(0.75, 0.6, 0.3), 12, 2))
+	goal_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(goal_card, Control.PRESET_TOP_RIGHT, Vector2(-420, 86), Vector2(420, 10))
+	goal_card.custom_minimum_size = Vector2(420, 0)
+	frame.add_child(goal_card)
+	var gv := VBoxContainer.new()
+	gv.add_theme_constant_override("separation", 2)
+	goal_card.add_child(gv)
+	next_label = UITheme.label("", 22, UITheme.GOLD)
+	next_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	next_label.custom_minimum_size = Vector2(390, 0)
+	gv.add_child(next_label)
+	goals_box = VBoxContainer.new()
+	goals_box.add_theme_constant_override("separation", 0)
+	gv.add_child(goals_box)
 	fps_label = UITheme.label("", 18, Color(0.6, 1, 0.6))
 	_place(fps_label, Control.PRESET_TOP_RIGHT, Vector2(-520, 84), Vector2(520, 30))
 	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -187,26 +208,32 @@ func _build_actions() -> void:
 	frame.add_child(toast_box)
 	tip_panel = PanelContainer.new()
 	tip_panel.add_theme_stylebox_override("panel", UITheme.panel_box(Color(0.06, 0.2, 0.12, 0.9), UITheme.GOLD, 16, 2))
-	_place(tip_panel, Control.PRESET_CENTER_TOP, Vector2(-330, 0), Vector2(660, 60))
-	tip_panel.custom_minimum_size = Vector2(660, 0)
+	# tutorial tips sit low in the middle, clear of the status, the goals and the buttons
+	_place(tip_panel, Control.PRESET_CENTER_BOTTOM, Vector2(-300, -170), Vector2(600, 60))
+	tip_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	tip_panel.custom_minimum_size = Vector2(600, 0)
 	tip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tip_panel.visible = false
 	frame.add_child(tip_panel)
+	var tip_row := HBoxContainer.new()
+	tip_row.add_theme_constant_override("separation", 10)
+	tip_panel.add_child(tip_row)
 	tip_label = UITheme.label("", 22)
 	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip_label.custom_minimum_size = Vector2(600, 0)
-	tip_panel.add_child(tip_label)
+	tip_label.custom_minimum_size = Vector2(500, 0)
+	tip_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tip_row.add_child(tip_label)
 	tip_close = TouchButton.new("×", Color(0.3, 0.12, 0.08, 0.9))
-	tip_close.size = Vector2(54, 54)
+	tip_close.custom_minimum_size = Vector2(54, 54)
+	tip_close.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	tip_close.round_btn = true
 	tip_close.font_size = 30
-	_place(tip_close, Control.PRESET_CENTER_TOP, Vector2(340, 0), Vector2(54, 54))
 	tip_close.visible = false
 	tip_close.pressed.connect(func():
 		tip_label.text = ""
 		tip_panel.visible = false
 		tip_close.visible = false)
-	frame.add_child(tip_close)
+	tip_row.add_child(tip_close)
 	subtitle_label = UITheme.label("", 24)
 	_place(subtitle_label, Control.PRESET_CENTER_BOTTOM, Vector2(-310, -96), Vector2(620, 70))
 	subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -535,6 +562,37 @@ func _process(delta: float) -> void:
 			subtitle_label.text = ""
 	if _tip_t > 0.0:
 		_tip_t -= delta
+	next_label.text = "Next: " + str(world._guide.get("text", "")) if world._guide.has("text") else ""
+	_goals_t -= delta
+	if _goals_t <= 0.0:
+		_goals_t = 1.0
+		refresh_goals()
+	goal_card.visible = not pour_root.visible and not drink_root.visible and not darts_root.visible
+
+
+## Today's goals with their progress (ticked off as they're met).
+func refresh_goals() -> void:
+	if goals_box == null:
+		return
+	var goals := GameState.daily_goals()
+	while goals_box.get_child_count() < goals.size() + 1:
+		goals_box.add_child(UITheme.label("", 18, UITheme.CREAM))
+	(goals_box.get_child(0) as Label).text = "Today's goals"
+	(goals_box.get_child(0) as Label).add_theme_color_override("font_color", UITheme.MUTED)
+	for i in goals.size():
+		var g: Dictionary = goals[i]
+		var l := goals_box.get_child(i + 1) as Label
+		var prog := ""
+		if g["done"]:
+			prog = "done  +€%d" % int(g["reward"])
+		elif str(g["kind"]) == "count":
+			prog = "%d/%d" % [int(GameState.goal_value(g)), int(g["target"])]
+		elif str(g["kind"]) == "zero":
+			prog = "so far, so good" if GameState.goal_value(g) <= 0.0 else "missed"
+		else:
+			prog = "now %d" % int(GameState.goal_value(g)) if int(GameState.today["pours"]) > 0 else ""
+		l.text = "%s %s   %s" % ["+" if g["done"] else "-", g["text"], prog]
+		l.add_theme_color_override("font_color", Color(0.6, 0.95, 0.6) if g["done"] else (Color(1, 0.6, 0.5) if prog == "missed" else UITheme.CREAM))
 
 
 func _update_context() -> void:
@@ -645,7 +703,7 @@ func refresh_orders() -> void:
 		vb.add_theme_constant_override("separation", 2)
 		p.add_child(vb)
 		var what: String = GameData.drink(c.drink_id).get("short", "?") if c.order_taken else "wants to order"
-		var l := UITheme.label("%s%s: %s" % ["Next: " if first else "", c.display_name, what], 20, Color(0.15, 0.1, 0.05))
+		var l := UITheme.label("%s%s: %s" % ["1. " if first else "", c.display_name, what], 20, Color(0.15, 0.1, 0.05))
 		l.add_theme_constant_override("outline_size", 0)
 		vb.add_child(l)
 		var bar := ColorRect.new()
@@ -702,6 +760,8 @@ func show_pour_result(res: Dictionary) -> void:
 		if res.get("tip", 0.0) > 0.0:
 			t += "  ·  [color=#9be59b]tip €%.2f[/color]" % res["tip"]
 		t += "\nSatisfaction %d%%\n" % int(res.get("satisfaction", 0))
+		if int(res.get("streak", 0)) >= 2:
+			t += "[color=#f2c25c]Streak %d · tips +%d%%[/color]\n" % [int(res["streak"]), int(minf(int(res["streak"]), 10) * 3)]
 	var notes: Array = res.get("notes", [])
 	if not notes.is_empty():
 		t += "[color=#d8c9a8]" + "\n".join(notes) + "[/color]"
