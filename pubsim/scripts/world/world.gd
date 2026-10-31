@@ -586,19 +586,26 @@ func _keg_prompt(id: String) -> String:
 	var d := GameData.drink(id)
 	var left := GameState.serves_left(id)
 	var spare := int(GameState.stock.get(id, 0))
+	var fresh := int(GameState.freshness(id) * 100)
+	if GameState.keg_stale(id):
+		# a stale keg can be swapped any time there's a spare: what's left goes down the drain
+		if spare > 0:
+			return "Hold to swap the stale %s %s (%d%% fresh; %d serves poured away)" % [d["short"], d["stock_unit"], fresh, int(left)]
+		return _hint("The %s %s is stale (%d%% fresh) and there's no spare. Order one from the stock menu" % [d["short"], d["stock_unit"], fresh])
 	if left < 6.0 and spare > 0:
 		return "Hold to change the %s %s (%d spare)" % [d["short"], d["stock_unit"], spare]
 	if left < 6.0:
 		return _hint("No spare %s %s. Order more from the stock menu" % [d["short"], d["stock_unit"]])
-	return _hint("%s: about %d serves left, %d spare" % [d["short"], int(left), spare])
+	return _hint("%s: about %d serves left, %d%% fresh, %d spare" % [d["short"], int(left), fresh, spare])
 
 
 func _keg_action(id: String) -> void:
-	if GameState.serves_left(id) >= 6.0:
+	var stale := GameState.keg_stale(id)
+	if GameState.serves_left(id) >= 6.0 and not stale:
 		return
 	if GameState.change_keg(id):
 		Sfx.play("keg", -2.0)
-		notify("Fresh %s connected." % GameData.drink(id)["stock_unit"], "info")
+		notify("Fresh %s connected%s." % [GameData.drink(id)["stock_unit"], " (the stale one's poured away)" if stale else ""], "info")
 		_refresh_stock_pile()
 
 
@@ -793,7 +800,8 @@ func _restore_overnight_dirty() -> void:
 ## through the front door when hired mid-day) and sends anyone let go home.
 func refresh_staff(at_start := false) -> void:
 	var want := {}
-	for e in GameState.staff:
+	# only those on tonight's rota come in
+	for e in GameState.staff_on_today():
 		want[str(e.get("id", ""))] = e
 	for st in staff_npcs.duplicate():
 		if not want.has(st.staff_id):
@@ -804,7 +812,7 @@ func refresh_staff(at_start := false) -> void:
 	for e in GameState.staff:
 		models.append(str(e.get("model", "")))
 	Customer.reserved_models = models
-	for e in GameState.staff:
+	for e in GameState.staff_on_today():
 		var id := str(e.get("id", ""))
 		var have := false
 		for st in staff_npcs:
@@ -952,6 +960,8 @@ func staff_serve(st: StaffMember, c: Customer) -> bool:
 	if not res.get("ok", false):
 		return false
 	st.glass = null
+	GameState.staff_note(st.staff_id, "served")
+	GameState.staff_note(st.staff_id, "tips", float(res.get("tip", 0.0)))
 	var score := int(res.get("score", 0))
 	if hud and (score < 60 or score >= 92):
 		# only the pints worth knowing about: a poor one (have a word) or a perfect one
@@ -973,6 +983,18 @@ func staff_tip_away(st: StaffMember) -> void:
 	_refresh_rack()
 
 
+## Whether another member of staff is already off to change this keg.
+func keg_claimed(id: String, except: StaffMember) -> bool:
+	for st in staff_npcs:
+		if st != except and st._keg_id == id:
+			return true
+	return false
+
+
+func refresh_stock_pile() -> void:
+	_refresh_stock_pile()
+
+
 func staff_next_spill(st: StaffMember) -> Node3D:
 	var best: Node3D = null
 	for s in spills:
@@ -984,7 +1006,8 @@ func staff_next_spill(st: StaffMember) -> Node3D:
 	return best
 
 
-func staff_wipe(_st: StaffMember, s: Node3D) -> void:
+func staff_wipe(st: StaffMember, s: Node3D) -> void:
+	GameState.staff_note(st.staff_id, "spills")
 	spills.erase(s)
 	s.queue_free()
 	Sfx.play_at("squeak", s.global_position, self, -8.0)
@@ -1009,7 +1032,8 @@ func staff_pick_up(_st: StaffMember, g: PintGlass) -> void:
 			ch.queue_free()
 
 
-func staff_wash(_st: StaffMember, g: PintGlass) -> void:
+func staff_wash(st: StaffMember, g: PintGlass) -> void:
+	GameState.staff_note(st.staff_id, "glasses")
 	g.queue_free()
 	rack_clean += 1
 	GameState.stats["glasses_washed"] = int(GameState.stats["glasses_washed"]) + 1
@@ -1505,6 +1529,8 @@ func serve_customer(c: Customer, g: PintGlass, by: StaffMember = null) -> Dictio
 	elif q >= 60:
 		tip_rate = 0.05
 	tip_rate *= c.tip_mult * (1.0 + GameState.get_mod("tips_mult") + GameState.live_tips) * (0.6 + wait_score * 0.4) * (0.5 + fair * 0.5)
+	if by and str(GameState.staff_entry(by.staff_id).get("trait", "")) == "charmer":
+		tip_rate *= 1.2     # customers like a chat with the charmer
 	if by == null:
 		# a run of good pints gets the bar talking: tips grow with the streak
 		streak = streak + 1 if q >= 75 else 0
@@ -2033,8 +2059,11 @@ func next_step() -> Dictionary:
 	var sign_pos := PubLayout.DOOR_SIGN_POS
 	if phase == "prep":
 		for id in PubLayout.KEG_POS.keys():
-			if GameState.drink_available(id) and GameState.serves_left(id) < 4.0 and int(GameState.stock.get(id, 0)) > 0:
-				return {"text": "Change the %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
+			if GameState.drink_available(id) and int(GameState.stock.get(id, 0)) > 0:
+				if GameState.serves_left(id) < 4.0:
+					return {"text": "Change the %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
+				if GameState.keg_stale(id):
+					return {"text": "Swap the stale %s keg in the cellar before opening" % GameData.drink(id).get("short", id), "pos": PubLayout.KEG_POS[id] + Vector3(0, 0.7, 0)}
 		if GameState.line_penalty() > 0.0 and GameState.can_afford(float(GameData.econ("line_clean_cost", 8))):
 			return {"text": "The beer lines need cleaning (cellar) before you open", "pos": LINE_CLEAN_POS}
 		return {"text": "Flip the sign by the front door to open up", "pos": sign_pos}

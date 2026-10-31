@@ -316,6 +316,36 @@ spills, glass cleanliness, keg freshness and how long it sat on the bar.
 - **Cost:** about 2% more draw calls on the Performance and Balanced presets, with no extra real
   lights. The new tile shader keeps to one octave of noise.
 
+### Kegs and staff
+
+- **Stale kegs:** a keg past its best (under 90% fresh) can now be swapped as soon as you have a
+  spare. Go down to the cellar and hold on the keg. What's left is poured away and counted as waste.
+  Before, a keg could only be changed once it was nearly empty, so a stale one was stuck until it
+  ran dry. The morning notices, the Next line and the Stock menu all flag a stale keg.
+- **The staff system, rebuilt** (Menu → Staff):
+  - **Rota:** pick the nights each person works. Wages are only paid for nights on the rota, and
+    tonight's shift is fixed once the doors open. "The week ahead" shows which nights look quiet,
+    steady, busy or packed (weekends, match nights and festivals).
+  - **They learn on the job:** serving, washing, wiping and changing kegs builds experience. Skill
+    rises towards each person's potential (shown as "could reach 4/5").
+  - **Pay rises:** at each new level they ask for a raise. Agreeing lifts their wage and their mood;
+    turning it down costs morale.
+  - **Morale:** working night after night, especially busy nights, wears people down, and nights off
+    restore them. A happy worker is quicker and pours better. Someone fed up hands in their notice
+    (two more nights) unless you have a word and give them a bonus (two nights' wages).
+  - **Traits:**
+    - Quick: about 15% faster.
+    - Steady hand: pours closer to perfect.
+    - Charmer: a fifth more in tips.
+    - Tireless: fewer breaks.
+    - Keen learner: learns twice as fast.
+    - Cellar hand: changes empty kegs without being asked, and stale ones when it's quiet.
+  - **New applicants every Monday,** with their own names, faces, traits, skill and potential,
+    alongside the five people already in town.
+  - **Letting someone go** asks you to confirm, and pays a night's wages as notice.
+  - **End of night:** the summary has a line for each person: what they did, their wage and their
+    mood.
+
 ## The soundtrack: who plays what
 | # | Song | When it plays |
 | --- | --- | --- |

@@ -262,8 +262,21 @@ func _ready() -> void:
 				w.session.tap()
 				await _shot(v)
 				w.session.stop()
-			"menu_upgrades", "menu_staff", "menu_settings":
-				main.hud.open_menu(v.substr(5))
+			"menu_upgrades", "menu_staff", "menu_settings", "menu_staff2":
+				if v == "menu_staff" or v == "menu_staff2":
+					GameState.cash = 900.0
+					GameState.reputation = 55.0
+					GameState.refresh_applicants(true)
+					GameState.hire("ciaran")
+					GameState.hire("seanie")
+					var ce := GameState.staff_entry("ciaran")
+					ce["raise_ask"] = 18.0
+					(ce["rota"] as Array)[(GameState.weekday() + 2) % 7] = false
+					GameState.staff_entry("seanie")["morale"] = 0.2
+				main.hud.open_menu("staff" if v.begins_with("menu_staff") else v.substr(5))
+				if v == "menu_staff2":
+					await _wait(0.3)
+					main.hud.menu.scroll.scroll_vertical = 900
 				await _wait(0.5)
 				await _shot(v)
 				main.hud.close_menu()

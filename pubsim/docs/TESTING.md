@@ -1,7 +1,7 @@
 # Test status
 
 ## Automated (run on every CI build and before every release)
-`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **428 checks, all passing**
+`tests/test_runner.gd`: unit, integration and simulated-playtest checks, **450 checks, all passing**
 (`godot --headless --path . --fixed-fps 60 res://tests/test_runner.tscn`).
 
 | Area | Status | How |
@@ -24,6 +24,7 @@
 | **Camera handover** (new, regression) | Pass | a close-up started straight after another keeps its camera, and the view returns to you afterwards |
 | **Audio mix** (new) | Pass | rain plays on its own low-passed weather bus feeding the room; voices are louder than the weather by default; the room and rain dip at least 4 dB while someone speaks and come back afterwards |
 | **Hired staff** (new) | Pass | hiring rules (reputation, room per role, no double hire); staff arrive on their own models; with the player away from the bar, a novice bartender takes orders, pours and serves on their own (pints average 79); customers a bartender is seeing to aren't offered to the player; the glass collector picks up, washes and wipes spills; no glass lost or made; let-go staff leave their glasses by the sink; wages and save |
+| **Rota, growth, morale and kegs** (new) | Pass | a night off costs no wages and they stay home; tonight's shift is fixed once open; the week ahead shows weekends busier; serving builds skill up to potential and a level up asks for a raise; agreeing lifts wage and mood, refusing costs morale; nights off restore morale; a fed-up worker hands in notice, a bonus keeps them, notice served means they leave; weekly applicants have a role, trait and potential and can be hired; letting go pays a night's notice; old saves get a rota and traits; a stale keg can be swapped (the rest counted as waste) or says to order one; a cellar hand changes an empty keg unasked |
 | **Next step, goals and streaks** (new) | Pass | overnight glasses don't skip the tutorial; the guide points at the sign before opening, then take order, grab a glass and pour in turn, then cash up at close; the gold marker shows when away; three daily goals pay out when met; a streak grows tips; the summary lists goals and looks ahead |
 | **Every drink** (new) | Pass | every drink has an unlock; 31 upgrades, bigger ones gated by reputation; each of lager, ale, cider, Zero, whiskey and lemonade has a visible station, the right glass, an open prompt, and a careful pour scores 100; the optic stops at one measure; a bottle swaps itself; a bartender serves whiskey in a tumbler |
 | **The pub's character** (new) | Pass | festivals and bunting; match day on the big screen (throw-in, scores, picture and score on screen, full time); beer lines go off and are cleaned; Nora's story, favour, reward and next chapter; the lock-in (once a night); the bodhrán session hits 32 of 32 on the measured beats and hands back control |

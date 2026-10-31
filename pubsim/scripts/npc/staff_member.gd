@@ -31,6 +31,8 @@ var _final := {}
 var _reach_w := 0.0              # how far the left hand has gone to the tap handle
 var _stream: MeshInstance3D      # the beer running from the nozzle while they pour
 var energy := 1.0                # 0..1: everyone needs a break; the better they are, the longer they last
+var staff_trait := ""                  # quick, steady, charmer, tireless, cellar or keen (see GameState.TRAITS)
+var _keg_id := ""                # the keg a cellar hand is off to change
 const BREAK_SPOT := Vector3(2.9, 0.0, -4.0)
 const BREAK_SECONDS := 50.0
 
@@ -39,10 +41,25 @@ func setup_staff(w: Node, entry: Dictionary, seed_v: int) -> void:
 	staff_id = str(entry.get("id", ""))
 	role = str(entry.get("role", "bartender"))
 	skill = clampf(float(entry.get("skill", 0.6)), 0.2, 1.0)
+	staff_trait = str(entry.get("trait", ""))
 	display_name = str(entry.get("name", "Staff")).split(" ")[0]
-	speed = 1.3 + skill * 0.25
+	speed = (1.3 + skill * 0.25) * pace()
 	setup(w, {"gender": entry.get("gender", "m"), "model": entry.get("model", "")}, seed_v)
 	set_name_tag("%s · %s" % [display_name, "bar" if role == "bartender" else "floor"])
+
+
+## How fast this person works tonight: their trait and how they feel about the job.
+func pace() -> float:
+	var e := GameState.staff_entry(staff_id)
+	return GameState.staff_pace(e) if not e.is_empty() else 1.0
+
+
+## Skill grows with experience during the night, so it's read fresh for each job.
+func _skill_now() -> float:
+	var e := GameState.staff_entry(staff_id)
+	if not e.is_empty():
+		skill = clampf(float(e.get("skill", skill)), 0.2, 1.0)
+	return skill
 
 
 func home() -> Vector3:
@@ -145,6 +162,13 @@ func _process_state(delta: float) -> void:
 			_arm_rot[0].x = -0.7 + sin(_anim_t * 6.0) * 0.12
 			if _job_t <= 0.0:
 				_wash_one()
+		"st_keg":
+			_face_yaw(-PI * 0.5, delta)
+			_idle_anim(delta)
+			_arm_rot[0].x = -0.6
+			if _job_t <= 0.0:
+				_arm_rot[0] = Vector3.ZERO
+				_change_keg()
 		"st_wipe":
 			_face_point(_fetch, delta)
 			_idle_anim(delta)
@@ -163,17 +187,20 @@ func _process_state(delta: float) -> void:
 func _arrive() -> void:
 	var next := _after_path
 	super._arrive()
+	var p := pace()
 	match next:
 		"st_order":
-			_job_t = lerpf(1.2, 0.5, skill)
+			_job_t = lerpf(1.2, 0.5, skill) / p
 		"st_glass", "st_serve", "st_tip":
-			_job_t = lerpf(1.0, 0.4, skill)
+			_job_t = lerpf(1.0, 0.4, skill) / p
 		"st_collect":
-			_job_t = lerpf(1.0, 0.4, skill)
+			_job_t = lerpf(1.0, 0.4, skill) / p
 		"st_wash":
 			_job_t = _wash_time()
 		"st_wipe":
-			_job_t = lerpf(2.6, 1.4, skill)
+			_job_t = lerpf(2.6, 1.4, skill) / p
+		"st_keg":
+			_job_t = 3.0 / p
 		"st_break":
 			_job_t = BREAK_SECONDS
 		"st_pour":
@@ -195,7 +222,7 @@ func _face_point(n: Node3D, delta: float) -> void:
 
 
 func _tire(amount: float) -> void:
-	energy -= amount * lerpf(1.3, 0.7, skill)
+	energy -= amount * lerpf(1.3, 0.7, skill) * (0.6 if staff_trait == "tireless" else 1.0)
 
 
 func _take_break() -> void:
@@ -214,15 +241,32 @@ func _go_home() -> void:
 
 
 func _find_work() -> void:
+	# a cellar hand sees to an empty keg before anything else, and a stale one when it's quiet
+	if staff_trait == "cellar" and carried.is_empty() and glass == null:
+		var dry := _keg_to_change(false)
+		if dry != "":
+			_go_to_keg(dry)
+			return
 	if role == "bartender":
 		var c: Customer = world.staff_next_customer(self)
 		if c != null:
 			target = c
 			c.set_meta("served_by", self)
 			_go(world.staff_spot(Vector3(world.bar_spot_pos(c.bar_spot).x, 0, BEHIND_Z), self), "st_order")
-		elif global_position.distance_to(home()) > 0.6:
+			return
+		if staff_trait == "cellar":
+			var stale := _keg_to_change(true)
+			if stale != "":
+				_go_to_keg(stale)
+				return
+		if global_position.distance_to(home()) > 0.6:
 			_go_home()
 		return
+	if staff_trait == "cellar" and carried.is_empty():
+		var stale2 := _keg_to_change(true)
+		if stale2 != "":
+			_go_to_keg(stale2)
+			return
 	# floor: spills first (someone could slip), then the empties
 	var s: Node3D = world.staff_next_spill(self)
 	if s != null:
@@ -241,6 +285,37 @@ func _find_work() -> void:
 		_go(world.staff_spot(Vector3(PubLayout.SINK_POS.x, 0, BACK_Z), self), "st_wash")
 	elif global_position.distance_to(home()) > 0.6:
 		_go_home()
+
+
+## A keg (with a spare to swap in) that has run dry, or with stale=true one that has gone stale,
+## and that nobody else is already seeing to.
+func _keg_to_change(stale: bool) -> String:
+	for id in PubLayout.KEG_POS.keys():
+		if not GameState.drink_available(id) or int(GameState.stock.get(id, 0)) <= 0:
+			continue
+		if world.keg_claimed(id, self):
+			continue
+		if (not stale and GameState.serves_left(id) < 1.0) or (stale and GameState.keg_stale(id)):
+			return id
+	return ""
+
+
+func _go_to_keg(id: String) -> void:
+	_keg_id = id
+	say("I'll change the %s keg." % GameData.drink(id).get("short", id), 2.5)
+	_go(PubLayout.KEG_POS[id] + Vector3(0.7, 0, 0), "st_keg")
+
+
+func _change_keg() -> void:
+	var id := _keg_id
+	_keg_id = ""
+	if id != "" and (GameState.serves_left(id) < 1.0 or GameState.keg_stale(id)) and GameState.change_keg(id):
+		Sfx.play_at("keg", PubLayout.KEG_POS[id], world, -6.0)
+		world.notify("%s changed the %s keg." % [display_name, GameData.drink(id).get("short", id)], "info")
+		world.refresh_stock_pile()
+		GameState.staff_note(staff_id, "kegs")
+		_tire(0.05)
+	_go_home()
 
 
 func carry_max() -> int:
@@ -268,6 +343,10 @@ func _take_clean_glass() -> void:
 		return
 	var id := target.drink_id
 	if GameState.serves_left(id) < 1.0:
+		if staff_trait == "cellar" and int(GameState.stock.get(id, 0)) > 0 and PubLayout.KEG_POS.has(id):
+			_drop_target()
+			_go_to_keg(id)
+			return
 		_moan("The %s's run dry! Change the keg in the cellar." % GameData.drink(id).get("short", id))
 		_drop_target()
 		return
@@ -308,17 +387,20 @@ func _start_pour() -> void:
 	c.freshness = GameState.freshness(_pour_id)    # an old keg tastes old whoever pours it
 	c.drink_id = _pour_id
 	c.serve = str(d.get("serve", "stout"))
-	var off := (1.0 - skill) * 1.6
+	_skill_now()
+	# a steady hand and a happy worker pour closer to perfect
+	var morale := float(GameState.staff_entry(staff_id).get("morale", 0.75))
+	var off := (1.0 - skill) * 1.6 * (0.55 if staff_trait == "steady" else 1.0) * lerpf(1.35, 0.85, clampf(morale, 0.0, 1.0))
 	var r := func(): return _rng.randf_range(-1.0, 1.0) * off
 	if c.serve == "stout":
 		_final = {"first": 0.75 + r.call() * 0.2, "angle": 45.0 + r.call() * 24.0,
 			"topup": 0.05 + absf(r.call()) * 0.3, "body": 0.88 + r.call() * 0.06, "foam": 0.13 + r.call() * 0.08}
 		_pour_phase = "first"
-		_pour_len = lerpf(6.0, 4.0, skill)
+		_pour_len = lerpf(6.0, 4.0, skill) / pace()
 	else:
 		_final = {"body": 0.9 + r.call() * 0.08, "foam": 0.09 + r.call() * 0.07}
 		_pour_phase = "pour"
-		_pour_len = lerpf(6.0, 4.0, skill)
+		_pour_len = lerpf(6.0, 4.0, skill) / pace()
 	_pour_t = 0.0
 	if _tap.has("root"):
 		Sfx.play_at("tap_clunk", _tap["glass"], world, -10.0)
@@ -508,7 +590,7 @@ func _after_collect() -> void:
 
 
 func _wash_time() -> float:
-	return lerpf(2.6, 1.1, skill)
+	return lerpf(2.6, 1.1, skill) / pace()
 
 
 func _wash_one() -> void:

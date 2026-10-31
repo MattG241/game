@@ -1189,6 +1189,75 @@ func _test_staff() -> void:
 	GameState._reset()
 	GameState.load_game()
 	check(GameState.is_hired("ciaran") and GameState.staff.size() == 1, "staff are kept in the save")
+	var ce := GameState.staff_entry("ciaran")
+	check((ce.get("rota", []) as Array).size() == 7 and ce.has("morale") and ce.has("potential") and str(ce.get("trait", "")) == "keen", "a member of staff carries a rota, morale, potential and a trait through the save")
+	# the rota: no wages for a night off, and they don't come in
+	GameState.phase = "prep"
+	GameState.set_rota("ciaran", GameState.weekday(), false)
+	check(is_equal_approx(GameState.wages_today(), 0.0) and GameState.staff_on_today().is_empty(), "a night off on the rota costs nothing and they stay home")
+	GameState.set_rota("ciaran", GameState.weekday(), true)
+	check(is_equal_approx(GameState.wages_today(), 15.0), "back on the rota, back on the wage bill")
+	GameState.phase = "open"
+	GameState.set_rota("ciaran", GameState.weekday(), false)
+	check(GameState.works_today(ce), "tonight's shift can't be changed once the doors are open")
+	var sat := (5 - GameState.weekday() + 7) % 7
+	var mon := (0 - GameState.weekday() + 7) % 7
+	check(GameState.busy_forecast(sat) > GameState.busy_forecast(mon), "the week ahead shows Saturday busier than Monday")
+	# experience: skill grows with the work, a level up brings a request for a raise
+	ce["skill"] = 0.69
+	ce["potential"] = 0.9
+	ce["raise_ask"] = 0
+	var w0 := float(ce["wage"])
+	for i in 6:
+		GameState.staff_note("ciaran", "served")
+	check(float(ce["skill"]) > 0.69 and GameState.staff_level(float(ce["skill"])) == 4, "serving builds skill (%.3f)" % float(ce["skill"]))
+	check(float(ce["raise_ask"]) > w0, "a level up brings a request for a raise (€%d)" % int(ce["raise_ask"]))
+	var m0 := float(ce["morale"])
+	GameState.agree_raise("ciaran")
+	check(float(ce["wage"]) > w0 and float(ce["morale"]) > m0 and float(ce["raise_ask"]) == 0.0, "agreeing a raise lifts the wage and their mood")
+	ce["skill"] = 0.94
+	for i in 40:
+		GameState.staff_note("ciaran", "served")
+	check(float(ce["skill"]) <= 0.9 + 0.0001, "nobody gets better than their potential")
+	ce["raise_ask"] = 20.0
+	m0 = float(ce["morale"])
+	GameState.refuse_raise("ciaran")
+	check(float(ce["morale"]) < m0, "turning down a raise costs morale")
+	# morale through the week: nights off restore it, a fed-up worker hands in notice
+	GameState.today["served"] = 0
+	ce["morale"] = 0.5
+	ce["rota"][GameState.weekday()] = false
+	GameState._staff_end_of_night()
+	check(float(ce["morale"]) > 0.5, "a night off lifts morale")
+	ce["rota"][GameState.weekday()] = true
+	ce["morale"] = 0.1
+	GameState._staff_end_of_night()
+	check(int(ce["notice"]) == 2, "someone fed up hands in their notice")
+	GameState.cash = 500.0
+	check(GameState.give_bonus("ciaran") and int(ce["notice"]) == 0, "a word and a bonus keeps them on")
+	ce["morale"] = 0.05
+	ce["notice"] = 1
+	GameState._staff_end_of_night()
+	check(not GameState.is_hired("ciaran"), "someone who works their notice leaves")
+	# this week's applicants
+	GameState.refresh_applicants(true)
+	var apps_ok := GameState.applicants.size() == 3
+	for a in GameState.applicants:
+		if not (GameState.ROLE_TRAITS[str(a["role"])] as Array).has(str(a["trait"])) or float(a["potential"]) < float(a["skill"]) or float(a["wage"]) <= 0.0:
+			apps_ok = false
+	check(apps_ok, "new applicants each have a role, a trait, a wage and room to grow")
+	GameState.reputation = 60.0
+	GameState.cash = 1000.0
+	var app_id := str(GameState.applicants[0]["id"])
+	check(GameState.hire(app_id) and GameState.is_hired(app_id) and not GameState.job_seekers().any(func(c): return str(c["id"]) == app_id), "an applicant can be taken on")
+	var cash0 := GameState.cash
+	var app_wage := float(GameState.staff_entry(app_id)["wage"])
+	GameState.fire(app_id)
+	check(is_equal_approx(cash0 - GameState.cash, app_wage), "letting someone go pays a night's wages as notice")
+	# an old save without the rota still loads with sensible defaults
+	var old := {"id": "ciaran", "name": "Ciarán Doyle", "role": "bartender", "skill": 0.6, "wage": 15.0, "hired_day": 1}
+	GameState._staff_defaults(old)
+	check((old["rota"] as Array).size() == 7 and float(old["morale"]) > 0.5 and str(old["trait"]) == "keen", "staff from older saves get a rota, morale and their trait")
 
 
 # ------------------------------------------------------------------ guidance, goals, streaks
@@ -1888,6 +1957,45 @@ func _test_fixes() -> void:
 			down = false
 	check(down, "the pendant lamps throw their light down onto the tables")
 	check(w.info.has("sky_mat") and w.env.tonemap_mode == Environment.TONE_MAPPER_FILMIC, "a night sky over the street and a filmic grade")
+	# a stale keg can be swapped while it still has beer in it (the rest goes down the drain)
+	GameState.upgrades.erase("cellar_cooling")
+	GameState.keg_day["stout"] = GameState.day - 6
+	GameState.tap_units["stout"] = 40.0
+	GameState.stock["stout"] = 1
+	var kp := w._keg_prompt("stout")
+	check(GameState.keg_stale("stout") and kp.begins_with("Hold") and kp.contains("stale"), "a stale keg with a spare offers a swap (%s)" % kp)
+	var waste0 := float(GameState.today["wasted_units"])
+	w._keg_action("stout")
+	check(int(GameState.keg_day["stout"]) == GameState.day and GameState.freshness("stout") >= 0.99 and float(GameState.today["wasted_units"]) >= waste0 + 39.0, "swapping it connects a fresh keg and counts the old beer as waste")
+	GameState.keg_day["stout"] = GameState.day - 6
+	GameState.tap_units["stout"] = 40.0
+	GameState.stock["stout"] = 0
+	check(w._keg_prompt("stout").begins_with("~") and w._keg_prompt("stout").contains("Order"), "with no spare, the stale keg says to order one")
+	GameState.keg_day["stout"] = GameState.day
+	# a cellar hand changes an empty keg without being asked
+	for cc in w.customers.duplicate():
+		cc.queue_free()
+	w.customers.clear()
+	GameState.reputation = 60.0
+	GameState.cash = 1000.0
+	GameState.phase = "open"
+	GameState.hire("roisin")
+	await _frames(2)
+	GameState.staff_entry("roisin")["trait"] = "cellar"
+	var hand: StaffMember = null
+	for stn in w.staff_npcs:
+		if stn.staff_id == "roisin":
+			hand = stn
+	if hand:
+		hand.staff_trait = "cellar"
+		hand.global_position = hand.home()
+		hand.state = "st_idle"
+	GameState.tap_units["stout"] = 0.0
+	GameState.stock["stout"] = 2
+	var changed := await _wait_until(func(): return GameState.serves_left("stout") > 1.0, 60.0)
+	check(hand != null and changed and int(GameState.stock["stout"]) == 1, "a cellar hand changes an empty keg without being asked")
+	GameState.fire("roisin")
+	await _frames(2)
 	# the end-of-day music follows the summary
 	for cc in w.customers.duplicate():
 		cc.queue_free()

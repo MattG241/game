@@ -235,56 +235,202 @@ func _skill_text(k: float) -> String:
 	return "Skill %d/5 (%s)" % [n, ["green", "learning", "capable", "good", "a natural"][n - 1]]
 
 
+var _confirm_let_go := ""      # the person whose "Let go" was pressed once (a second press confirms)
+const DAY_SHORT := ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+## Rebuilds a tab where it is, without jumping back to the top (for toggles and small actions).
+func _refresh_in_place(t: String) -> void:
+	var y := scroll.scroll_vertical
+	show_tab(t)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	scroll.scroll_vertical = y
+
+
+func _chip(parent: Node, t: String, col: Color) -> void:
+	var l := UITheme.hud_label(t, 16, col)
+	var p := PanelContainer.new()
+	var sb := UITheme.glass_box(0.0, 10, Color(0, 0, 0, 0), 10, 3)
+	sb.bg_color = Color(col.r, col.g, col.b, 0.16)
+	sb.shadow_size = 0
+	p.add_theme_stylebox_override("panel", sb)
+	p.add_child(l)
+	parent.add_child(p)
+
+
+func _morale_color(m: float) -> Color:
+	return Color(1, 0.55, 0.45).lerp(Color(0.6, 0.95, 0.65), clampf(m, 0.0, 1.0))
+
+
 func _staff() -> void:
-	_text(content, "Cash: €%.2f   ·   Wages are paid at closing each night (€%d tonight)." % [GameState.cash, int(GameState.wages_today())], 22, UITheme.GOLD)
-	_text(content, "Staff cost real money: an agency fee to take them on and wages every night, busy or quiet. Bar staff pick up orders you've left waiting, and the pub gets busier to match, so you'll still be pulling pints. Everyone needs a break now and then.", 20, UITheme.MUTED)
+	var wd := GameState.weekday()
+	_text(content, "Cash: €%.2f   ·   Tonight's wages: €%d (paid at closing)" % [GameState.cash, int(GameState.wages_today())], 22, UITheme.GOLD)
+	_text(content, "Staff are paid only for the nights they're on the rota. They learn on the job and ask for more as they get better; keep them happy with nights off and fair pay, or they'll walk. Bar staff pick up orders you've left waiting, so you'll still be pulling pints.", 19, UITheme.MUTED)
+	# the week ahead: which nights are worth having help on
+	var fc := _card()
+	_text(fc, "The week ahead", 22, UITheme.GOLD)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	fc.add_child(row)
+	for k in 7:
+		var d := (wd + k) % 7
+		var f := GameState.busy_forecast(k)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(col)
+		var dl := UITheme.hud_label("Tonight" if k == 0 else DAY_SHORT[d], 17, UITheme.GOLD if k == 0 else UITheme.CREAM)
+		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(dl)
+		var word := GameState.busy_word(f)
+		var bl := UITheme.hud_label(word, 16, {"Quiet": UITheme.MUTED, "Steady": UITheme.CREAM, "Busy": Color(1, 0.8, 0.45), "Packed": Color(1, 0.55, 0.4)}[word])
+		bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(bl)
 	if not GameState.staff.is_empty():
 		_text(content, "On the payroll", 26, UITheme.GOLD)
 	for e in GameState.staff:
-		var id := str(e["id"])
-		var c := GameData.staff_candidate(id)
-		var v := _card(Color(0.1, 0.22, 0.13, 0.95))
-		var h := HBoxContainer.new()
-		v.add_child(h)
-		var info := VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		h.add_child(info)
-		_text(info, "%s   [%s]" % [e["name"], ROLE_NAMES.get(str(e["role"]), "")], 26, UITheme.GOLD)
-		_text(info, "%s   ·   €%d a night   ·   working here since day %d" % [_skill_text(float(e["skill"])), int(e["wage"]), int(e.get("hired_day", 1))], 20, Color(0.6, 0.9, 0.65))
-		_text(info, ROLE_JOBS.get(str(e["role"]), ""), 18)
-		var b := UITheme.button("Let go", func():
-			GameState.fire(id)
-			Sfx.play("ui_click", -4.0)
-			show_tab("staff"), 22)
-		b.custom_minimum_size = Vector2(170, 64)
-		h.add_child(b)
-	var open := []
-	for c in GameData.staff_pool:
-		if not GameState.is_hired(str(c["id"])):
-			open.append(c)
+		_staff_card(e, wd)
+	var open := GameState.job_seekers()
 	if not open.is_empty():
 		_text(content, "Looking for work", 26, UITheme.GOLD)
+		_text(content, "New faces answer the card in the window every Monday.", 18, UITheme.MUTED)
 	for c in open:
-		var id := str(c["id"])
-		var why := GameState.hire_block(id)
-		var v := _card()
-		var h := HBoxContainer.new()
-		v.add_child(h)
-		var info := VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		h.add_child(info)
-		_text(info, "%s   [%s]" % [c["name"], ROLE_NAMES.get(str(c["role"]), "")], 26, UITheme.GOLD)
-		_text(info, "%s   ·   €%d a night   ·   €%d agency fee   ·   needs reputation %d" % [_skill_text(float(c["skill"])), int(c["wage"]), int(c.get("fee", 0)), int(c.get("min_rep", 0))], 20, Color(0.6, 0.9, 0.65))
-		_text(info, str(c.get("blurb", "")), 18)
-		if why != "":
-			_text(info, why, 18, Color(1, 0.6, 0.5))
-		var b := UITheme.button("Hire", func():
-			if GameState.hire(id):
-				Sfx.play("ui_buy", -2.0)
-				show_tab("staff"), 24)
-		b.custom_minimum_size = Vector2(170, 70)
-		b.disabled = why != ""
-		h.add_child(b)
+		_applicant_card(c)
+
+
+func _staff_card(e: Dictionary, wd: int) -> void:
+	var id := str(e["id"])
+	var first := str(e["name"]).split(" ")[0]
+	var v := _card(Color(0.1, 0.22, 0.13, 0.95))
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	v.add_child(top)
+	var nl := _text(top, "%s   [%s]" % [e["name"], ROLE_NAMES.get(str(e["role"]), "")], 26, UITheme.GOLD)
+	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var tr := str(e.get("trait", ""))
+	if GameState.TRAITS.has(tr):
+		_chip(top, GameState.TRAITS[tr]["name"], Color(0.55, 0.85, 1.0))
+	var lvl := GameState.staff_level(float(e["skill"]))
+	var cap := GameState.staff_level(float(e.get("potential", e["skill"])))
+	var m := float(e.get("morale", 0.75))
+	_text(v, "%s%s   ·   €%d a night   ·   %s" % [_skill_text(float(e["skill"])), ("  (could reach %d/5)" % cap) if cap > lvl else "  (at their best)", int(e["wage"]), GameState.morale_word(m).capitalize()], 20, _morale_color(m))
+	var tot: Dictionary = e.get("totals", {})
+	var worked := []
+	if int(tot.get("served", 0)) > 0:
+		worked.append("%d served" % int(tot["served"]))
+	if int(tot.get("glasses", 0)) > 0:
+		worked.append("%d glasses washed" % int(tot["glasses"]))
+	if int(tot.get("kegs", 0)) > 0:
+		worked.append("%d kegs changed" % int(tot["kegs"]))
+	_text(v, "Since day %d · %d nights%s" % [int(e.get("hired_day", 1)), int(tot.get("nights", 0)), (" · " + ", ".join(worked)) if not worked.is_empty() else ""], 17, UITheme.MUTED)
+	if GameState.TRAITS.has(tr):
+		_text(v, "%s: %s. %s" % [GameState.TRAITS[tr]["name"], GameState.TRAITS[tr]["desc"], ROLE_JOBS.get(str(e["role"]), "")], 17)
+	# a raise, notice, or a word when they're fed up
+	if float(e.get("raise_ask", 0)) > 0.0:
+		var rv := HBoxContainer.new()
+		rv.add_theme_constant_override("separation", 10)
+		v.add_child(rv)
+		var rl := _text(rv, "%s asks for a raise to €%d a night." % [first, int(e["raise_ask"])], 19, Color(1, 0.85, 0.5))
+		rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var yes := UITheme.button("Agree", func():
+			GameState.agree_raise(id)
+			Sfx.play("ui_buy", -4.0)
+			_refresh_in_place("staff"), 20)
+		yes.custom_minimum_size = Vector2(130, 58)
+		_primary(yes)
+		rv.add_child(yes)
+		var no := UITheme.button("Not now", func():
+			GameState.refuse_raise(id)
+			_refresh_in_place("staff"), 20)
+		no.custom_minimum_size = Vector2(130, 58)
+		rv.add_child(no)
+	if int(e.get("notice", 0)) > 0 or m < 0.3:
+		var nv := HBoxContainer.new()
+		nv.add_theme_constant_override("separation", 10)
+		v.add_child(nv)
+		var msg := ("%s has handed in their notice: %d more night%s." % [first, int(e["notice"]), "" if int(e["notice"]) == 1 else "s"]) if int(e.get("notice", 0)) > 0 else ("%s is fed up. A night off or a raise would help." % first)
+		var ml := _text(nv, msg, 19, Color(1, 0.6, 0.5))
+		ml.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cost := GameState.bonus_cost(id)
+		var bb := UITheme.button("A word and a bonus (€%d)" % int(cost), func():
+			if GameState.give_bonus(id):
+				Sfx.play("ui_buy", -4.0)
+				GameState.notify("%s's staying on, and in better form." % first, "good")
+			_refresh_in_place("staff"), 19)
+		bb.custom_minimum_size = Vector2(250, 58)
+		bb.disabled = not GameState.can_afford(cost)
+		nv.add_child(bb)
+	# the rota: tap a night to put them on or give them the night off
+	var rr := HBoxContainer.new()
+	rr.add_theme_constant_override("separation", 6)
+	v.add_child(rr)
+	var wl := _text(rr, "Works", 18)
+	wl.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	wl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	wl.custom_minimum_size = Vector2(70, 0)
+	for k in 7:
+		var d := (wd + k) % 7
+		var on := GameState.works_on(e, d)
+		var day_i: int = d
+		var b := UITheme.button(("Tonight" if k == 0 else DAY_SHORT[d]) + ("" if on else " off"), func():
+			GameState.set_rota(id, day_i, not GameState.works_on(GameState.staff_entry(id), day_i))
+			_refresh_in_place("staff"), 16)
+		b.custom_minimum_size = Vector2(0, 50)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if on:
+			_primary(b)
+		b.disabled = k == 0 and GameState.phase != "prep"
+		rr.add_child(b)
+	var lg := HBoxContainer.new()
+	v.add_child(lg)
+	_text(lg, "", 10).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sure := _confirm_let_go == id
+	var lb := UITheme.button(("Sure? Pays €%d notice" % int(e["wage"])) if sure else "Let go", func():
+		if _confirm_let_go == id:
+			_confirm_let_go = ""
+			GameState.fire(id)
+			GameState.notify("%s has been let go, with a night's wages." % first, "info")
+		else:
+			_confirm_let_go = id
+		_refresh_in_place("staff"), 19)
+	lb.custom_minimum_size = Vector2(240 if sure else 150, 56)
+	lg.add_child(lb)
+
+
+func _applicant_card(c: Dictionary) -> void:
+	var id := str(c["id"])
+	var why := GameState.hire_block(id)
+	var v := _card()
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	v.add_child(top)
+	var nl := _text(top, "%s   [%s]" % [c["name"], ROLE_NAMES.get(str(c["role"]), "")], 26, UITheme.GOLD)
+	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if bool(c.get("applicant", false)):
+		_chip(top, "New this week", Color(1, 0.85, 0.5))
+	var tr := str(c.get("trait", ""))
+	if GameState.TRAITS.has(tr):
+		_chip(top, GameState.TRAITS[tr]["name"], Color(0.55, 0.85, 1.0))
+	var h := HBoxContainer.new()
+	v.add_child(h)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(info)
+	var cap := GameState.staff_level(float(c.get("potential", c["skill"])))
+	_text(info, "%s%s   ·   €%d a night   ·   €%d agency fee" % [_skill_text(float(c["skill"])), ("  (could reach %d/5)" % cap) if cap > GameState.staff_level(float(c["skill"])) else "", int(c["wage"]), int(c.get("fee", 0))], 20, Color(0.6, 0.9, 0.65))
+	var blurb := str(c.get("blurb", ""))
+	if GameState.TRAITS.has(tr):
+		blurb += "  %s: %s." % [GameState.TRAITS[tr]["name"], GameState.TRAITS[tr]["desc"]]
+	_text(info, blurb, 18)
+	if why != "":
+		_text(info, why, 18, Color(1, 0.6, 0.5))
+	var b := UITheme.button("Hire", func():
+		if GameState.hire(id):
+			Sfx.play("ui_buy", -2.0)
+			_refresh_in_place("staff"), 24)
+	b.custom_minimum_size = Vector2(150, 70)
+	b.disabled = why != ""
+	h.add_child(b)
 
 
 func _tier_name(rep: float) -> String:
@@ -317,7 +463,7 @@ func _effects_text(e: Dictionary) -> String:
 
 # ------------------------------------------------------------------ stock
 func _stock() -> void:
-	_text(content, "Stock arrives tomorrow morning. Delivery fee €%d per order. Change empty kegs in the cellar." % int(GameData.econ("delivery_fee", 6)), 20, UITheme.MUTED)
+	_text(content, "Stock arrives tomorrow morning. Delivery fee €%d per order. Change empty or stale kegs in the cellar (hold on the keg)." % int(GameData.econ("delivery_fee", 6)), 20, UITheme.MUTED)
 	for d in GameData.drinks:
 		var id: String = d["id"]
 		if not GameState.drink_available(id):
@@ -332,6 +478,8 @@ func _stock() -> void:
 		var left := GameState.serves_left(id)
 		var fresh := int(GameState.freshness(id) * 100)
 		_text(info, "On tap: %d serves (%d%% fresh)  ·  Spare: %d %s  ·  Arriving: %d" % [int(left), fresh, int(GameState.stock.get(id, 0)), d["stock_unit"], GameState.pending_delivery(id)], 20)
+		if GameState.keg_stale(id):
+			_text(info, "Gone stale: customers can taste it. %s" % ("Swap it for a spare in the cellar (hold on the keg)." if int(GameState.stock.get(id, 0)) > 0 else "Order a fresh one, then swap it in the cellar."), 18, Color(1, 0.6, 0.5))
 		_text(info, "€%d per %s (%d serves, €%.2f each)" % [int(d["stock_cost"]), d["stock_unit"], int(d["units_per_stock"]), GameState.unit_cost(id)], 18, UITheme.MUTED)
 		for n in [1, 3]:
 			var packs: int = n
@@ -867,10 +1015,12 @@ func show_summary(s: Dictionary) -> void:
 	var extras := []
 	if int(s.get("best_streak", 0)) >= 2:
 		extras.append("Best streak %d good pints" % int(s["best_streak"]))
-	if int(s.get("staff_served", 0)) > 0:
+	if int(s.get("staff_served", 0)) > 0 and (s.get("staff_lines", []) as Array).is_empty():
 		extras.append("Your staff served %d" % int(s["staff_served"]))
 	if not extras.is_empty():
 		_text(v, " · ".join(extras), 22)
+	for sl in s.get("staff_lines", []):
+		_text(v, str(sl), 20, Color(0.6, 0.9, 0.65))
 	_text(v, "Reputation %d (%+.1f): %s · Cash €%.2f" % [int(s["reputation"]), float(s["rep_change"]), GameState.rep_tier(), float(s["cash"])], 22, UITheme.GOLD)
 	var goals: Array = s.get("goals", [])
 	if not goals.is_empty():
