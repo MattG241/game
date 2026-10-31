@@ -1,0 +1,17 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://cxm1025ig5jkt"
+
+[deps]
+
+files=["res://assets/music/SOUNDTRACK_MANIFEST.file.translation", "res://assets/music/SOUNDTRACK_MANIFEST.event.translation", "res://assets/music/SOUNDTRACK_MANIFEST.bytes.translation", "res://assets/music/SOUNDTRACK_MANIFEST.sha256.translation"]
+
+source_file="res://assets/music/SOUNDTRACK_MANIFEST.csv"
+dest_files=["res://assets/music/SOUNDTRACK_MANIFEST.file.translation", "res://assets/music/SOUNDTRACK_MANIFEST.event.translation", "res://assets/music/SOUNDTRACK_MANIFEST.bytes.translation", "res://assets/music/SOUNDTRACK_MANIFEST.sha256.translation"]
+
+[params]
+
+compress=true
+delimiter=0

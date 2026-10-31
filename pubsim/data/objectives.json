@@ -1,0 +1,10 @@
+[
+  {"id": "serve", "text": "Serve %d drinks", "stat": "served", "base": 6, "per_day": 1.5, "max": 30, "reward": 15, "always": true},
+  {"id": "perfect", "text": "Pour %d pints scoring 90+", "stat": "perfect", "base": 1, "per_day": 0.34, "max": 6, "reward": 20},
+  {"id": "tips", "text": "Earn €%d in tips", "stat": "tips", "base": 3, "per_day": 1.0, "max": 25, "reward": 15},
+  {"id": "no_walkouts", "text": "Nobody walks out", "stat": "walkouts", "kind": "zero", "min_served": 5, "reward": 20},
+  {"id": "chat", "text": "Have a chat with %d regulars", "stat": "chats", "base": 2, "per_day": 0.2, "max": 4, "reward": 10},
+  {"id": "wash", "text": "Wash %d glasses", "stat": "washed", "base": 5, "per_day": 1.0, "max": 25, "reward": 10},
+  {"id": "streak", "text": "Serve %d good pints in a row", "stat": "best_streak", "base": 3, "per_day": 0.4, "max": 10, "reward": 20},
+  {"id": "quality", "text": "Average pint quality of %d+", "stat": "avg_quality", "kind": "avg", "base": 65, "per_day": 2, "max": 85, "min_served": 4, "reward": 20}
+]

@@ -1,0 +1,25 @@
+{
+  "first_names": ["Ann", "Brian", "Clodagh", "Dara", "Emer", "Fergal", "Gráinne", "Hugh", "Íde", "Jim", "Kate", "Lorcan", "Maeve", "Niall", "Orla", "Peadar", "Róisín", "Seamus", "Tara", "Úna", "Vincent", "Áine", "Colm", "Deirdre", "Eoin", "Fiona", "Gearóid", "Hannah", "Ivan", "Joanne", "Kevin", "Laura", "Mick", "Nuala", "Oisín", "Pat", "Rachel", "Sorcha", "Tadhg", "Yvonne"],
+  "visitor_types": ["local", "tourist", "worker", "student", "couple", "fan"],
+  "order": {
+    "stout": ["A pint of Galagers, please.", "Pint of stout when you're ready.", "One stout, please."],
+    "lager": ["Pint of lager, please.", "A cold lager, please."],
+    "ale": ["Pint of the red ale, please.", "Is the Red Fox on? I'll have one."],
+    "cider": ["Cider over ice, please.", "A cider, please."],
+    "zero": ["Have you an alcohol-free stout?", "A Galagers Zero, please."],
+    "whiskey": ["A whiskey, please. No ice.", "Ballyfinn, please."],
+    "soft": ["Just a lemonade, please.", "Lemonade for me, I'm driving."]
+  },
+  "tourist_order": ["What would you recommend? I'll trust you.", "First time in Ireland! What should I try?"],
+  "waiting": ["Any chance of that drink?", "Still waiting here...", "Are you busy tonight?"],
+  "angry": ["Forget it, I'm going elsewhere.", "I've waited long enough.", "Not worth the wait."],
+  "praise": ["Lovely, thanks!", "That's gorgeous.", "Perfect, cheers!", "Now that's a pint."],
+  "ok": ["Thanks.", "Cheers.", "Grand, thanks."],
+  "complain": ["Hm, that's not great.", "Bit of a sorry-looking pint.", "That's mostly foam!"],
+  "refuse": ["I can't drink that. Can you pour it again?", "Sorry, that's not right. Another go?"],
+  "wrong_drink": ["That's not what I ordered.", "I asked for something else, I think."],
+  "dirty": ["Is that glass clean?", "There's lipstick on this glass..."],
+  "too_dear": ["How much?! I'll leave it, thanks.", "Bit pricey for me."],
+  "music": ["Great tunes tonight!", "Love this one!", "Give us another!"],
+  "leave": ["Night now!", "Thanks, see you again.", "Lovely spot, this."]
+}
