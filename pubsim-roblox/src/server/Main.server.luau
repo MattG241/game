@@ -18,6 +18,7 @@ local Contents = require(Shared.Contents)
 local Dispatcher = require(Shared.Dispatcher)
 
 local Builder = require(script.Parent.PubBuilder)
+local PubModels = require(script.Parent.PubModels)
 local Glasses = require(script.Parent.Glasses)
 local Customers = require(script.Parent.Customers)
 local StaffNpc = require(script.Parent.StaffNpc)
@@ -66,6 +67,35 @@ setupLighting()
 Audio.setup()
 
 local info = Builder.build(workspace)
+-- the phone game's own pub, exported and uploaded by CI, around the gameplay
+local apkPub = PubModels.load(info)
+require(script.Parent.PeopleModels).preload()
+if apkPub then
+	-- the phone game's light: warm, low ambient, a touch of exposure and glow
+	Lighting.Ambient = Color3.fromRGB(58, 50, 44)
+	Lighting.OutdoorAmbient = Color3.fromRGB(40, 40, 50)
+	Lighting.Brightness = 0.6
+	Lighting.ExposureCompensation = 0.35
+	Lighting.EnvironmentDiffuseScale = 0.35
+	Lighting.EnvironmentSpecularScale = 0.5
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
+	if bloom then
+		bloom.Threshold = 1.1
+		bloom.Intensity = 0.6
+		bloom.Size = 24
+	end
+	local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atm then
+		atm.Density = 0.2
+		atm.Haze = 0.6
+	end
+end
+-- everyone starts behind the bar, like the phone game
+local spawnPart = workspace:FindFirstChild("Spawn")
+if spawnPart and spawnPart:IsA("BasePart") then
+	spawnPart.Size = Vector3.new(3, 1, 3)
+	spawnPart.CFrame = CFrame.new(Layout.PLAYER_START + Vector3.new(0, 0.6, 0))
+end
 local people = Instance.new("Folder")
 people.Name = "People"
 people.Parent = workspace

@@ -64,4 +64,85 @@ L.PLAYER_START = v(-0.6, 0, -3.3)
 -- the tables: centre and number of chairs; seats are built round them
 L.TABLES = { { v(-4.4, 0, 0.9), 3 }, { v(-3.0, 0, 3.4), 4 }, { v(2.5, 0, 1.0), 4 }, { v(2.5, 0, 3.6), 3 } }
 
+-- ------------------------------------------------------------------ the APK's own floor plan
+-- When the APK's pub has been exported (tools/roblox/export_world in the Godot project), its
+-- positions are used exactly, so the gameplay lines up with the furniture you see.
+local okW, World = pcall(function()
+	return require(script.Parent.ApkWorld)
+end)
+local A = if okW and World and World.layout then World.layout else nil
+L.APK = A
+if A then
+	local function v3(t)
+		return if t then Vector3.new(t[1] * M, t[2] * M, t[3] * M) else nil
+	end
+	local function v2(t)
+		return if t then Vector2.new(t[1] * M, t[2] * M) else nil
+	end
+	L.ROOM_MIN = v2(A.ROOM_MIN) or L.ROOM_MIN
+	L.ROOM_MAX = v2(A.ROOM_MAX) or L.ROOM_MAX
+	L.ROOM_H = (A.ROOM_H or 3.4) * M
+	L.BAR_X = v2(A.BAR_X) or L.BAR_X
+	L.BAR_FRONT_Z = (A.BAR_FRONT_Z or -1.75) * M
+	L.BAR_BACK_Z = (A.BAR_BACK_Z or -2.45) * M
+	L.BAR_TOP = (A.BAR_TOP or 1.08) * M
+	L.BACK_COUNTER_Z = (A.BACK_COUNTER_Z or -4.65) * M
+	L.BACK_COUNTER_TOP = (A.BACK_COUNTER_TOP or 0.95) * M
+	L.PARTITION_X = (A.PARTITION_X or 3.6) * M
+	if A.TAP_X then
+		for k, x in A.TAP_X do
+			L.TAP_X[k] = x * M
+		end
+	end
+	L.TAP_Z = (A.TAP_Z or -2.08) * M
+	if A.SETTLE_SLOTS then
+		L.SETTLE_SLOTS = {}
+		for i, t in A.SETTLE_SLOTS do
+			L.SETTLE_SLOTS[i] = v3(t)
+		end
+	end
+	L.RACK_POS = v3(A.RACK_POS) or L.RACK_POS
+	L.SINK_POS = v3(A.SINK_POS) or L.SINK_POS
+	L.TILL_POS = v3(A.TILL_POS) or L.TILL_POS
+	if A.BAR_SPOT_X then
+		L.BAR_SPOT_X = {}
+		for i, x in A.BAR_SPOT_X do
+			L.BAR_SPOT_X[i] = x * M
+		end
+	end
+	L.BAR_SPOT_Z = (A.BAR_SPOT_Z or -1.2) * M
+	L.DOOR_POS = v3(A.DOOR_POS) or L.DOOR_POS
+	L.INSIDE_DOOR = v3(A.INSIDE_DOOR) or L.INSIDE_DOOR
+	L.OUTSIDE_DOOR = v3(A.OUTSIDE_DOOR) or L.OUTSIDE_DOOR
+	L.STREET_L = v3(A.STREET_SPAWN_L) or L.STREET_L
+	L.STREET_R = v3(A.STREET_SPAWN_R) or L.STREET_R
+	L.SIGN_POS = v3(A.DOOR_SIGN_POS) or L.SIGN_POS
+	L.CELLAR_DOOR = v3(A.CELLAR_DOOR) or L.CELLAR_DOOR
+	L.CELLAR_MIN = v2(A.CELLAR_MIN) or L.CELLAR_MIN
+	L.CELLAR_MAX = v2(A.CELLAR_MAX) or L.CELLAR_MAX
+	if A.KEG_POS then
+		for k, t in A.KEG_POS do
+			L.KEG_POS[k] = v3(t)
+		end
+	end
+	L.FIREPLACE = v3(A.FIREPLACE) or L.FIREPLACE
+	L.STAGE_POS = v3(A.STAGE_POS) or L.STAGE_POS
+	L.JUKEBOX_POS = v3(A.JUKEBOX_POS) or L.JUKEBOX_POS
+	L.PLAYER_START = v3(A.PLAYER_START) or L.PLAYER_START
+	if A.STAND_SPOTS then
+		L.STAND_SPOTS = {}
+		for i, t in A.STAND_SPOTS do
+			L.STAND_SPOTS[i] = v3(t)
+		end
+	end
+	-- every seat in the APK, exactly where its chair is: {pos, yaw, table, kind}
+	if A.seats then
+		L.SEATS = {}
+		for _, st in A.seats do
+			table.insert(L.SEATS, { pos = v3(st.pos), yaw = st.yaw or 0, table = v3(st.table), kind = st.kind or "chair",
+				sitY = (st.sit_y or 0) * M })
+		end
+	end
+end
+
 return L

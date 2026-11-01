@@ -115,6 +115,7 @@ function Glasses.place(g, cf, parent)
 	end
 	g.model.PrimaryPart.CFrame = cf
 	Glasses.refresh(g)
+	g.model:SetAttribute("Held", nil)
 	g.model.Parent = parent
 end
 
@@ -143,6 +144,7 @@ function Glasses.hold(g, character)
 	hw.Part0 = hand
 	hw.Part1 = g.model.PrimaryPart
 	hw.Parent = g.model.PrimaryPart
+	g.model:SetAttribute("Held", true)
 	g.model.Parent = character
 	return true
 end

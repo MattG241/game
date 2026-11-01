@@ -78,6 +78,30 @@ uploader sends the voices and sound effects first, then the songs. If the monthl
 the game still works (without the missing songs) and the next run picks up where it stopped.
 A verified Roblox account (ID or phone) gets a much higher limit.
 
+## It looks like the phone game
+
+The pub you walk round in Roblox is the phone game's own pub, not a copy built from blocks:
+
+- **The room, the bar and every fitting** are exported from the Godot project by
+  `pubsim/tools/roblox/export_world.tscn`. Every surface is baked with the phone game's own
+  shaders and textures (the tiles, plaster, oak, stone, brass, bottles, beer mats, posters,
+  shading in the corners) into textured meshes in `assets/world/`, with a manifest of where each
+  piece goes, which upgrade it belongs to, the lights, the lettering and the floor plan. The
+  Roblox scripts use that floor plan, so the seats, taps and bar line up with what you see.
+- **The people** are the phone game's 16 realistic characters (`assets/people/`, packed from
+  `pubsim/assets/people_mh` by `tools/pack_people.py`), worn over the Roblox NPCs and posed on
+  each player's screen: walking, sitting, holding and sipping a drink, talking.
+- **First person** behind the bar, with the glass you're holding in view, and the phone game's
+  HUD layout and warm, low light.
+
+To refresh the pub after changing it in the phone game, run the export (in `pubsim/`):
+
+```
+OUT=../pubsim-roblox/assets/world xvfb-run godot --rendering-driver opengl3 res://tools/roblox/export_world.tscn
+```
+
+and push: CI uploads anything new and publishes.
+
 ## What's in the Roblox version
 
 - Pouring with the two-part stout, settling on the drip tray, the head and fill scoring, and the

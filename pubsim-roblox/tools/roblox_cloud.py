@@ -65,19 +65,68 @@ def creator(universe):
     return ("groupId" if c["type"] == "Group" else "userId"), str(c["id"])
 
 
-def multipart(req, filename, data):
+def multipart(req, filename, data, ctype="audio/ogg"):
     boundary = "----pubsim" + uuid.uuid4().hex
     head = (f"--{boundary}\r\n"
             f"Content-Disposition: form-data; name=\"request\"\r\n\r\n"
             f"{json.dumps(req)}\r\n"
             f"--{boundary}\r\n"
             f"Content-Disposition: form-data; name=\"fileContent\"; filename=\"{filename}\"\r\n"
-            f"Content-Type: audio/ogg\r\n\r\n").encode()
+            f"Content-Type: {ctype}\r\n\r\n").encode()
     body = head + data + f"\r\n--{boundary}--\r\n".encode()
     return body, {"Content-Type": f"multipart/form-data; boundary={boundary}"}
 
 
+def wait_op(op, tries=100):
+    for _ in range(tries):
+        time.sleep(3)
+        code, st = http("GET", f"https://apis.roblox.com/assets/v1/{op}")
+        if isinstance(st, dict) and st.get("done"):
+            return st
+    return None
+
+
+def upload_models():
+    """The APK's pub and people (assets/world, assets/people: .glb), each uploaded once (by
+    content hash) as a Model."""
+    import hashlib
+    lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {}
+    models = lock.setdefault("models", {})
+    todo = []
+    for sub in ("world", "people"):
+        folder = os.path.join(ROOT, "assets", sub)
+        if not os.path.isdir(folder):
+            continue
+        for f in sorted(x for x in os.listdir(folder) if x.endswith(".glb")):
+            data = open(os.path.join(folder, f), "rb").read()
+            sha = hashlib.sha256(data).hexdigest()
+            if not models.get(sha, {}).get("assetId"):
+                todo.append((f, sha, data))
+    if not todo:
+        print("All models already uploaded.")
+        return
+    kind, owner = creator(universe_id())
+    for f, sha, data in todo:
+        req = {"assetType": "Model", "displayName": f"Irish Pub Simulator {f[:-4]}",
+               "description": "The pub from The Irish Pub Simulator.",
+               "creationContext": {"creator": {kind: owner}, "expectedPrice": 0}}
+        code, res = http("POST", "https://apis.roblox.com/assets/v1/assets", *multipart(req, f, data, "model/gltf-binary"))
+        if code not in (200, 201) or not isinstance(res, dict) or "path" not in res:
+            print(f"::warning::Model upload stopped at {f} ({code}): {res}")
+            break
+        st = wait_op(res["path"])
+        asset = ((st or {}).get("response") or {}).get("assetId")
+        if not asset:
+            print(f"::warning::{f} was not accepted: {st}")
+            continue
+        models[sha] = {"assetId": int(asset), "file": f}
+        print(f"uploaded {f} ({len(data) // 1024} KB) -> {asset}")
+        json.dump(lock, open(LOCK, "w"), indent=1)
+    json.dump(lock, open(LOCK, "w"), indent=1)
+
+
 def upload():
+    upload_models()
     amap = json.load(open(os.path.join(ROOT, "build", "audio_map.json")))
     lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {}
     audio = lock.setdefault("audio", {})

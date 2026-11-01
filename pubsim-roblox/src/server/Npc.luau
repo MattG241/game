@@ -4,6 +4,7 @@
 
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
+local PeopleModels = require(script.Parent.PeopleModels)
 
 local Npc = {}
 
@@ -128,6 +129,8 @@ function Npc.spawn(name, look, rng, parent, at)
 	if at then
 		model:PivotTo(at)
 	end
+	-- one of the phone game's people, worn over the (now unseen) Roblox body
+	PeopleModels.dress(model, look, rng, h)
 	-- animations
 	local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator")
 	animator.Parent = hum
@@ -174,6 +177,10 @@ function Npc.say(n, text, seconds, color)
 		return
 	end
 	local label = bb:FindFirstChild("Say")
+	if n.model and text ~= "" then
+		-- the client moves their head as they talk
+		n.model:SetAttribute("TalkUntil", workspace:GetServerTimeNow() + math.min(seconds or 3, 6))
+	end
 	label.Text = text
 	label.TextColor3 = color or Color3.fromRGB(255, 248, 232)
 	label.Visible = text ~= ""

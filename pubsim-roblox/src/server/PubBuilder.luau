@@ -311,8 +311,38 @@ local function chair(g, pos, lookAt, kind)
 	return seat
 end
 
+-- The APK's own seats: an invisible seat exactly where each of its chairs, armchairs and booth
+-- benches is (the chairs themselves are part of the APK pub, loaded by ApkWorld).
+local SEAT_H = { chair = 0.46, armchair = 0.42, booth = 0.45, stool = 0.74 }
+local function buildApkSeats(g)
+	for _, st in Layout.SEATS do
+		local y = (SEAT_H[st.kind] or 0.46) * M + st.sitY
+		local pos = Vector3.new(st.pos.X, y - 0.1, st.pos.Z)
+		local look = if st.table then Vector3.new(st.table.X, pos.Y, st.table.Z)
+			else pos - Vector3.new(math.sin(st.yaw), 0, math.cos(st.yaw))
+		if (look - pos).Magnitude < 0.01 then
+			look = pos - Vector3.new(math.sin(st.yaw), 0, math.cos(st.yaw))
+		end
+		local seat = part(g, Vector3.new(1.6, 0.2, 1.6), CFrame.lookAt(pos, look), C.oak, Enum.Material.Wood, { Transparency = 1 })
+		seat.Name = "Seat"
+		seat.CanCollide = false
+		local entry = { seat = seat, table = st.table or look, kind = if st.kind == "booth" then "booth" else st.kind }
+		if st.kind == "booth" then
+			entry.upgrade = "booths"
+		end
+		table.insert(info.seats, entry)
+	end
+	for i, x in Layout.BAR_SPOT_X do
+		info.barSpots[i] = Vector3.new(x, 0, Layout.BAR_SPOT_Z)
+	end
+end
+
 local function buildSeating()
 	local g = folder("Seating")
+	if Layout.SEATS then
+		buildApkSeats(g)
+		return
+	end
 	for _, t in Layout.TABLES do
 		local p, n = t[1], t[2]
 		cyl(g, 1.55, 0.18, p + Vector3.new(0, 2.45, 0), C.darkOak, Enum.Material.Wood, { Reflectance = 0.05 })

@@ -390,8 +390,20 @@ function Customers.served(c, glass, res)
 		settle(c)
 		local drinkFor = rng:NextNumber(60, 120) * G.state.settings.dayLength / 10 * (1 + G.state:getMod("stay_mult"))
 		local t0 = os.clock()
+		local nextSip = os.clock() + rng:NextNumber(3, 7)
 		while alive(c) and c.state == "drinking" and os.clock() - t0 < drinkFor do
 			task.wait(1)
+			if os.clock() > nextSip and c.n and c.n.model and c.n.model.Parent then
+				-- a sip (the client raises the glass)
+				local m = c.n.model
+				m:SetAttribute("Sipping", true)
+				task.delay(1.8, function()
+					if m.Parent then
+						m:SetAttribute("Sipping", false)
+					end
+				end)
+				nextSip = os.clock() + rng:NextNumber(7, 15)
+			end
 			if G.state.phase == "closing" then
 				break
 			end

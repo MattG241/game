@@ -14,6 +14,8 @@ local Act = Remotes:WaitForChild("Act")
 local Ui = require(script.Parent.Ui)
 local Pour = require(script.Parent.Pour)
 local Menu = require(script.Parent.Menu)
+local HeldView = require(script.Parent.HeldView)
+local PeopleAnim = require(script.Parent.PeopleAnim)
 
 local player = Players.LocalPlayer
 pcall(function()
@@ -27,23 +29,30 @@ screen.Parent = player:WaitForChild("PlayerGui")
 local gui = Ui.root(screen) -- scaled to fit phones, tablets, computers and TVs
 
 -- the day at a glance, top centre
-local status = Ui.panel(gui, UDim2.fromOffset(330, 0), UDim2.new(0.5, -165, 0, 8), 0.3)
+local status = Ui.panel(gui, UDim2.fromOffset(300, 0), UDim2.new(0, 16, 0, 12), 0.3)
 status.AutomaticSize = Enum.AutomaticSize.Y
 Ui.pad(status, 14, 8)
 Ui.list(status, 2)
 local cashLabel = Ui.label(status, "€0.00", 26, Ui.GOLD, Enum.Font.GothamBold)
 local dayLabel = Ui.label(status, "", 14, Ui.CREAM)
 
-local nextPill = Ui.panel(gui, UDim2.fromOffset(420, 0), UDim2.new(0.5, -210, 0, 92), 0.3)
+-- the next step, at the foot of the screen with a gold edge, as in the phone game
+local nextPill = Ui.panel(gui, UDim2.fromOffset(560, 0), UDim2.new(0.5, -280, 1, -170), 0.25)
+local nextEdge = Instance.new("Frame")
+nextEdge.Size = UDim2.new(0, 4, 1, -16)
+nextEdge.Position = UDim2.fromOffset(0, 8)
+nextEdge.BackgroundColor3 = Ui.GOLD
+nextEdge.BorderSizePixel = 0
+nextEdge.Parent = nextPill
 nextPill.AutomaticSize = Enum.AutomaticSize.Y
 Ui.pad(nextPill, 14, 6)
 local nextLabel = Ui.label(nextPill, "", 16, Ui.CREAM)
-nextLabel.TextXAlignment = Enum.TextXAlignment.Center
+nextLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local holdLabel = Ui.label(gui, "", 15, Ui.CREAM, Enum.Font.GothamMedium)
 holdLabel.Size = UDim2.fromOffset(360, 22)
 holdLabel.AutomaticSize = Enum.AutomaticSize.None
-holdLabel.Position = UDim2.new(0.5, -180, 1, -96)
+holdLabel.Position = UDim2.new(0.5, -180, 1, -64)
 holdLabel.TextXAlignment = Enum.TextXAlignment.Center
 holdLabel.TextStrokeTransparency = 0.5
 
@@ -81,7 +90,7 @@ Ui.list(orders, 6)
 local toasts = Instance.new("Frame")
 toasts.BackgroundTransparency = 1
 toasts.Size = UDim2.fromOffset(440, 200)
-toasts.Position = UDim2.new(0.5, -220, 0, 138)
+toasts.Position = UDim2.new(0.5, -220, 0, 16)
 toasts.Parent = gui
 Ui.list(toasts, 6)
 
@@ -205,7 +214,7 @@ local function updateState(s)
 	if s.role ~= "Landlord" and s.landlordName ~= "" then
 		dayLabel.Text ..= "\nHelping out at " .. s.landlordName .. "'s pub"
 	end
-	nextLabel.Text = if s.next ~= "" then "NEXT  " .. s.next else ""
+	nextLabel.Text = s.next
 	nextPill.Visible = s.next ~= "" and not Pour.active()
 	holdLabel.Text = if s.holding ~= "" then "Holding: " .. s.holding else ""
 	-- goals
@@ -277,6 +286,8 @@ end)
 -- controllers: Y opens the menu, B closes it, D-pad down shows the goals. Prompts (pour, take
 -- an order, flip the sign) already show the right button on every device.
 local function refreshHints()
+HeldView.start(Pour.active)
+task.spawn(PeopleAnim.start)
 	local pad = Ui.gamepad()
 	menuBtn.Text = if pad then "Menu (Y)" else "Menu"
 end
