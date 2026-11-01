@@ -56,6 +56,18 @@ def creator(universe):
     return ("groupId" if c["type"] == "Group" else "userId"), str(c["id"])
 
 
+def multipart(req, filename, data):
+    boundary = "----pubsim" + uuid.uuid4().hex
+    head = (f"--{boundary}\r\n"
+            f"Content-Disposition: form-data; name=\"request\"\r\n\r\n"
+            f"{json.dumps(req)}\r\n"
+            f"--{boundary}\r\n"
+            f"Content-Disposition: form-data; name=\"fileContent\"; filename=\"{filename}\"\r\n"
+            f"Content-Type: audio/ogg\r\n\r\n").encode()
+    body = head + data + f"\r\n--{boundary}--\r\n".encode()
+    return body, {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+
+
 def upload():
     amap = json.load(open(os.path.join(ROOT, "build", "audio_map.json")))
     lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {}
@@ -71,18 +83,20 @@ def upload():
         return -sum(1 for k in clips if not k.startswith("music/"))
     todo.sort(key=importance)
     kind, owner = creator(universe_id())
+    print(f"Uploading as {kind} {owner}")
     for s in todo:
         path = os.path.join(ROOT, "build", "audio", s["file"])
-        req = {"assetType": "Audio", "displayName": f"Irish Pub Simulator audio {s['file'][7:9]}",
-               "description": "Music, voices and sound effects for The Irish Pub Simulator.",
-               "creationContext": {"creator": {kind: owner}}}
-        boundary = uuid.uuid4().hex
         data = open(path, "rb").read()
-        body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"request\"\r\n\r\n{json.dumps(req)}\r\n"
-                f"--{boundary}\r\nContent-Disposition: form-data; name=\"fileContent\"; filename=\"{s['file']}\"\r\n"
-                f"Content-Type: audio/ogg\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
-        code, res = http("POST", "https://apis.roblox.com/assets/v1/assets", body,
-                         {"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        name = f"Irish Pub Simulator audio {s['file'][7:9]}"
+        code, res = 0, None
+        # the creator id as a string (what the docs show), then as a number
+        for who in (owner, int(owner)):
+            req = {"assetType": "Audio", "displayName": name,
+                   "description": "Music, voices and sound effects for The Irish Pub Simulator.",
+                   "creationContext": {"creator": {kind: who}, "expectedPrice": 0}}
+            code, res = http("POST", "https://apis.roblox.com/assets/v1/assets", *multipart(req, s["file"], data))
+            if not (code == 400 and "CreatorType" in str(res)):
+                break
         if code not in (200, 201) or not isinstance(res, dict) or "path" not in res:
             print(f"::warning::Audio upload stopped at {s['file']} ({code}): {res}. "
                   "Roblox limits audio uploads per month; the rest will go up on a later build.")
@@ -107,8 +121,13 @@ def upload():
 def publish(path):
     uni = universe_id()
     data = open(path, "rb").read()
-    code, res = http("POST", f"https://apis.roblox.com/universes/v1/{uni}/places/{PLACE}/versions?versionType=Published",
-                     data, {"Content-Type": "application/xml"})
+    url = f"https://apis.roblox.com/universes/v1/{uni}/places/{PLACE}/versions?versionType=Published"
+    code, res = 0, None
+    for ctype in ("application/octet-stream", "application/xml"):
+        code, res = http("POST", url, data, {"Content-Type": ctype})
+        if code == 200:
+            break
+        print(f"Publishing as {ctype} failed ({code}): {res}")
     if code != 200:
         sys.exit(f"Publishing failed ({code}): {res}")
     print(f"Published place {PLACE} (game {uni}), version {res.get('versionNumber') if isinstance(res, dict) else res}")
