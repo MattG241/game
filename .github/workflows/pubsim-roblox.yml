@@ -54,15 +54,15 @@ jobs:
       - name: Check the code against Roblox's API (luau-lsp)
         run: |
           set +e
-          luau-lsp analyze --platform=roblox --definitions=@roblox="$RUNNER_TEMP/tools/globalTypes.d.luau" \
+          DEFS="$RUNNER_TEMP/tools/globalTypes.d.luau"
+          luau-lsp analyze --platform=roblox --definitions="$DEFS" \
             --sourcemap=build/sourcemap.json --base-luaurc=.luaurc src build/Data.luau > analyze.txt 2>&1
           code=$?
-          if grep -q "Unknown option\|unrecognised\|unrecognized" analyze.txt; then
-            luau-lsp analyze --definitions="$RUNNER_TEMP/tools/globalTypes.d.luau" \
-              --sourcemap=build/sourcemap.json src > analyze.txt 2>&1
-            code=$?
-          fi
           cat analyze.txt
+          if grep -qiE "Cannot load|Unknown option|unrecogni[sz]ed|No such file" analyze.txt; then
+            echo "::error::luau-lsp didn't run (see above)"
+            exit 1
+          fi
           if grep -E "SyntaxError|TypeError" analyze.txt > /dev/null; then
             echo "::error::luau-lsp found errors (see above)"
             exit 1
