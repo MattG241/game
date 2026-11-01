@@ -6,7 +6,7 @@ local GuiService = game:GetService("GuiService")
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local Ui = require(script.Parent.Ui)
 
-local Menu = {}
+local Menu: any = {}
 
 local player = Players.LocalPlayer
 local Ask = Remotes:WaitForChild("Ask")

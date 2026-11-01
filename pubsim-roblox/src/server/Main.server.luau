@@ -554,7 +554,7 @@ end
 -- the drip tray: stouts left to settle, picked up again to top up
 for i, pos in Layout.SETTLE_SLOTS do
 	local part = Builder.part(info.root, Vector3.new(0.8, 0.05, 0.8), pos + Vector3.new(0, 0.03, 0), Builder.C.brass, Enum.Material.DiamondPlate)
-	local s = { part = part }
+	local s: any = { part = part, glass = nil }
 	s.prompt = prompt(part, "Put the glass down to settle", "Drip tray", 0, 7)
 	s.prompt.Triggered:Connect(function(player)
 		local h = holding[player]

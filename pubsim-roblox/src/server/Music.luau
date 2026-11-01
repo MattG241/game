@@ -80,7 +80,7 @@ local function background()
 	end
 	local pick = pool[rng:NextInteger(1, #pool)]
 	if pick == songId and #pool > 1 then
-		pick = pool[(table.find(pool, pick) % #pool) + 1]
+		pick = pool[((table.find(pool, pick) or 0) % #pool) + 1]
 	end
 	return pick
 end

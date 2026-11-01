@@ -186,7 +186,7 @@ local function serveOne(w, c)
 	Npc.hold(w.n, glass.model)
 	walk(w, Vector3.new(G.info.barSpots[c.barSpot or 1].X, 0, Layout.BEHIND_Z))
 	task.wait(lerp(1.0, 0.4, e.skill) / pace(w))
-	if c.state == "wait_drink" and c.alive then
+	if (c.state :: any) == "wait_drink" and c.alive then -- it may have changed while walking
 		G.serve(nil, c, glass, w)
 	else
 		G.dropGlass(glass)
