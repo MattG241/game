@@ -77,6 +77,15 @@ def multipart(req, filename, data, ctype="audio/ogg"):
     return body, {"Content-Type": f"multipart/form-data; boundary={boundary}"}
 
 
+def moderated(code, res):
+    """Roblox refuses everything while the account is under a moderation action."""
+    if code == 403 and "moderated" in str(res).lower():
+        print("::warning::The Roblox account is under moderation, so Roblox refuses uploads and publishing "
+              "until it ends. Nothing was sent; the next build after it ends will catch up.")
+        return True
+    return False
+
+
 def wait_op(op, tries=100):
     for _ in range(tries):
         time.sleep(3)
@@ -111,6 +120,8 @@ def upload_models():
                "description": "The pub from The Irish Pub Simulator.",
                "creationContext": {"creator": {kind: owner}, "expectedPrice": 0}}
         code, res = http("POST", "https://apis.roblox.com/assets/v1/assets", *multipart(req, f, data, "model/gltf-binary"))
+        if moderated(code, res):
+            return
         if code not in (200, 201) or not isinstance(res, dict) or "path" not in res:
             print(f"::warning::Model upload stopped at {f} ({code}): {res}")
             break
@@ -155,6 +166,8 @@ def upload():
             code, res = http("POST", "https://apis.roblox.com/assets/v1/assets", *multipart(req, s["file"], data))
             if not (code == 400 and "CreatorType" in str(res)):
                 break
+        if moderated(code, res):
+            return
         if code not in (200, 201) or not isinstance(res, dict) or "path" not in res:
             print(f"::warning::Audio upload stopped at {s['file']} ({code}): {res}. "
                   "Roblox limits audio uploads per month; the rest will go up on a later build.")
@@ -177,6 +190,14 @@ def upload():
 
 
 def publish(path):
+    # A pub shows alcohol: Roblox only allows that once the game has the Restricted (18+) label
+    # from the Maturity & Compliance questionnaire. publish.json says when it has.
+    flag = os.path.join(ROOT, "publish.json")
+    settings = json.load(open(flag)) if os.path.exists(flag) else {}
+    if not settings.get("restricted_label"):
+        print("::notice::Not publishing: the game doesn't have its 18+ Restricted label yet (publish.json). "
+              "The place file is built and saved as usual.")
+        return
     uni = universe_id()
     print(f"Publishing {os.path.basename(path)} ({os.path.getsize(path) // 1024} KB) to place {PLACE} in game {uni}")
     data = open(path, "rb").read()
@@ -186,6 +207,8 @@ def publish(path):
         code, res = http("POST", url, data, {"Content-Type": ctype})
         if code == 200:
             break
+        if moderated(code, res):
+            return
         print(f"Publishing as {ctype} failed ({code}): {res}")
     if code != 200:
         sys.exit(f"Publishing failed ({code}): {res}")

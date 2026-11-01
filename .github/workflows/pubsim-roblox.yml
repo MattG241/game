@@ -79,8 +79,11 @@ jobs:
       - name: Fetch the list of audio already uploaded to Roblox
         run: gh release download roblox-latest -p assets.lock.json -D . --clobber || echo "No uploads yet."
 
-      - name: Upload new audio to Roblox
-        if: env.HAS_ROBLOX == 'true' && github.event_name == 'workflow_dispatch'
+      - name: Check everything against Roblox's rules (see ROBLOX_RULES.md)
+        run: python3 tools/check_assets.py
+
+      - name: Upload new models and audio to Roblox
+        if: env.HAS_ROBLOX == 'true'
         run: python3 tools/roblox_cloud.py upload
 
       - name: Rebuild the place with the audio ids
@@ -90,8 +93,8 @@ jobs:
           # loads, and is the format Roblox's servers take most reliably
           lune run tools/to_binary.luau build/IrishPubSimulator.rbxlx build/IrishPubSimulator.rbxl
 
-      - name: Publish to Roblox
-        if: env.HAS_ROBLOX == 'true' && github.event_name == 'workflow_dispatch'
+      - name: Publish to Roblox (once the game has its 18+ Restricted label: publish.json)
+        if: env.HAS_ROBLOX == 'true'
         run: python3 tools/roblox_cloud.py publish build/IrishPubSimulator.rbxl
 
       - name: Keep the uploaded-audio list

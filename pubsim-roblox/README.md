@@ -44,15 +44,18 @@ twice:
 Then open the **Actions** tab, choose **Irish Pub Simulator - Roblox**, and click
 **Run workflow**. It uploads the audio and publishes the game in about 10 minutes.
 
-**4. Let people play**
+**4. Let people play (18+ only: it's a pub)**
 
-In the Creator Dashboard, open the game, then:
+Roblox only allows games that show alcohol or a pub to ID-verified players aged 18+, and the
+game must not show it before it has that label. Keep the game **Private** until both are done:
 
-1. **Experience Questionnaire**: answer it. Roblox needs this before anyone else can play, and
-   before consoles can see the game.
-2. **Places → Settings**: check that Computer, Phone, Tablet and Console are ticked. GitHub
-   ticks them for you; this is just a check.
-3. Click **Make Public** on the game's overview page.
+1. Verify your Roblox account with ID (Settings → Account Info → Verify my age).
+2. In the Creator Dashboard, open the game → **Publish settings → Content rating**, answer the
+   questionnaire honestly (Alcohol: yes). The game gets the **Restricted** label.
+3. Tell Claude (or set `"restricted_label": true` in `publish.json`): from then on CI publishes
+   each update. Then click **Make Public**.
+
+See [ROBLOX_RULES.md](ROBLOX_RULES.md) for every Roblox rule this project follows.
 
 That's it. From now on, every change pushed to this folder updates the live game on its own.
 
@@ -88,9 +91,8 @@ The pub you walk round in Roblox is the phone game's own pub, not a copy built f
   shading in the corners) into textured meshes in `assets/world/`, with a manifest of where each
   piece goes, which upgrade it belongs to, the lights, the lettering and the floor plan. The
   Roblox scripts use that floor plan, so the seats, taps and bar line up with what you see.
-- **The people** are the phone game's 16 realistic characters (`assets/people/`, packed from
-  `pubsim/assets/people_mh` by `tools/pack_people.py`), worn over the Roblox NPCs and posed on
-  each player's screen: walking, sitting, holding and sipping a drink, talking.
+- **The people** are not the phone game's characters: their texture maps broke Roblox's rules
+  when uploaded (see ROBLOX_RULES.md), so they are not uploaded.
 - **First person** behind the bar, with the glass you're holding in view, and the phone game's
   HUD layout and warm, low light.
 
