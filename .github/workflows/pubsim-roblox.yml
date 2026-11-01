@@ -12,6 +12,11 @@ on:
       - 'pubsim/assets/audio/**'
       - '.github/workflows/pubsim-roblox.yml'
   workflow_dispatch:
+    inputs:
+      archive:
+        description: "Asset ids to archive (take down) on the Roblox account, space separated. Leave empty for a normal build."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -78,6 +83,12 @@ jobs:
 
       - name: Fetch the list of audio already uploaded to Roblox
         run: gh release download roblox-latest -p assets.lock.json -D . --clobber || echo "No uploads yet."
+
+      - name: Archive assets (only when asked, from the Run workflow form)
+        if: env.HAS_ROBLOX == 'true' && github.event_name == 'workflow_dispatch' && inputs.archive != ''
+        env:
+          ARCHIVE: ${{ inputs.archive }}
+        run: python3 tools/roblox_cloud.py archive "$ARCHIVE"
 
       - name: Check everything against Roblox's rules (see ROBLOX_RULES.md)
         run: python3 tools/check_assets.py

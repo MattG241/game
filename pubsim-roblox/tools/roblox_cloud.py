@@ -235,6 +235,21 @@ def devices(uni):
               "Creator Dashboard > the game > Places > Settings.")
 
 
+def archive(ids):
+    """Archives (takes down) assets on the account, e.g. uploads that should never have gone up."""
+    failed = False
+    for a in ids:
+        code, res = http("POST", f"https://apis.roblox.com/assets/v1/assets/{int(a)}:archive", b"{}",
+                         {"Content-Type": "application/json"})
+        if code == 200:
+            print(f"archived {a}")
+        else:
+            failed = True
+            print(f"::warning::Couldn't archive {a} ({code}): {res}")
+    if failed:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     if not KEY or not PLACE:
         sys.exit("ROBLOX_API_KEY and ROBLOX_PLACE_ID are needed.")
@@ -242,3 +257,5 @@ if __name__ == "__main__":
         upload()
     elif sys.argv[1] == "publish":
         publish(sys.argv[2])
+    elif sys.argv[1] == "archive":
+        archive([x for x in " ".join(sys.argv[2:]).replace(",", " ").split() if x.strip()])
