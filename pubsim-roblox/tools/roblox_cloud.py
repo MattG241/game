@@ -49,10 +49,19 @@ def universe_id():
 
 
 def creator(universe):
+    """Who owns the game (the audio is uploaded to the same owner)."""
+    code, d = http("GET", f"https://develop.roblox.com/v1/universes/{universe}", auth=False)
+    if code == 200 and isinstance(d, dict) and int(d.get("creatorTargetId") or 0) > 0:
+        print(f"Game: {d.get('name')!r} (start place {d.get('rootPlaceId')}), owned by "
+              f"{d.get('creatorType')} {d.get('creatorName')!r}")
+        if str(d.get("rootPlaceId")) != PLACE:
+            print(f"::warning::ROBLOX_PLACE_ID ({PLACE}) isn't this game's start place ({d.get('rootPlaceId')}).")
+        return ("groupId" if d.get("creatorType") == "Group" else "userId"), str(d["creatorTargetId"])
     code, body = http("GET", f"https://games.roblox.com/v1/games?universeIds={universe}", auth=False)
-    if code != 200 or not body.get("data"):
-        sys.exit(f"Couldn't look up the game's owner ({code}: {body}).")
-    c = body["data"][0]["creator"]
+    c = (body.get("data") or [{}])[0].get("creator", {}) if isinstance(body, dict) else {}
+    if int(c.get("id") or 0) <= 0:
+        sys.exit(f"Couldn't look up who owns game {universe} ({code}: {d}). Check ROBLOX_PLACE_ID is the "
+                 "start place of your published game.")
     return ("groupId" if c["type"] == "Group" else "userId"), str(c["id"])
 
 
@@ -120,10 +129,11 @@ def upload():
 
 def publish(path):
     uni = universe_id()
+    print(f"Publishing {os.path.basename(path)} ({os.path.getsize(path) // 1024} KB) to place {PLACE} in game {uni}")
     data = open(path, "rb").read()
     url = f"https://apis.roblox.com/universes/v1/{uni}/places/{PLACE}/versions?versionType=Published"
     code, res = 0, None
-    for ctype in ("application/octet-stream", "application/xml"):
+    for ctype in (["application/octet-stream"] if path.endswith(".rbxl") else ["application/xml", "application/octet-stream"]):
         code, res = http("POST", url, data, {"Content-Type": ctype})
         if code == 200:
             break

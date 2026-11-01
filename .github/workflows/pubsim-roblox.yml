@@ -43,8 +43,9 @@ jobs:
           curl -sSfL -o luau.zip https://github.com/luau-lang/luau/releases/download/0.720/luau-ubuntu.zip
           curl -sSfL -o lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/download/1.50.0/luau-lsp-linux.zip
           curl -sSfL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.50.0/scripts/globalTypes.d.luau
-          unzip -o -q luau.zip && unzip -o -q lsp.zip
-          chmod +x luau luau-lsp
+          curl -sSfL -o lune.zip https://github.com/lune-org/lune/releases/download/v0.10.4/lune-0.10.4-linux-x86_64.zip
+          unzip -o -q luau.zip && unzip -o -q lsp.zip && unzip -o -q lune.zip
+          chmod +x luau luau-lsp lune
           echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
 
@@ -83,11 +84,15 @@ jobs:
         run: python3 tools/roblox_cloud.py upload
 
       - name: Rebuild the place with the audio ids
-        run: python3 tools/build_place.py build/IrishPubSimulator.rbxlx
+        run: |
+          python3 tools/build_place.py build/IrishPubSimulator.rbxlx
+          # re-save it through Roblox's own file library (rbx-dom) as a binary place: this checks it
+          # loads, and is the format Roblox's servers take most reliably
+          lune run tools/to_binary.luau build/IrishPubSimulator.rbxlx build/IrishPubSimulator.rbxl
 
       - name: Publish to Roblox
         if: env.HAS_ROBLOX == 'true'
-        run: python3 tools/roblox_cloud.py publish build/IrishPubSimulator.rbxlx
+        run: python3 tools/roblox_cloud.py publish build/IrishPubSimulator.rbxl
 
       - name: Keep the uploaded-audio list
         run: test -f assets.lock.json || echo '{}' > assets.lock.json
@@ -108,6 +113,7 @@ jobs:
           overwrite_files: true
           files: |
             pubsim-roblox/build/IrishPubSimulator.rbxlx
+            pubsim-roblox/build/IrishPubSimulator.rbxl
             pubsim-roblox/assets.lock.json
           body: |
             **First time:** download `IrishPubSimulator.rbxlx`, open it in Roblox Studio and choose File > Publish to Roblox. See `pubsim-roblox/README.md`.
