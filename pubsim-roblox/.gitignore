@@ -1,0 +1,3 @@
+build/
+assets.lock.json
+__pycache__/

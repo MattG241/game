@@ -1,0 +1,115 @@
+name: Irish Pub Simulator - Roblox
+
+on:
+  push:
+    branches: [main, ccr-6928ea91-vu1bri]
+    paths:
+      - 'pubsim-roblox/**'
+      - 'pubsim/data/**'
+      - 'pubsim/assets/music/**'
+      - 'pubsim/assets/voice/**'
+      - 'pubsim/assets/sfx_el/**'
+      - 'pubsim/assets/audio/**'
+      - '.github/workflows/pubsim-roblox.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pubsim-roblox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      # set both in Settings > Secrets and variables > Actions to publish to Roblox automatically
+      HAS_ROBLOX: ${{ secrets.ROBLOX_API_KEY != '' && secrets.ROBLOX_PLACE_ID != '' }}
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ROBLOX_PLACE_ID: ${{ secrets.ROBLOX_PLACE_ID }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: pubsim-roblox
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools (Luau, luau-lsp with Roblox's API types, ffmpeg)
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/tools" && cd "$RUNNER_TEMP/tools"
+          curl -sSfL -o luau.zip https://github.com/luau-lang/luau/releases/download/0.720/luau-ubuntu.zip
+          curl -sSfL -o lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/download/1.50.0/luau-lsp-linux.zip
+          curl -sSfL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.50.0/scripts/globalTypes.d.luau
+          unzip -o -q luau.zip && unzip -o -q lsp.zip
+          chmod +x luau luau-lsp
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+
+      - name: Build the place (and the sourcemap the checker reads)
+        run: python3 tools/build_place.py build/IrishPubSimulator.rbxlx
+
+      - name: Check the code against Roblox's API (luau-lsp)
+        run: |
+          set +e
+          luau-lsp analyze --platform=roblox --definitions=@roblox="$RUNNER_TEMP/tools/globalTypes.d.luau" \
+            --sourcemap=build/sourcemap.json --base-luaurc=.luaurc src build/Data.luau > analyze.txt 2>&1
+          code=$?
+          if grep -q "Unknown option\|unrecognised\|unrecognized" analyze.txt; then
+            luau-lsp analyze --definitions="$RUNNER_TEMP/tools/globalTypes.d.luau" \
+              --sourcemap=build/sourcemap.json src > analyze.txt 2>&1
+            code=$?
+          fi
+          cat analyze.txt
+          if grep -E "SyntaxError|TypeError" analyze.txt > /dev/null; then
+            echo "::error::luau-lsp found errors (see above)"
+            exit 1
+          fi
+          echo "analyze exit $code"
+
+      - name: Unit tests (game logic, plain Luau)
+        run: luau tests/run.luau
+
+      - name: Pack the audio into a few long files
+        run: python3 tools/pack_audio.py
+
+      - name: Fetch the list of audio already uploaded to Roblox
+        run: gh release download roblox-latest -p assets.lock.json -D . --clobber || echo "No uploads yet."
+
+      - name: Upload new audio to Roblox
+        if: env.HAS_ROBLOX == 'true'
+        run: python3 tools/roblox_cloud.py upload
+
+      - name: Rebuild the place with the audio ids
+        run: python3 tools/build_place.py build/IrishPubSimulator.rbxlx
+
+      - name: Publish to Roblox
+        if: env.HAS_ROBLOX == 'true'
+        run: python3 tools/roblox_cloud.py publish build/IrishPubSimulator.rbxlx
+
+      - name: Keep the uploaded-audio list
+        run: test -f assets.lock.json || echo '{}' > assets.lock.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IrishPubSimulator-roblox
+          path: pubsim-roblox/build/IrishPubSimulator.rbxlx
+
+      - name: Publish the place file for download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: roblox-latest
+          name: The Irish Pub Simulator for Roblox (latest)
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: |
+            pubsim-roblox/build/IrishPubSimulator.rbxlx
+            pubsim-roblox/assets.lock.json
+          body: |
+            **First time:** download `IrishPubSimulator.rbxlx`, open it in Roblox Studio and choose File > Publish to Roblox. See `pubsim-roblox/README.md`.
+
+            Built from `${{ github.ref_name }}` at ${{ github.sha }}.
