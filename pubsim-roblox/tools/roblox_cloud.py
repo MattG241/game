@@ -93,7 +93,7 @@ def upload_models():
     lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {}
     models = lock.setdefault("models", {})
     todo = []
-    for sub in ("world", "people"):
+    for sub in ("world",):  # never the people: their skin textures broke Roblox rules
         folder = os.path.join(ROOT, "assets", sub)
         if not os.path.isdir(folder):
             continue
