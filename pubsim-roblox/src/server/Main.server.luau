@@ -19,6 +19,7 @@ local Dispatcher = require(Shared.Dispatcher)
 
 local Builder = require(script.Parent.PubBuilder)
 local PubModels = require(script.Parent.PubModels)
+local PeopleModels = require(script.Parent.PeopleModels)
 local Glasses = require(script.Parent.Glasses)
 local Customers = require(script.Parent.Customers)
 local StaffNpc = require(script.Parent.StaffNpc)
@@ -69,7 +70,7 @@ Audio.setup()
 local info = Builder.build(workspace)
 -- the phone game's own pub, exported and uploaded by CI, around the gameplay
 local apkPub = PubModels.load(info)
-require(script.Parent.PeopleModels).preload()
+PeopleModels.preload()
 if apkPub then
 	-- the phone game's light: warm, low ambient, a touch of exposure and glow
 	Lighting.Ambient = Color3.fromRGB(58, 50, 44)
@@ -759,7 +760,31 @@ local function setRoles()
 	end
 end
 
+-- every player wears one of the phone game's people (the same one each time they play)
+local function dressPlayer(player, char)
+	task.defer(function()
+		if not char.Parent then
+			return
+		end
+		char:WaitForChild("HumanoidRootPart", 10)
+		local rng = Random.new(player.UserId)
+		local look = { gender = if rng:NextNumber() < 0.5 then "m" else "f" }
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.JumpHeight = 0
+			hum.JumpPower = 0
+		end
+		PeopleModels.dress(char, look, rng, rng:NextNumber(0.97, 1.04))
+	end)
+end
+
 local function playerJoined(player)
+	player.CharacterAdded:Connect(function(char)
+		dressPlayer(player, char)
+	end)
+	if player.Character then
+		dressPlayer(player, player.Character)
+	end
 	if not landlord then
 		landlord = player
 		loadPub(player)

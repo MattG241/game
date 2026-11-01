@@ -230,6 +230,11 @@ def build():
     shared.add(people_module())
     root.append(rs)
 
+    # the opening card, shown before anything else loads
+    rf = Item("ReplicatedFirst", "ReplicatedFirst")
+    add_folder(rf, os.path.join(ROOT, "src", "first"), ".client.luau", "LocalScript")
+    root.append(rf)
+
     sss = Item("ServerScriptService", "ServerScriptService")
     server = sss.add(Item("Folder", "Server"))
     add_folder(server, os.path.join(ROOT, "src", "server"), ".server.luau", "Script")
@@ -237,7 +242,8 @@ def build():
 
     sp = Item("StarterPlayer", "StarterPlayer", [
         ("token", "CameraMode", 1), ("float", "CameraMaxZoomDistance", 0.5), ("float", "CameraMinZoomDistance", 0.5),
-        ("bool", "LoadCharacterAppearance", True)])
+        ("bool", "LoadCharacterAppearance", False), ("bool", "CharacterUseJumpPower", False),
+        ("float", "CharacterJumpHeight", 0), ("float", "CharacterWalkSpeed", 12)])
     sps = sp.add(Item("StarterPlayerScripts", "StarterPlayerScripts"))
     client = sps.add(Item("Folder", "Client"))
     add_folder(client, os.path.join(ROOT, "src", "client"), ".client.luau", "LocalScript")

@@ -16,10 +16,18 @@ local Pour = require(script.Parent.Pour)
 local Menu = require(script.Parent.Menu)
 local HeldView = require(script.Parent.HeldView)
 local PeopleAnim = require(script.Parent.PeopleAnim)
+local Prompts = require(script.Parent.Prompts)
 
 local player = Players.LocalPlayer
+-- none of Roblox's own screens (player list, backpack, emotes, health): just the pub's.
+-- Chat stays, so friends helping out can talk.
+for _, t in { Enum.CoreGuiType.Backpack, Enum.CoreGuiType.PlayerList, Enum.CoreGuiType.EmotesMenu, Enum.CoreGuiType.Health } do
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(t, false)
+	end)
+end
 pcall(function()
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	StarterGui:SetCore("ResetButtonCallback", false)
 end)
 
 local screen = Instance.new("ScreenGui")
@@ -288,6 +296,7 @@ end)
 local function refreshHints()
 HeldView.start(Pour.active)
 task.spawn(PeopleAnim.start)
+Prompts.start(gui)
 	local pad = Ui.gamepad()
 	menuBtn.Text = if pad then "Menu (Y)" else "Menu"
 end

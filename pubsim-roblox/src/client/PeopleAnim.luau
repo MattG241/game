@@ -191,7 +191,14 @@ function PeopleAnim.start()
 		local camPos = cam and cam.CFrame.Position or Vector3.zero
 		local now = os.clock()
 		local serverNow = workspace:GetServerTimeNow()
-		for _, model in folder:GetChildren() do
+		local models = folder:GetChildren()
+		-- other players wear the phone game's people too (your own body is out of view)
+		for _, pl in Players:GetPlayers() do
+			if pl ~= player and pl.Character then
+				table.insert(models, pl.Character)
+			end
+		end
+		for _, model in models do
 			local rig = rigs[model]
 			if rig == nil and model:FindFirstChild("Skin") then
 				rig = setup(model) or false
