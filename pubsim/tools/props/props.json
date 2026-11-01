@@ -1,0 +1,11 @@
+{
+ "note": "CC0 models from Poly Haven (polyhaven.com), resized, re-centred and reduced in Blender by blender_props.py. height: target height in metres; yaw: turn so the front faces -Z; tris: triangle budget; tint: multiply the colour texture (re-staining).",
+ "props": [
+  {"name": "pub_table", "polyhaven": "round_wooden_table_01", "height": 0.765, "width": 0.88, "yaw": 0, "tris": 3000},
+  {"name": "pub_chair", "polyhaven": "painted_wooden_chair_02", "height": 0.92, "yaw": 0, "tris": 1500, "tint": [0.27, 0.17, 0.11]},
+  {"name": "fireside_chair", "polyhaven": "GreenChair_01", "height": 1.0, "yaw": 0, "tris": 4000},
+  {"name": "music_stool", "polyhaven": "wooden_stool_01", "height": 0.46, "yaw": 0, "tris": 2000},
+  {"name": "till", "polyhaven": "CashRegister_01", "height": 0.36, "yaw": 0, "tris": 4000},
+  {"name": "mantel_clock", "polyhaven": "mantel_clock_01", "height": 0.24, "yaw": 0, "tris": 3000}
+ ]
+}

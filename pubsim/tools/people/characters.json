@@ -1,0 +1,471 @@
+{
+ "note": "Pub customers built from MakeHuman CC0 data by mh_build.py and blender_export.py. macro: MakeHuman 0..1 sliders (gender 0 female .. 1 male; age 0.5 = 25, 0.69 = about 50, 0.9 = about 80).",
+ "characters": [
+  {
+   "name": "m_young_a",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.5,
+    "muscle": 0.55,
+    "weight": 0.5,
+    "proportions": 0.6,
+    "height": 0.6,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "young_caucasian_male",
+   "eyes": "blue",
+   "eyebrows": "eyebrow001",
+   "eyelashes": "eyelashes02",
+   "hair": "short02",
+   "clothes": [
+    "male_casualsuit01",
+    "shoes01"
+   ]
+  },
+  {
+   "name": "m_mid_a",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.68,
+    "muscle": 0.5,
+    "weight": 0.62,
+    "proportions": 0.5,
+    "height": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "middleage_caucasian_male",
+   "eyes": "brown",
+   "eyebrows": "eyebrow002",
+   "eyelashes": "eyelashes02",
+   "hair": "short01",
+   "clothes": [
+    "male_casualsuit03",
+    "shoes04"
+   ]
+  },
+  {
+   "name": "m_old_a",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.9,
+    "muscle": 0.4,
+    "weight": 0.55,
+    "proportions": 0.5,
+    "height": 0.4,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "old_caucasian_male",
+   "eyes": "lightblue",
+   "eyebrows": "eyebrow007",
+   "eyelashes": "eyelashes02",
+   "hair": "short04",
+   "hair_mode": "grey",
+   "clothes": [
+    "male_casualsuit05",
+    "shoes03",
+    "fedora01"
+   ]
+  },
+  {
+   "name": "m_mid_b",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.62,
+    "muscle": 0.5,
+    "weight": 0.78,
+    "proportions": 0.5,
+    "height": 0.55,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "middleage_caucasian_male",
+   "eyes": "bluegreen",
+   "eyebrows": "eyebrow003",
+   "eyelashes": "eyelashes02",
+   "hair": "short03",
+   "clothes": [
+    "male_casualsuit03",
+    "shoes02"
+   ]
+  },
+  {
+   "name": "m_young_b",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.5,
+    "muscle": 0.6,
+    "weight": 0.45,
+    "proportions": 0.6,
+    "height": 0.65,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 0.0,
+    "african": 1.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "young_african_male",
+   "eyes": "brown",
+   "eyebrows": "eyebrow001",
+   "eyelashes": "eyelashes02",
+   "hair": "short04",
+   "clothes": [
+    "male_casualsuit05",
+    "shoes06"
+   ]
+  },
+  {
+   "name": "m_old_b",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.86,
+    "muscle": 0.45,
+    "weight": 0.6,
+    "proportions": 0.5,
+    "height": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "old_caucasian_male",
+   "eyes": "grey",
+   "eyebrows": "eyebrow005",
+   "eyelashes": "eyelashes02",
+   "hair": "",
+   "clothes": [
+    "male_elegantsuit01",
+    "shoes04"
+   ]
+  },
+  {
+   "name": "m_mid_c",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.65,
+    "muscle": 0.5,
+    "weight": 0.5,
+    "proportions": 0.5,
+    "height": 0.45,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 0.0,
+    "african": 0.0,
+    "asian": 1.0
+   },
+   "proxy": "male_generic",
+   "skin": "middleage_asian_male",
+   "eyes": "brown",
+   "eyebrows": "eyebrow004",
+   "eyelashes": "eyelashes02",
+   "hair": "short02",
+   "clothes": [
+    "male_casualsuit03",
+    "shoes05"
+   ]
+  },
+  {
+   "name": "m_young_c",
+   "macro": {
+    "gender": 1.0,
+    "age": 0.52,
+    "muscle": 0.5,
+    "weight": 0.5,
+    "proportions": 0.55,
+    "height": 0.55,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "male_generic",
+   "skin": "young_caucasian_male",
+   "eyes": "deepblue",
+   "eyebrows": "eyebrow006",
+   "eyelashes": "eyelashes02",
+   "hair": "short03",
+   "clothes": [
+    "male_casualsuit01",
+    "shoes06"
+   ]
+  },
+  {
+   "name": "f_young_a",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.5,
+    "muscle": 0.5,
+    "weight": 0.48,
+    "proportions": 0.6,
+    "height": 0.5,
+    "cupsize": 0.55,
+    "firmness": 0.6
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "young_caucasian_female",
+   "eyes": "green",
+   "eyebrows": "eyebrow009",
+   "eyelashes": "eyelashes01",
+   "hair": "long01",
+   "clothes": [
+    "female_casualsuit01",
+    "shoes05"
+   ],
+   "cloth_mode": {
+    "female_casualsuit01": "nologo_40-95-60"
+   }
+  },
+  {
+   "name": "f_mid_a",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.68,
+    "muscle": 0.45,
+    "weight": 0.6,
+    "proportions": 0.5,
+    "height": 0.45,
+    "cupsize": 0.55,
+    "firmness": 0.45
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "middleage_caucasian_female",
+   "eyes": "blue",
+   "eyebrows": "eyebrow010",
+   "eyelashes": "eyelashes01",
+   "hair": "bob01",
+   "clothes": [
+    "female_elegantsuit01",
+    "shoes04"
+   ]
+  },
+  {
+   "name": "f_old_a",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.9,
+    "muscle": 0.4,
+    "weight": 0.58,
+    "proportions": 0.5,
+    "height": 0.4,
+    "cupsize": 0.5,
+    "firmness": 0.3
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "old_caucasian_female",
+   "eyes": "grey",
+   "eyebrows": "eyebrow011",
+   "eyelashes": "eyelashes01",
+   "hair": "bob02",
+   "clothes": [
+    "female_elegantsuit01",
+    "shoes03"
+   ]
+  },
+  {
+   "name": "f_young_b",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.5,
+    "muscle": 0.5,
+    "weight": 0.45,
+    "proportions": 0.6,
+    "height": 0.55,
+    "cupsize": 0.5,
+    "firmness": 0.6
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "young_caucasian_female2",
+   "eyes": "brownlight",
+   "eyebrows": "eyebrow012",
+   "eyelashes": "eyelashes01",
+   "hair": "ponytail01",
+   "clothes": [
+    "female_casualsuit02",
+    "shoes06"
+   ],
+   "cloth_mode": {
+    "female_casualsuit02": "nologo"
+   }
+  },
+  {
+   "name": "f_young_c",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.52,
+    "muscle": 0.5,
+    "weight": 0.5,
+    "proportions": 0.55,
+    "height": 0.6,
+    "cupsize": 0.5,
+    "firmness": 0.55
+   },
+   "race": {
+    "caucasian": 0.0,
+    "african": 1.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "young_african_female",
+   "eyes": "brown",
+   "eyebrows": "eyebrow009",
+   "eyelashes": "eyelashes01",
+   "hair": "braid01",
+   "clothes": [
+    "female_casualsuit01",
+    "shoes05"
+   ],
+   "cloth_mode": {
+    "female_casualsuit01": "nologo_130-40-50"
+   }
+  },
+  {
+   "name": "f_mid_b",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.64,
+    "muscle": 0.5,
+    "weight": 0.5,
+    "proportions": 0.5,
+    "height": 0.45,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "race": {
+    "caucasian": 0.0,
+    "african": 0.0,
+    "asian": 1.0
+   },
+   "proxy": "female_generic",
+   "skin": "middleage_asian_female",
+   "eyes": "brown",
+   "eyebrows": "eyebrow010",
+   "eyelashes": "eyelashes01",
+   "hair": "bob01",
+   "clothes": [
+    "female_elegantsuit01",
+    "shoes03"
+   ]
+  },
+  {
+   "name": "f_mid_c",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.66,
+    "muscle": 0.45,
+    "weight": 0.66,
+    "proportions": 0.5,
+    "height": 0.5,
+    "cupsize": 0.6,
+    "firmness": 0.4
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "middleage_caucasian_female",
+   "eyes": "bluegreen",
+   "eyebrows": "eyebrow011",
+   "eyelashes": "eyelashes01",
+   "hair": "ponytail01",
+   "clothes": [
+    "female_casualsuit01",
+    "shoes04"
+   ],
+   "cloth_mode": {
+    "female_casualsuit01": "nologo"
+   }
+  },
+  {
+   "name": "f_old_b",
+   "macro": {
+    "gender": 0.0,
+    "age": 0.84,
+    "muscle": 0.4,
+    "weight": 0.5,
+    "proportions": 0.5,
+    "height": 0.45,
+    "cupsize": 0.5,
+    "firmness": 0.3
+   },
+   "race": {
+    "caucasian": 1.0,
+    "african": 0.0,
+    "asian": 0.0
+   },
+   "proxy": "female_generic",
+   "skin": "old_caucasian_female",
+   "eyes": "blue",
+   "eyebrows": "eyebrow012",
+   "eyelashes": "eyelashes01",
+   "hair": "long01",
+   "hair_mode": "grey",
+   "clothes": [
+    "female_casualsuit02",
+    "shoes04"
+   ],
+   "cloth_mode": {
+    "female_casualsuit02": "nologo"
+   }
+  }
+ ]
+}

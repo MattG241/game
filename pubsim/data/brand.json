@@ -1,0 +1,18 @@
+{
+ "name": "GALAGERS",
+ "subtitle": "IRISH STOUT",
+ "drink": "Galagers Irish Stout",
+ "glass_texture": "res://assets/brand/galagers_glass.png",
+ "print_y0": 0.05,
+ "print_y1": 0.14,
+ "print_half_angle": 0.95,
+ "g_center_uv": [
+  0.1047,
+  0.573
+ ],
+ "g_center_y": 0.08843,
+ "g_top_y": 0.09323,
+ "g_bottom_y": 0.08363,
+ "g_center_angle": -0.751,
+ "note": "Swap the texture and these numbers to rebrand; the Split the G challenge reads g_center_y."
+}

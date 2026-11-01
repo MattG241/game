@@ -1,0 +1,25 @@
+{
+ "note": "Models uploaded before the lock was saved (1 Nov 2026); merged into assets.lock.json so they aren't uploaded twice.",
+ "models": {
+  "00772d8744bacfde7127c1ba67851a66e773c1fe9523c78c8145a5ea67ea8563": {
+   "assetId": 99513643283994,
+   "file": "world_00.glb"
+  },
+  "79bce766ae2e608e4adc7c30b2a01c7208eaf0e7e93c11bc827ada8467de5744": {
+   "assetId": 126748659585235,
+   "file": "world_01.glb"
+  },
+  "571bbf29aaa6d5bbf9973036aebc92ccef650aef1226b716153a089a17110d71": {
+   "assetId": 128739935305815,
+   "file": "world_02.glb"
+  },
+  "fa89834f4ab565337b13d444f679e92dda99a1af7209d3a74bb2217c03ea6a74": {
+   "assetId": 85529578556079,
+   "file": "world_03.glb"
+  },
+  "41aacf2271224a915d7597b61b6c2894f7d878945dfcdd0d6b58e671a4817485": {
+   "assetId": 107800842420201,
+   "file": "world_clear.glb"
+  }
+ }
+}

@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://5o3rk2u6xhas"
+path="res://.godot/imported/bodhran_frame.obj-580287cc231da62f05f4ce6f127fb078.mesh"
+
+[deps]
+
+files=["res://.godot/imported/bodhran_frame.obj-580287cc231da62f05f4ce6f127fb078.mesh"]
+
+source_file="res://assets/instruments/bodhran_frame.obj"
+dest_files=["res://.godot/imported/bodhran_frame.obj-580287cc231da62f05f4ce6f127fb078.mesh", "res://.godot/imported/bodhran_frame.obj-580287cc231da62f05f4ce6f127fb078.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

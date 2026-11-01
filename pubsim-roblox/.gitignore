@@ -1,0 +1,4 @@
+build/
+assets.lock.json
+__pycache__/
+assets/world/_*.png

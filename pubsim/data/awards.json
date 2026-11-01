@@ -1,0 +1,9 @@
+[
+  {"id": "first_hundred", "name": "A Hundred Happy Customers", "desc": "You've served 100 customers.", "stat": "served", "at": 100, "cash": 25},
+  {"id": "pint_master", "name": "Master of the Perfect Pint", "desc": "25 pints scored 90 or more.", "stat": "perfect_pints", "at": 25, "cash": 40},
+  {"id": "best_on_street", "name": "Best Pint on the Street", "desc": "Your reputation reached 35.", "rep": 35, "cash": 50},
+  {"id": "music_town", "name": "Home of Live Music", "desc": "You've hosted 10 live music nights.", "stat": "events_hosted", "at": 10, "cash": 60},
+  {"id": "favourite_local", "name": "Kilbrack's Favourite Local", "desc": "Your reputation reached 50.", "rep": 50, "cash": 100},
+  {"id": "county_pub", "name": "County Pub of the Year", "desc": "Your reputation reached 70.", "rep": 70, "cash": 200},
+  {"id": "legendary", "name": "Legendary Pub", "desc": "Your reputation reached 90. People travel from all over to drink here.", "rep": 90, "cash": 400}
+]

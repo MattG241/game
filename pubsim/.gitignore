@@ -1,0 +1,10 @@
+.godot/
+build/
+*.keystore
+*.jks
+*.p12
+*.idsig
+export_credentials.cfg
+__pycache__/
+tools/people/build/
+tools/props/src/
