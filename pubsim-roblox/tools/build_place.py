@@ -178,10 +178,11 @@ def world_module():
         with open(man_path) as f:
             man = json.load(f)
         lock = {}
-        lock_path = os.path.join(ROOT, "assets.lock.json")
-        if os.path.exists(lock_path):
-            with open(lock_path) as f:
-                lock = json.load(f).get("models", {})
+        for p in ("assets.known.json", "assets.lock.json"):
+            lock_path = os.path.join(ROOT, p)
+            if os.path.exists(lock_path):
+                with open(lock_path) as f:
+                    lock.update(json.load(f).get("models", {}))
         files = []
         for entry in man["files"]:
             path = os.path.join(folder, entry["file"])

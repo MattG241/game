@@ -101,6 +101,11 @@ def upload_models():
     import hashlib
     lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {}
     models = lock.setdefault("models", {})
+    known = os.path.join(ROOT, "assets.known.json")
+    if os.path.exists(known):
+        for sha, e in json.load(open(known)).get("models", {}).items():
+            models.setdefault(sha, e)
+        json.dump(lock, open(LOCK, "w"), indent=1)
     todo = []
     for sub in ("world",):  # never the people: their skin textures broke Roblox rules
         folder = os.path.join(ROOT, "assets", sub)
