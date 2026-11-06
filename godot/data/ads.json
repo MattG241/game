@@ -1,0 +1,15 @@
+{
+ "_comment": "Ad configuration. The unit IDs below are Google's public TEST ads (safe to use while developing). Replace them with your own AdMob unit IDs before publishing, and set the AdMob App ID in project.godot (admob/general/android/app_id).",
+ "enabled": true,
+ "rewarded_unit_android": "ca-app-pub-1837596758312011/3267915217",
+ "interstitial_unit_android": "ca-app-pub-1837596758312011/8237382891",
+ "interstitial_first_after_seconds": 600,
+ "interstitial_interval_seconds": 300,
+ "interstitial_after_rewarded_gap_seconds": 90,
+ "double_sale_min_credits": 25,
+ "double_sale_offer_seconds": 8,
+ "recharge_offer_below_fraction": 0.2,
+ "remove_ads_product_id": "remove_ads",
+ "test_rewarded_unit_android": "ca-app-pub-3940256099942544/5224354917",
+ "test_interstitial_unit_android": "ca-app-pub-3940256099942544/1033173712"
+}

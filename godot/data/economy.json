@@ -1,0 +1,47 @@
+{
+  "_comment": "Core balancing numbers. Edit freely - no code changes required.",
+  "dust_per_m2": 10.0,
+  "base_dust_price": 1.0,
+  "refined_multiplier": 3.0,
+  "start_credits": 0,
+  "rp_per_m2": 0.04,
+  "salvage_credits": 400,
+  "salvage_rp": 6,
+  "base_power": 6,
+  "base_recharge_per_sec": 30.0,
+  "base_recharge_radius": 26.0,
+  "autosave_seconds": 60,
+  "tank_levels": [
+    {"capacity": 40, "cost": 0},
+    {"capacity": 100, "cost": 50},
+    {"capacity": 250, "cost": 220},
+    {"capacity": 600, "cost": 800},
+    {"capacity": 1500, "cost": 2600},
+    {"capacity": 4000, "cost": 8500},
+    {"capacity": 10000, "cost": 26000},
+    {"capacity": 25000, "cost": 75000},
+    {"capacity": 60000, "cost": 210000},
+    {"capacity": 150000, "cost": 560000}
+  ],
+  "battery_levels": [
+    {"capacity": 100, "cost": 0},
+    {"capacity": 200, "cost": 2500},
+    {"capacity": 400, "cost": 9000},
+    {"capacity": 800, "cost": 40000},
+    {"capacity": 1600, "cost": 160000}
+  ],
+  "boots_levels": [
+    {"walk": 4.2, "sprint": 7.0, "jump": 4.6, "cost": 0},
+    {"walk": 4.8, "sprint": 8.5, "jump": 5.2, "cost": 600},
+    {"walk": 5.4, "sprint": 10.0, "jump": 5.8, "cost": 6000},
+    {"walk": 6.0, "sprint": 12.0, "jump": 6.4, "cost": 45000}
+  ],
+  "tool_upgrade": {
+    "max_level": 5,
+    "cost_factor": 0.45,
+    "cost_growth": 1.75,
+    "strength_per_level": 0.28,
+    "radius_per_level": 0.14,
+    "min_cost": 25
+  }
+}
