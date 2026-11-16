@@ -142,6 +142,7 @@ func _notification(what: int) -> void:
 func report() -> String:
 	var out := "Lunar Cleanup %s | %s | %s | %d cores\n" % [ProjectSettings.get_setting("application/config/version"),
 		OS.get_model_name(), OS.get_name(), OS.get_processor_count()]
+	out += "\n== ADS ==\n" + Ads.status_text() + "\n" + Ads.log_text() + "\n"
 	if FileAccess.file_exists(LAST_CRASH):
 		var crumbs := FileAccess.get_file_as_string(LAST_CRASH).strip_edges().split("\n")
 		out += "\n== LAST CRASHED SESSION (last 60 breadcrumbs) ==\n"

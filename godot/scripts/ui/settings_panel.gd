@@ -45,6 +45,16 @@ static func build(on_edit_layout: Callable = Callable()) -> Control:
 	root.add_child(_section("AUDIO"))
 	root.add_child(_slider("Music volume", "music_volume", 0.0, 1.0, 0.05))
 	root.add_child(_slider("Effects volume", "sfx_volume", 0.0, 1.0, 0.05))
+	root.add_child(_section("AD STATUS"))
+	var ads := UIKit.label(Ads.status_text(), 17, UIKit.MUTED)
+	ads.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(ads)
+	var t := Timer.new()
+	t.wait_time = 1.0
+	t.autostart = true
+	t.process_mode = Node.PROCESS_MODE_ALWAYS
+	t.timeout.connect(func(): ads.text = Ads.status_text())
+	ads.add_child(t)
 	root.add_child(_section("TROUBLESHOOTING"))
 	var status := UIKit.label("If the game closed unexpectedly, reopen it and tap this, then paste the text to the developer.", 18, UIKit.MUTED)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
