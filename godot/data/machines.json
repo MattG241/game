@@ -1,0 +1,8 @@
+{
+  "_comment": "Automation buildings. They work anywhere and sell what they clean at once. Every machine upgrades Mk I-V (x1.8 output per tier). radius: collector circle (m). rate: m2 per second a hexagon machine clears at Mk I. deep_rate: collector dust per second.",
+  "machines": [
+    {"id": "dust_collector", "name": "Dust Collector", "desc": "Keeps a circle of ground around itself clean and extracts deep regolith forever. Sells everything automatically.", "price": 5500, "radius": 10.0, "deep_rate": 1.2, "color": "#fdd835"},
+    {"id": "hex_station", "name": "Hexagon Cleaning Station", "desc": "Clears the whole hexagon it stands in, then moves on to the nearest unfinished hexagon by itself. Mk I takes about 10 minutes per hexagon, Mk V about one.", "price": 40000, "rate": 5.2, "color": "#4dd0e1"},
+    {"id": "drone_hangar", "name": "Drone Hangar", "desc": "A drone squad that clears any hexagon on the Moon. Tap the hangar, then CHOOSE ON MAP - or let it pick the nearest unfinished one.", "price": 300000, "rate": 9.0, "color": "#ec407a"}
+  ]
+}

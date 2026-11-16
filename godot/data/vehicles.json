@@ -1,0 +1,11 @@
+{
+  "_comment": "Vehicles. clean_width = 0 means no cleaning head. storage = dust hopper capacity.",
+  "upgrade": {"max_level": 3, "cost_factor": 0.35, "cost_growth": 1.9, "speed_per_level": 0.12, "storage_per_level": 0.5, "clean_per_level": 0.3},
+  "vehicles": [
+    {"id": "scooter", "name": "Lunar Scooter", "desc": "Zippy and quick. Your suit tank empties into its hopper when you hop in, so you can clean several tank-loads before selling.", "price": 2600, "max_speed": 15.0, "engine": 900.0, "mass": 260.0, "storage": 300, "clean_width": 0.0, "clean_strength": 0.0, "color": "#ffb300", "wheel_radius": 0.42, "size": [1.4, 0.5, 2.4]},
+    {"id": "utility_rover", "name": "Utility Rover", "desc": "Soft suspension and a huge hopper: your suit tank empties into it whenever you get in. Clean, hop in, repeat - then sell it all at once.", "price": 14000, "max_speed": 17.0, "engine": 1700.0, "mass": 520.0, "storage": 2500, "clean_width": 0.0, "clean_strength": 0.0, "color": "#eceff1", "wheel_radius": 0.55, "size": [2.2, 0.8, 3.6]},
+    {"id": "vacuum_buggy", "name": "Vacuum Buggy", "desc": "Cleans a 4.5 metre strip as you drive. Toggle the vacuum with CLEAN.", "price": 62000, "max_speed": 14.0, "engine": 1700.0, "mass": 600.0, "storage": 10000, "clean_width": 4.5, "clean_strength": 5.5, "color": "#7e57c2", "wheel_radius": 0.55, "size": [2.4, 0.9, 3.8]},
+    {"id": "cleaning_truck", "name": "Industrial Cleaning Truck", "desc": "A 14 metre wide cleaning boom on wheels. The Moon trembles.", "price": 420000, "max_speed": 14.0, "engine": 5200.0, "mass": 1600.0, "storage": 90000, "clean_width": 14.0, "clean_strength": 9.0, "color": "#f4511e", "wheel_radius": 0.85, "size": [3.4, 1.6, 6.2]},
+    {"id": "lunar_ufo", "name": "Lunar Saucer", "desc": "Fly anywhere over the Moon and beam a 14 metre circle of ground clean below you. UP and DOWN set your height; it holds that height over the ground until you change it.", "price": 1500000, "max_speed": 28.0, "engine": 0.0, "mass": 900.0, "storage": 250000, "clean_width": 14.0, "clean_strength": 10.0, "color": "#80deea", "wheel_radius": 0.5, "size": [5.6, 1.4, 5.6], "flying": true}
+  ]
+}

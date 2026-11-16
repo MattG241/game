@@ -1,0 +1,31 @@
+{
+  "_comment": "Customisation. unlock: free | ad (one rewarded ad; free with Remove Ads) | achievement id (a_...). suit: suit + accent colours (your arm and glove). tool: handle and paint of every cleaning tool. vehicle: paint of every vehicle.",
+  "suit": [
+    {"id": "suit_classic", "name": "Company Issue", "suit": "#eeeee6", "accent": "#f28020", "unlock": "free"},
+    {"id": "suit_arctic", "name": "Arctic", "suit": "#f4fbff", "accent": "#35b6ff", "unlock": "ad"},
+    {"id": "suit_hazard", "name": "Hazard", "suit": "#f2c21b", "accent": "#202020", "unlock": "ad"},
+    {"id": "suit_royal", "name": "Royal", "suit": "#1f2c63", "accent": "#e8c35a", "unlock": "ad"},
+    {"id": "suit_ninja", "name": "Ninja", "suit": "#1a1a1e", "accent": "#e22b3a", "unlock": "ad"},
+    {"id": "suit_bubblegum", "name": "Bubblegum", "suit": "#ff9fcf", "accent": "#ffffff", "unlock": "ad"},
+    {"id": "suit_moonwalker", "name": "Moonwalker", "suit": "#c8c8d8", "accent": "#a070ff", "unlock": "a_moonwalker"}
+  ],
+  "tool": [
+    {"id": "tool_factory", "name": "Factory Finish", "unlock": "free"},
+    {"id": "tool_chrome", "name": "Chrome", "color": "#d8dee8", "metallic": 1.0, "rough": 0.08, "unlock": "ad"},
+    {"id": "tool_neon", "name": "Neon Pink", "color": "#ff2fa8", "metallic": 0.1, "rough": 0.3, "emit": 1.4, "unlock": "ad"},
+    {"id": "tool_toxic", "name": "Toxic", "color": "#6dff2e", "metallic": 0.1, "rough": 0.35, "emit": 1.2, "unlock": "ad"},
+    {"id": "tool_midnight", "name": "Midnight", "color": "#1b1a33", "metallic": 0.7, "rough": 0.25, "unlock": "ad"},
+    {"id": "tool_rainbow", "name": "Rainbow", "rainbow": true, "unlock": "ad"},
+    {"id": "tool_gold", "name": "Solid Gold", "color": "#ffc64a", "metallic": 1.0, "rough": 0.18, "unlock": "a_million"},
+    {"id": "tool_lava", "name": "Lava", "color": "#ff5a10", "metallic": 0.2, "rough": 0.4, "emit": 2.2, "unlock": "a_hex_100"}
+  ],
+  "vehicle": [
+    {"id": "veh_factory", "name": "Factory Paint", "unlock": "free"},
+    {"id": "veh_racing", "name": "Racing Red", "color": "#d81e2c", "metallic": 0.5, "rough": 0.25, "unlock": "ad"},
+    {"id": "veh_alien", "name": "Alien Green", "color": "#58e86a", "metallic": 0.3, "rough": 0.3, "emit": 0.6, "unlock": "ad"},
+    {"id": "veh_stealth", "name": "Stealth", "color": "#202228", "metallic": 0.6, "rough": 0.55, "unlock": "ad"},
+    {"id": "veh_candy", "name": "Candy Purple", "color": "#a040ff", "metallic": 0.8, "rough": 0.2, "unlock": "ad"},
+    {"id": "veh_chrome", "name": "Mirror Chrome", "color": "#e2e6ee", "metallic": 1.0, "rough": 0.06, "unlock": "ad"},
+    {"id": "veh_gold", "name": "Gold Plated", "color": "#ffc64a", "metallic": 1.0, "rough": 0.15, "unlock": "a_saucer"}
+  ]
+}

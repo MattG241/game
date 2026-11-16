@@ -1,0 +1,21 @@
+{
+  "_comment": "Research tree. effect keys are read by GameState.research_bonus(key). requires = list of research ids.",
+  "research": [
+    {"id": "r_market_1", "name": "Market Analysis I", "desc": "+15% dust price.", "rp": 10, "credits": 150, "requires": [], "effect": {"price": 0.15}},
+    {"id": "r_bristle_1", "name": "Bristle Science I", "desc": "+12% cleaning strength for all tools.", "rp": 15, "credits": 300, "requires": [], "effect": {"strength": 0.12}},
+    {"id": "r_compress", "name": "Dust Compression", "desc": "+25% tank and hopper capacity.", "rp": 30, "credits": 1200, "requires": ["r_bristle_1"], "effect": {"capacity": 0.25}},
+    {"id": "r_boots", "name": "Low-Gravity Boots", "desc": "+15% movement speed and higher jumps.", "rp": 20, "credits": 800, "requires": [], "effect": {"move": 0.15}},
+    {"id": "r_market_2", "name": "Market Analysis II", "desc": "+20% dust price.", "rp": 60, "credits": 5000, "requires": ["r_market_1"], "effect": {"price": 0.2}},
+    {"id": "r_cells", "name": "High-Density Cells", "desc": "+40% suit battery, faster recharge.", "rp": 40, "credits": 3000, "requires": ["r_compress"], "effect": {"battery": 0.4}},
+    {"id": "r_jetpack", "name": "Jump Jets", "desc": "Hold JUMP in the air for a short boost (about a second per jump). The Hover Pack in Shop > Suit lets you hover for as long as your battery lasts.", "rp": 80, "credits": 9000, "requires": ["r_boots"], "effect": {"jetpack": 1}},
+    {"id": "r_bristle_2", "name": "Bristle Science II", "desc": "+18% cleaning strength.", "rp": 90, "credits": 12000, "requires": ["r_bristle_1"], "effect": {"strength": 0.18}},
+    {"id": "r_solar", "name": "Machine Tuning", "desc": "+20% Cleaning Station and Drone Hangar speed.", "rp": 60, "credits": 8000, "requires": [], "effect": {"drone": 0.2}},
+    {"id": "r_drone_ai", "name": "Drone Pathing AI", "desc": "+35% Cleaning Station and Drone Hangar speed.", "rp": 120, "credits": 20000, "requires": ["r_solar"], "effect": {"drone": 0.35}},
+    {"id": "r_deep", "name": "Deep Extraction", "desc": "+60% Dust Collector deep extraction.", "rp": 120, "credits": 25000, "requires": ["r_solar"], "effect": {"deep": 0.6}},
+    {"id": "r_logistics", "name": "Wide Sweep Arms", "desc": "+50% Dust Collector cleaning radius.", "rp": 100, "credits": 15000, "requires": ["r_solar"], "effect": {"link": 0.5}},
+    {"id": "r_refining", "name": "Advanced Refining", "desc": "+40% value of everything machines sell.", "rp": 200, "credits": 60000, "requires": ["r_deep"], "effect": {"refine": 0.4}},
+    {"id": "r_autosell", "name": "Hexagon Bounty", "desc": "+50% bonus for every hexagon you clear.", "rp": 220, "credits": 70000, "requires": ["r_logistics"], "effect": {"hexbonus": 0.5}},
+    {"id": "r_market_3", "name": "Interplanetary Brand", "desc": "+35% dust price.", "rp": 400, "credits": 250000, "requires": ["r_market_2"], "effect": {"price": 0.35}},
+    {"id": "r_bristle_3", "name": "Quantum Bristles", "desc": "+30% cleaning strength.", "rp": 500, "credits": 400000, "requires": ["r_bristle_2"], "effect": {"strength": 0.3}}
+  ]
+}
